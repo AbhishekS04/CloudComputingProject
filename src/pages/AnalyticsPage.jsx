@@ -21,15 +21,11 @@ import { useServers } from '../hooks/useServers';
 import { useSimulation } from '../hooks/useSimulation';
 import { formatNumber, formatMs, formatPercent } from '../utils/formatters';
 import {
-  BarChart3,
-  TrendingUp,
-  Activity,
-  CheckCircle2,
-  AlertTriangle,
+  CheckCircle,
   Clock,
-  Layers,
-  Cpu
-} from 'lucide-react';
+  Activity,
+  Layers
+} from 'reicon-react';
 
 export default function AnalyticsPage() {
   const { trafficHistory, metrics } = useTraffic();
@@ -86,7 +82,7 @@ export default function AnalyticsPage() {
         <div className="p-4 rounded-2xl bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 shadow-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-charcoal-500 uppercase">Availability</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle aria-hidden="true" size={16} className="text-emerald-500" />
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-600">{successPct}%</div>
           <span className="text-[11px] text-charcoal-400">
@@ -97,7 +93,7 @@ export default function AnalyticsPage() {
         <div className="p-4 rounded-2xl bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 shadow-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-charcoal-500 uppercase">Avg Response Time</span>
-            <Clock className="w-4 h-4 text-sage-600" />
+            <Clock aria-hidden="true" size={16} className="text-sage-600" />
           </div>
           <div className="text-2xl font-bold font-mono text-charcoal-900 dark:text-cream-100">
             {formatMs(metrics.avgLatency)}
@@ -108,7 +104,7 @@ export default function AnalyticsPage() {
         <div className="p-4 rounded-2xl bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 shadow-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-charcoal-500 uppercase">Throughput</span>
-            <Activity className="w-4 h-4 text-blue-500" />
+            <Activity aria-hidden="true" size={16} className="text-blue-500" />
           </div>
           <div className="text-2xl font-bold font-mono text-blue-600">{metrics.currentRps} RPS</div>
           <span className="text-[11px] text-charcoal-400">Peak observed: {metrics.peakRps} RPS</span>
@@ -117,7 +113,7 @@ export default function AnalyticsPage() {
         <div className="p-4 rounded-2xl bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 shadow-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-charcoal-500 uppercase">Active Connections</span>
-            <Layers className="w-4 h-4 text-amber-500" />
+            <Layers aria-hidden="true" size={16} className="text-amber-500" />
           </div>
           <div className="text-2xl font-bold font-mono text-charcoal-900 dark:text-cream-100">
             {metrics.activeConnectionsTotal}

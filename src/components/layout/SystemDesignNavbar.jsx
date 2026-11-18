@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
-  Sliders,
+  Slider,
   Compass,
-  FileSpreadsheet,
+  FileContent,
   Search,
   Globe,
   Sun,
   Moon,
-  Zap,
+  Flash,
   Layers,
   X
-} from 'lucide-react';
+} from 'reicon-react';
 
 export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearch }) {
   const [darkMode, setDarkMode] = useState(false);
@@ -26,9 +26,9 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
 
   const navTabs = [
     { id: 'learn', label: 'Learn', icon: BookOpen },
-    { id: 'practice', label: 'Practice', icon: Sliders },
+    { id: 'practice', label: 'Practice', icon: Slider },
     { id: 'design-lab', label: 'Design Lab', icon: Compass },
-    { id: 'cheatsheets', label: 'Cheatsheets', icon: FileSpreadsheet }
+    { id: 'cheatsheets', label: 'Cheatsheets', icon: FileContent }
   ];
 
   return (
@@ -36,7 +36,7 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
       {/* 1. Left: Brand */}
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl bg-charcoal-900 dark:bg-cream-100 text-white dark:text-charcoal-900 flex items-center justify-center font-bold shadow-xs">
-          <Zap className="w-4 h-4 fill-current" />
+          <Flash className="w-4 h-4" aria-hidden="true" />
         </div>
         <div className="flex flex-col">
           <span className="font-extrabold text-base text-charcoal-900 dark:text-cream-100 font-sans tracking-tight">
@@ -64,7 +64,7 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
                   : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900 hover:bg-cream-100/60'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{tab.label}</span>
             </button>
           );
@@ -77,8 +77,9 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
         <button
           onClick={onOpenSearch}
           className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-400 hover:text-charcoal-700 hover:border-charcoal-400 transition-colors shadow-xs"
+          aria-label="Search lessons and concepts"
         >
-          <Search className="w-3.5 h-3.5 text-charcoal-400" />
+          <Search className="w-3.5 h-3.5 text-charcoal-400" aria-hidden="true" />
           <span className="text-[11px] text-charcoal-400">Search lessons & concepts...</span>
           <span className="px-1.5 py-0.5 rounded bg-cream-200 dark:bg-charcoal-700 text-[10px] font-mono font-bold text-charcoal-500">
             Ctrl K
@@ -87,7 +88,7 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
 
         {/* Language Pill */}
         <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[11px] text-charcoal-700 dark:text-cream-200 shadow-xs">
-          <Globe className="w-3.5 h-3.5 text-charcoal-400" />
+          <Globe className="w-3.5 h-3.5 text-charcoal-400" aria-hidden="true" />
           <span>EN</span>
         </div>
 
@@ -96,13 +97,14 @@ export default function SystemDesignNavbar({ activeTab, onSelectTab, onOpenSearc
           onClick={() => setDarkMode(!darkMode)}
           className="p-2 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-700 dark:text-cream-200 hover:bg-cream-100 transition-colors shadow-xs"
           title="Toggle Dark / Light Theme"
+          aria-label="Toggle Dark or Light Theme"
         >
-          {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
+          {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" /> : <Moon className="w-3.5 h-3.5" aria-hidden="true" />}
         </button>
 
         {/* Badge (Clean technical badge - NO LOGIN/ID) */}
         <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-charcoal-900 text-white text-[11px] font-bold shadow-xs">
-          <span className="text-[#C5E5C9]">⚡</span>
+          <Flash className="w-3.5 h-3.5 text-[#C5E5C9]" aria-hidden="true" />
           <span>designed to scale</span>
         </div>
       </div>

@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&display=swap');
+
+.lb-visualizer-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 620px;
+  background-color: #f7f3ea;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  user-select: none;
+}
+
+.lb-visualizer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.lb-visualizer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Neo-Brutalist Pill Badges (Matches Reference Image 2) */
+.iso-pill {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: #fdfbf7;
+  color: #232323;
+  border: 2px solid #232323;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 3px 0 #232323, 0 5px 10px rgba(35, 35, 35, 0.12);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  will-change: left, top;
+}
+
+.iso-pill:hover {
+  transform: translate(-50%, -54%);
+  box-shadow: 0 4px 0 #232323, 0 8px 14px rgba(35, 35, 35, 0.16);
+}
+
+/* Server CPU Progress Pill (Matches [Gear] [Green Bar] [30%] in Reference Image 2) */
+.iso-pill--metric {
+  padding: 5px 12px;
+  gap: 7px;
+}
+
+.iso-pill__gear {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #5c5852;
+  animation: iso-gear-spin 8s linear infinite;
+}
+
+@keyframes iso-gear-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.iso-pill__bar-track {
+  width: 44px;
+  height: 8px;
+  background: #e5dfd3;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(35, 35, 35, 0.2);
+}
+
+.iso-pill__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #6ec472;
+  transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.iso-pill__bar-fill--warn {
+  background: #e8a948;
+}
+
+.iso-pill__bar-fill--high {
+  background: #e56b55;
+}
+
+.iso-pill__meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4a4640;
+}
+
+/* Client & Route Callout Pills */
+.iso-pill--client {
+  padding: 4px 11px;
+  font-size: 11.5px;
+  background: #fdfbf7;
+}
+
+.iso-pill--route {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fdfbf7;
+  color: #2c2a27;
+}
+
+.iso-pill__icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Legend Bottom-Left (Matches Reference Image 2) */
+.lb-visualizer-legend {
+  position: absolute;
+  left: 18px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #57524a;
+  pointer-events: none;
+}
+
+.lb-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #232323;
+  display: inline-block;
+}
+
+.lb-legend-dot--request {
+  background: #f08c65;
+}
+
+.lb-legend-dot--response {
+  background: #78c67a;
+}
+
+.lb-legend-dot--health {
+  background: #f7f3ea;
+  border-color: #4f9d52;
+}

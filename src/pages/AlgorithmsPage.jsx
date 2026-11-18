@@ -4,15 +4,11 @@ import { useServers } from '../hooks/useServers';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
 import {
   Cpu,
-  CheckCircle2,
-  Zap,
-  ArrowRight,
-  Shield,
-  Layers,
+  CheckCircle,
+  Flash,
   Sparkles,
-  HelpCircle,
   Play
-} from 'lucide-react';
+} from 'reicon-react';
 
 export default function AlgorithmsPage() {
   const { algorithm, setAlgorithm } = useSimulation();
@@ -71,7 +67,7 @@ export default function AlgorithmsPage() {
                           : 'bg-cream-200 dark:bg-charcoal-700 text-charcoal-600 dark:text-cream-300'
                       }`}
                     >
-                      <Cpu className="w-4 h-4" />
+                      <Cpu aria-hidden="true" size={16} />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-charcoal-900 dark:text-cream-100">
@@ -85,7 +81,7 @@ export default function AlgorithmsPage() {
 
                   {isActive && (
                     <span className="px-2 py-0.5 rounded-full bg-sage-100 dark:bg-sage-950/80 text-sage-800 dark:text-sage-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-sage-600" /> Active
+                      <CheckCircle aria-hidden="true" size={12} className="text-sage-600" /> Active
                     </span>
                   )}
                 </div>
@@ -150,12 +146,12 @@ export default function AlgorithmsPage() {
               >
                 {isActive ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle aria-hidden="true" size={14} />
                     <span>Active in Cluster</span>
                   </>
                 ) : (
                   <>
-                    <Zap className="w-3.5 h-3.5 text-sage-600" />
+                    <Flash aria-hidden="true" size={14} className="text-sage-600" weight="Filled" />
                     <span>Apply Algorithm</span>
                   </>
                 )}
@@ -168,7 +164,7 @@ export default function AlgorithmsPage() {
       {/* Live Algorithm Interactive Test Sandbox */}
       <div className="bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 rounded-2xl p-6 shadow-card">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="w-5 h-5 text-sage-600" />
+          <Sparkles aria-hidden="true" size={20} className="text-sage-600" />
           <h3 className="text-base font-bold text-charcoal-900 dark:text-cream-100">
             Interactive Algorithmic Dispatcher
           </h3>
@@ -204,7 +200,7 @@ export default function AlgorithmsPage() {
               onClick={handleTestDispatch}
               className="w-full py-2.5 px-4 bg-sage-600 hover:bg-sage-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play aria-hidden="true" size={14} weight="Filled" />
               <span>Dispatch Test Probe</span>
             </button>
           </div>

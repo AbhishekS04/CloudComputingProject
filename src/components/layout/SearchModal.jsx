@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, BookOpen, Sliders, ArrowRight } from 'lucide-react';
+import { Search, X, ArrowRight } from 'reicon-react';
 import { COURSE_MODULES } from '../../data/courseData';
 
 export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
@@ -44,7 +44,7 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
       <div className="bg-[#FAF8F2] dark:bg-charcoal-900 border border-[#DDD6C6] dark:border-charcoal-700 rounded-2xl max-w-xl w-full shadow-modal overflow-hidden">
         {/* Search Input Bar */}
         <div className="flex items-center gap-3 p-4 border-b border-[#DDD6C6] dark:border-charcoal-700">
-          <Search className="w-5 h-5 text-charcoal-400" />
+          <Search aria-hidden="true" size={20} className="text-charcoal-400" />
           <input
             type="text"
             autoFocus
@@ -55,9 +55,10 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
           />
           <button
             onClick={onClose}
+            aria-label="Close search modal"
             className="p-1 rounded-lg text-charcoal-400 hover:text-charcoal-700"
           >
-            <X className="w-4 h-4" />
+            <X aria-hidden="true" size={16} />
           </button>
         </div>
 
@@ -93,7 +94,7 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
                     <p className="text-[11px] text-charcoal-500 line-clamp-1">{lesson.subtitle}</p>
                   )}
                 </div>
-                <ArrowRight className="w-4 h-4 text-charcoal-300 group-hover:text-emerald-600 transition-transform group-hover:translate-x-1" />
+                <ArrowRight aria-hidden="true" size={16} className="text-charcoal-300 group-hover:text-emerald-600 transition-transform group-hover:translate-x-1" />
               </button>
             ))
           )}

@@ -5,13 +5,12 @@ import { ALGORITHM_INFO } from '../../simulation/loadBalancingAlgorithms';
 import {
   Play,
   Pause,
-  RotateCcw,
-  Zap,
+  RotateLeft,
+  Flash,
   Plus,
   Minus,
-  Activity,
-  Server
-} from 'lucide-react';
+  Activity
+} from 'reicon-react';
 
 export default function SimulationControls() {
   const {
@@ -39,7 +38,7 @@ export default function SimulationControls() {
               : 'bg-[#C5E5C9] hover:bg-[#B4DDB9] text-[#1E3A24] border border-[#A3D2A7]'
           }`}
         >
-          {isRunning ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+          {isRunning ? <Pause aria-hidden="true" size={14} weight="Filled" /> : <Play aria-hidden="true" size={14} weight="Filled" />}
           <span>{isRunning ? 'Pause' : 'Resume'}</span>
         </button>
 
@@ -47,24 +46,26 @@ export default function SimulationControls() {
           onClick={resetSimulation}
           className="p-2 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA] transition-colors shadow-xs"
           title="Reset Simulation Metrics"
+          aria-label="Reset Simulation Metrics"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          <RotateLeft aria-hidden="true" size={14} />
         </button>
       </div>
 
       {/* 2. Traffic Volume & Spike Generator */}
       <div className="flex items-center gap-2.5 bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 px-3 py-1.5 rounded-xl shadow-xs">
         <span className="text-[11px] font-bold text-charcoal-500 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <Activity className="w-3.5 h-3.5 text-emerald-600" />
+          <Activity aria-hidden="true" size={14} className="text-emerald-600" />
           <span>Traffic:</span>
         </span>
 
         <button
           onClick={() => setTargetRps(targetRps - 2)}
           disabled={targetRps <= 1}
+          aria-label="Decrease traffic rate"
           className="p-1 rounded-md text-charcoal-400 hover:text-charcoal-700 hover:bg-[#EBE6DA] disabled:opacity-30"
         >
-          <Minus className="w-3 h-3" />
+          <Minus aria-hidden="true" size={12} />
         </button>
 
         <span className="font-mono text-xs font-bold text-charcoal-900 dark:text-cream-100 min-w-[50px] text-center">
@@ -74,9 +75,10 @@ export default function SimulationControls() {
         <button
           onClick={() => setTargetRps(targetRps + 2)}
           disabled={targetRps >= 40}
+          aria-label="Increase traffic rate"
           className="p-1 rounded-md text-charcoal-400 hover:text-charcoal-700 hover:bg-[#EBE6DA] disabled:opacity-30"
         >
-          <Plus className="w-3 h-3" />
+          <Plus aria-hidden="true" size={12} />
         </button>
 
         <input
@@ -94,7 +96,7 @@ export default function SimulationControls() {
           onClick={triggerTrafficSpike}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold shadow-xs transition-transform active:scale-95"
         >
-          <Zap className="w-3 h-3 fill-current" />
+          <Flash aria-hidden="true" size={12} weight="Filled" />
           <span>Traffic Spike</span>
         </button>
       </div>
@@ -124,7 +126,7 @@ export default function SimulationControls() {
           disabled={servers.length >= 8}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-charcoal-800 hover:bg-[#EBE6DA] border border-[#DDD6C6] dark:border-charcoal-700 disabled:opacity-50 text-charcoal-800 dark:text-cream-100 text-xs font-bold transition-colors shadow-xs"
         >
-          <Plus className="w-3.5 h-3.5 text-emerald-600" />
+          <Plus aria-hidden="true" size={14} className="text-emerald-600" />
           <span>Add Node</span>
         </button>
       </div>

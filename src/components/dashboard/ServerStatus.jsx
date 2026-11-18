@@ -1,6 +1,6 @@
 import React from 'react';
 import { useServers } from '../../hooks/useServers';
-import { Server, CheckCircle2, AlertTriangle, XCircle, Power, RefreshCw } from 'lucide-react';
+import { Server, CheckCircle, AlertTriangle, XCircle, Power, Refresh } from 'reicon-react';
 import { formatPercent, formatMs } from '../../utils/formatters';
 
 export default function ServerStatus() {
@@ -38,7 +38,7 @@ export default function ServerStatus() {
                       : 'bg-rose-50 text-rose-600 dark:bg-rose-950/60'
                   }`}
                 >
-                  <Server className="w-4 h-4" />
+                  <Server className="w-4 h-4" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -66,9 +66,9 @@ export default function ServerStatus() {
                       : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                   }`}
                 >
-                  {isHealthy && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                  {isDegraded && <AlertTriangle className="w-3 h-3 text-amber-600" />}
-                  {isFailed && <XCircle className="w-3 h-3 text-rose-600" />}
+                  {isHealthy && <CheckCircle className="w-3 h-3 text-emerald-600" aria-hidden="true" />}
+                  {isDegraded && <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" />}
+                  {isFailed && <XCircle className="w-3 h-3 text-rose-600" aria-hidden="true" />}
                   <span>{s.status}</span>
                 </span>
 
@@ -76,8 +76,9 @@ export default function ServerStatus() {
                   onClick={() => toggleServerStatus(s.id)}
                   className="p-1.5 rounded-lg bg-white dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-cream-200 transition-colors"
                   title={s.status === 'disabled' ? 'Enable Server' : 'Disable Server'}
+                  aria-label={s.status === 'disabled' ? 'Enable Server' : 'Disable Server'}
                 >
-                  <Power className="w-3.5 h-3.5" />
+                  <Power className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </div>
             </div>

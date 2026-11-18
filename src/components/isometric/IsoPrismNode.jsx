@@ -159,15 +159,21 @@ export default function IsoPrismNode({
       />
 
       {/* Center content on top face */}
-      <text
-        x="0"
-        y="-4"
-        textAnchor="middle"
-        fontSize="18"
-        className="select-none"
-      >
-        {icon}
-      </text>
+      {React.isValidElement(icon) ? (
+        <foreignObject x="-9" y="-13" width="18" height="18" className="overflow-visible pointer-events-none">
+          {icon}
+        </foreignObject>
+      ) : (
+        <text
+          x="0"
+          y="-4"
+          textAnchor="middle"
+          fontSize="18"
+          className="select-none"
+        >
+          {icon}
+        </text>
+      )}
 
       <text
         x="0"
@@ -209,9 +215,15 @@ export default function IsoPrismNode({
             stroke="#252820"
             strokeWidth="2.2"
           />
-          <text x={-topBadge.text.length * 3.2} y="4" fontSize="11" className="select-none">
-            {topBadge.icon || '⏱'}
-          </text>
+          {topBadge.icon && React.isValidElement(topBadge.icon) ? (
+            <foreignObject x={-topBadge.text.length * 3.5 - 2} y="-7" width="14" height="14">
+              {topBadge.icon}
+            </foreignObject>
+          ) : topBadge.icon ? (
+            <text x={-topBadge.text.length * 3.2} y="4" fontSize="11" className="select-none">
+              {topBadge.icon}
+            </text>
+          ) : null}
           <text
             x={12}
             y="3.5"

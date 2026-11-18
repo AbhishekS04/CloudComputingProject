@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Globe, Shield, User, Clock, AlertTriangle } from 'reicon-react';
 import IsoGridBackground from '../isometric/IsoGridBackground';
 import IsoLaptopStation from '../isometric/IsoLaptopStation';
 import IsoPrismNode from '../isometric/IsoPrismNode';
@@ -210,7 +211,7 @@ export default function InteractiveDiagram({ currentStep, activeLesson }) {
             x={350}
             y={440}
             userLabel="bot"
-            statusBadge={{ text: 'slowed to a crawl', icon: '🚫' }}
+            statusBadge={{ text: 'slowed to a crawl', icon: <AlertTriangle size={12} className="text-amber-950 inline" aria-hidden="true" /> }}
           />
         )}
 
@@ -220,9 +221,9 @@ export default function InteractiveDiagram({ currentStep, activeLesson }) {
             x={530}
             y={100}
             title="DNS resolver"
-            icon="🌐"
+            icon={<Globe size={18} className="text-amber-800" aria-hidden="true" />}
             colorScheme="amber"
-            topBadge={stepNumber === 2 ? { text: '→ 203.0.113.7', icon: '→' } : null}
+            topBadge={stepNumber === 2 ? { text: '→ 203.0.113.7' } : null}
           />
         )}
 
@@ -232,9 +233,9 @@ export default function InteractiveDiagram({ currentStep, activeLesson }) {
             x={390}
             y={200}
             title="Load Balancer"
-            icon="🛡️"
+            icon={<Shield size={18} className="text-emerald-800" aria-hidden="true" />}
             colorScheme="peach"
-            topBadge={{ text: '50k req/s · L7', icon: '⏱' }}
+            topBadge={{ text: '50k req/s · L7', icon: <Clock size={12} className="text-emerald-900" aria-hidden="true" /> }}
           />
         )}
 
@@ -243,7 +244,7 @@ export default function InteractiveDiagram({ currentStep, activeLesson }) {
           <IsoCylinderNode
             x={650}
             y={68}
-            icon="👤"
+            icon={<User size={18} className="text-purple-800" aria-hidden="true" />}
             tableLabel="users table"
             codePill="alice@… : $argon2id$…7Qe"
             colorScheme="purple"

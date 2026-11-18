@@ -3,7 +3,7 @@ import InteractiveDiagram from './InteractiveDiagram';
 import TimingStrip from './TimingStrip';
 import StepScrubber from './StepScrubber';
 import StepExplainer from './StepExplainer';
-import { Clock, BarChart, Layers, ChevronRight } from 'lucide-react';
+import { Clock, ChartBar, Layers, ChevronRight } from 'reicon-react';
 
 export default function LearnView({ lesson, onCompleteLesson }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(1); // Default to Step 2 (just like the screenshot!)
@@ -79,7 +79,7 @@ export default function LearnView({ lesson, onCompleteLesson }) {
           {/* Breadcrumbs */}
           <div className="flex items-center gap-1.5 text-xs text-charcoal-500 font-mono mb-1">
             <span>01. Foundations</span>
-            <ChevronRight className="w-3 h-3 text-charcoal-400" />
+            <ChevronRight aria-hidden="true" size={12} className="text-charcoal-400" />
             <span className="text-charcoal-700 dark:text-cream-300 font-medium">Lesson 1 of 4</span>
           </div>
 
@@ -92,17 +92,17 @@ export default function LearnView({ lesson, onCompleteLesson }) {
             {/* Badges in the screenshot: [ ⏱ 10 min ] [ 📶 Beginner ] [ 📑 10 steps ] */}
             <div className="flex items-center gap-2 text-xs">
               <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[11px] text-charcoal-700 dark:text-cream-200 shadow-2xs">
-                <Clock className="w-3 h-3 text-charcoal-500" />
+                <Clock aria-hidden="true" size={12} className="text-charcoal-500" />
                 <span>{lesson.duration || '10 min'}</span>
               </span>
 
               <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[11px] text-charcoal-700 dark:text-cream-200 shadow-2xs">
-                <BarChart className="w-3 h-3 text-emerald-600" />
+                <ChartBar aria-hidden="true" size={12} className="text-emerald-600" />
                 <span>{lesson.level || 'Beginner'}</span>
               </span>
 
               <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#EBE6DA] dark:bg-charcoal-700 border border-[#DDD6C6] font-mono text-[11px] font-bold text-charcoal-800 dark:text-cream-100 shadow-2xs">
-                <Layers className="w-3 h-3 text-charcoal-600" />
+                <Layers aria-hidden="true" size={12} className="text-charcoal-600" />
                 <span>{steps.length} steps</span>
               </span>
             </div>

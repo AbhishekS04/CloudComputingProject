@@ -1,68 +1,113 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Check } from 'reicon-react';
 
 export default function StepScrubber({ steps, currentStepIndex, onSelectStep }) {
-  const currentStep = steps[currentStepIndex];
+  const currentStep = steps[currentStepIndex] || steps[0];
+
+  const handlePrev = () => {
+    if (currentStepIndex > 0) {
+      onSelectStep(currentStepIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStepIndex < steps.length - 1) {
+      onSelectStep(currentStepIndex + 1);
+    }
+  };
 
   return (
-    <div className="bg-[#FAF8F2] dark:bg-charcoal-900 rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 p-4 shadow-subtle">
+    <div className="bg-[#FAF8F2] dark:bg-charcoal-900 rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 p-3 px-4 shadow-subtle select-none">
       {/* Header Row */}
-      <div className="flex items-center justify-between mb-3 text-xs">
-        <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-charcoal-500 dark:text-cream-400">
-          In This Lesson
-        </span>
-        <span className="font-mono text-xs font-bold text-charcoal-800 dark:text-cream-200">
-          Step {currentStepIndex + 1} of {steps.length}
-        </span>
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#DDD6C6]/60 dark:border-charcoal-700/60 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="px-2 py-0.5 rounded-md bg-[#EBE6DA] dark:bg-charcoal-800 font-mono text-[10px] font-bold text-charcoal-600 dark:text-cream-300 uppercase tracking-wider shrink-0">
+            Hop {currentStepIndex + 1}/{steps.length}
+          </span>
+          <span className="font-bold text-charcoal-900 dark:text-cream-100 truncate">
+            {currentStep?.title || 'Lesson Step'}
+          </span>
+        </div>
+
+        {/* Mini Step Navigator */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={handlePrev}
+            disabled={currentStepIndex === 0}
+            className="p-1 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA] disabled:opacity-30 transition-colors shadow-2xs"
+            title="Previous step"
+            aria-label="Previous step"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <span className="font-mono text-xs font-semibold px-1 text-charcoal-600 dark:text-cream-300">
+            {currentStepIndex + 1} of {steps.length}
+          </span>
+          <button
+            onClick={handleNext}
+            disabled={currentStepIndex >= steps.length - 1}
+            className="p-1 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA] disabled:opacity-30 transition-colors shadow-2xs"
+            title="Next step"
+            aria-label="Next step"
+          >
+            <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      {/* Stepper Timeline */}
-      <div className="relative flex items-center justify-between w-full pt-2 pb-1 overflow-x-auto">
-        {/* Background connector line */}
-        <div className="absolute top-[22px] left-6 right-6 h-0.5 bg-[#DDD6C6] dark:bg-charcoal-700 -z-0" />
-
-        {/* Progress fill line */}
-        <div
-          className="absolute top-[22px] left-6 h-0.5 bg-emerald-600 dark:bg-emerald-500 transition-all duration-300 -z-0"
-          style={{ width: `${(currentStepIndex / (steps.length - 1 || 1)) * 92}%` }}
-        />
-
+      {/* Segmented Timeline Steps */}
+      <div className="flex items-center w-full py-1">
         {steps.map((s, idx) => {
           const isActive = idx === currentStepIndex;
           const isPassed = idx < currentStepIndex;
+          const cleanTitle = s.title.replace(/\s*\(.*?\)/g, '');
 
           return (
-            <button
-              key={s.stepNumber}
-              onClick={() => onSelectStep(idx)}
-              className="group relative z-10 flex flex-col items-center min-w-[64px] focus:outline-none"
-            >
-              {/* Step Circle */}
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  isActive
-                    ? 'bg-[#C5E5C9] text-[#1E3A24] border-2 border-[#1E3A24] scale-110 shadow-sm ring-4 ring-[#C5E5C9]/40'
-                    : isPassed
-                    ? 'bg-emerald-600 text-white border-2 border-emerald-600'
-                    : 'bg-[#FAF8F2] dark:bg-charcoal-800 text-charcoal-400 border-2 border-[#DDD6C6] group-hover:border-charcoal-400'
-                }`}
-              >
-                {s.stepNumber}
-              </div>
+            <div key={s.stepNumber} className="relative flex-1 flex flex-col items-center">
+              {/* Connector lines before & after node */}
+              {idx > 0 && (
+                <div
+                  className={`absolute top-3 right-1/2 left-0 h-0.5 transition-colors ${
+                    isPassed || isActive ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-[#DDD6C6] dark:bg-charcoal-700'
+                  }`}
+                />
+              )}
+              {idx < steps.length - 1 && (
+                <div
+                  className={`absolute top-3 left-1/2 right-0 h-0.5 transition-colors ${
+                    isPassed ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-[#DDD6C6] dark:border-charcoal-700'
+                  }`}
+                />
+              )}
 
-              {/* Step Name */}
-              <span
-                className={`text-[10px] mt-2 whitespace-nowrap font-medium transition-colors ${
+              {/* Node Circle */}
+              <button
+                onClick={() => onSelectStep(idx)}
+                className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all focus:outline-none ${
                   isActive
-                    ? 'font-bold text-charcoal-900 dark:text-cream-100 underline decoration-[#C5E5C9] decoration-2'
+                    ? 'bg-[#1E3A24] dark:bg-cream-100 text-white dark:text-charcoal-900 ring-4 ring-[#C5E5C9]/60 scale-110 shadow-xs'
+                    : isPassed
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-white dark:bg-charcoal-800 text-charcoal-500 dark:text-charcoal-400 border border-[#DDD6C6] dark:border-charcoal-700 hover:border-charcoal-400'
+                }`}
+                title={s.title}
+              >
+                {isPassed ? <Check className="w-3 h-3 stroke-[2.5]" /> : s.stepNumber}
+              </button>
+
+              {/* Step Short Title */}
+              <span
+                className={`text-[10px] mt-1.5 text-center px-0.5 max-w-[72px] truncate transition-colors font-medium ${
+                  isActive
+                    ? 'font-bold text-charcoal-900 dark:text-cream-100'
                     : isPassed
                     ? 'text-charcoal-600 dark:text-cream-300'
-                    : 'text-charcoal-400 dark:text-charcoal-500 group-hover:text-charcoal-700'
+                    : 'text-charcoal-400 dark:text-charcoal-500'
                 }`}
               >
-                {s.title.split(' (')[0].split(' ')[0]} {s.title.split(' (')[0].split(' ')[1] || ''}
+                {cleanTitle}
               </span>
-            </button>
+            </div>
           );
         })}
       </div>

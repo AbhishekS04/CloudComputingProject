@@ -7,6 +7,14 @@
       "sourceType": "github",
       "skillPath": "stageshow/SKILL.md",
       "computedHash": "faaf72b41c206b98da5788093eb07fcdceb80dee90b5dc6dd921048196279474"
+    },
+    "plotter": {
+      "source": "pasqualevitiello/plotter",
+      "commit": "01df092aed163462ca5902c7b21a9c9f7c60e68f",
+      "sourceType": "github",
+      "skillPath": "skills/plotter/SKILL.md",
+      "computedHash": "b501f6fef96759df3bdadf41600a7ada693908fa3ec6b18c8f3782241d600329"
     }
   }
 }
+

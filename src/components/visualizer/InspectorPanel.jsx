@@ -13,12 +13,10 @@ import {
   Layers,
   Power,
   AlertTriangle,
-  RefreshCw,
+  Refresh,
   X,
-  CheckCircle2,
-  XCircle,
-  Sliders
-} from 'lucide-react';
+  Slider
+} from 'reicon-react';
 import { formatPercent, formatMs, formatNumber } from '../../utils/formatters';
 
 export default function InspectorPanel({ onClose }) {
@@ -48,10 +46,10 @@ export default function InspectorPanel({ onClose }) {
       <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-cream-200 dark:border-charcoal-700">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md bg-sage-100 dark:bg-sage-950/40 text-sage-600 dark:text-sage-400 flex items-center justify-center">
-            {isLb && <Shield className="w-3.5 h-3.5" />}
-            {activeServer && <Server className="w-3.5 h-3.5" />}
-            {activeClient && <Globe className="w-3.5 h-3.5" />}
-            {!selectedNode && <Activity className="w-3.5 h-3.5" />}
+            {isLb && <Shield aria-hidden="true" size={14} />}
+            {activeServer && <Server aria-hidden="true" size={14} />}
+            {activeClient && <Globe aria-hidden="true" size={14} />}
+            {!selectedNode && <Activity aria-hidden="true" size={14} />}
           </div>
           <span className="text-xs font-bold uppercase tracking-wider text-charcoal-500 dark:text-cream-400">
             Inspector
@@ -60,9 +58,10 @@ export default function InspectorPanel({ onClose }) {
         {onClose && (
           <button
             onClick={onClose}
+            aria-label="Close inspector"
             className="p-1 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-cream-200 dark:hover:bg-charcoal-700 transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X aria-hidden="true" size={16} />
           </button>
         )}
       </div>
@@ -94,7 +93,7 @@ export default function InspectorPanel({ onClose }) {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2.5 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700">
               <span className="text-charcoal-400 flex items-center gap-1 text-[11px] mb-1">
-                <Cpu className="w-3 h-3" /> CPU Load
+                <Cpu aria-hidden="true" size={12} /> CPU Load
               </span>
               <span className="text-sm font-bold font-mono text-charcoal-800 dark:text-cream-100">
                 {formatPercent(activeServer.cpu)}
@@ -103,7 +102,7 @@ export default function InspectorPanel({ onClose }) {
 
             <div className="p-2.5 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700">
               <span className="text-charcoal-400 flex items-center gap-1 text-[11px] mb-1">
-                <HardDrive className="w-3 h-3" /> RAM Usage
+                <HardDrive aria-hidden="true" size={12} /> RAM Usage
               </span>
               <span className="text-sm font-bold font-mono text-charcoal-800 dark:text-cream-100">
                 {formatPercent(activeServer.memory)}
@@ -112,7 +111,7 @@ export default function InspectorPanel({ onClose }) {
 
             <div className="p-2.5 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700">
               <span className="text-charcoal-400 flex items-center gap-1 text-[11px] mb-1">
-                <Layers className="w-3 h-3" /> Active Conns
+                <Layers aria-hidden="true" size={12} /> Active Conns
               </span>
               <span className="text-sm font-bold font-mono text-charcoal-800 dark:text-cream-100">
                 {activeServer.activeConnections}
@@ -121,7 +120,7 @@ export default function InspectorPanel({ onClose }) {
 
             <div className="p-2.5 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700">
               <span className="text-charcoal-400 flex items-center gap-1 text-[11px] mb-1">
-                <Clock className="w-3 h-3" /> Latency
+                <Clock aria-hidden="true" size={12} /> Latency
               </span>
               <span className="text-sm font-bold font-mono text-charcoal-800 dark:text-cream-100">
                 {formatMs(activeServer.avgLatency)}
@@ -155,7 +154,7 @@ export default function InspectorPanel({ onClose }) {
           <div className="p-3 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700">
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-charcoal-500 font-medium flex items-center gap-1">
-                <Sliders className="w-3 h-3" /> Traffic Weight
+                <Slider aria-hidden="true" size={12} /> Traffic Weight
               </span>
               <span className="font-mono font-bold text-sage-600">{activeServer.weight}x</span>
             </div>
@@ -187,7 +186,7 @@ export default function InspectorPanel({ onClose }) {
                     : 'bg-cream-200 dark:bg-charcoal-700 text-charcoal-700 dark:text-cream-200 border-cream-300 hover:bg-cream-300'
                 }`}
               >
-                <Power className="w-3.5 h-3.5" />
+                <Power aria-hidden="true" size={14} />
                 {activeServer.status === 'disabled' ? 'Enable' : 'Disable'}
               </button>
 
@@ -196,14 +195,14 @@ export default function InspectorPanel({ onClose }) {
                   onClick={() => recoverServer(activeServer.id)}
                   className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" /> Recover
+                  <Refresh aria-hidden="true" size={14} /> Recover
                 </button>
               ) : (
                 <button
                   onClick={() => failServer(activeServer.id)}
                   className="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" /> Crash Node
+                  <AlertTriangle aria-hidden="true" size={14} /> Crash Node
                 </button>
               )}
             </div>

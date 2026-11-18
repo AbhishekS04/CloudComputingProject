@@ -83,7 +83,7 @@ export const useSimulationStore = create((set, get) => ({
     set({ targetRps: spikeRps });
     get().addEvent({
       type: 'warning',
-      title: '⚡ Traffic Surge Injected',
+      title: 'Traffic Surge Injected',
       description: `Sudden spike to ${spikeRps} RPS! Backend servers adjusting.`
     });
 

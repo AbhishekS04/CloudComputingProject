@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Compass, Shield, Zap, Lock, Cpu, Server, CheckCircle2 } from 'lucide-react';
+import { Compass, Shield, Flash, Lock, Cpu, Server, CheckCircle } from 'reicon-react';
 
 export default function DesignLabView() {
   const [selectedTopology, setSelectedTopology] = useState('l7');

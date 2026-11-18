@@ -4,19 +4,17 @@ import { useSimulationStore } from '../store/simulationStore';
 import {
   Server,
   Plus,
-  Trash2,
+  Trash,
   Power,
   AlertTriangle,
-  RefreshCw,
+  Refresh,
   Cpu,
   HardDrive,
-  Layers,
-  Activity,
-  Sliders,
-  CheckCircle2,
+  Slider,
+  CheckCircle,
   XCircle,
   X
-} from 'lucide-react';
+} from 'reicon-react';
 import { formatPercent, formatMs, formatNumber } from '../utils/formatters';
 
 export default function ServersPage() {
@@ -63,7 +61,7 @@ export default function ServersPage() {
           disabled={servers.length >= 8}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sage-600 hover:bg-sage-700 disabled:opacity-50 text-white text-xs font-semibold shadow-subtle transition-all"
         >
-          <Plus className="w-4 h-4" />
+          <Plus aria-hidden="true" size={16} />
           <span>Provision New Node</span>
         </button>
       </div>
@@ -97,7 +95,7 @@ export default function ServersPage() {
                           : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600'
                       }`}
                     >
-                      <Server className="w-5 h-5" />
+                      <Server aria-hidden="true" size={20} />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-charcoal-900 dark:text-cream-100">
@@ -119,9 +117,9 @@ export default function ServersPage() {
                         : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                     }`}
                   >
-                    {isHealthy && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                    {isDegraded && <AlertTriangle className="w-3 h-3 text-amber-600" />}
-                    {isFailed && <XCircle className="w-3 h-3 text-rose-600" />}
+                    {isHealthy && <CheckCircle aria-hidden="true" size={12} className="text-emerald-600" />}
+                    {isDegraded && <AlertTriangle aria-hidden="true" size={12} className="text-amber-600" />}
+                    {isFailed && <XCircle aria-hidden="true" size={12} className="text-rose-600" />}
                     <span>{server.status}</span>
                   </span>
                 </div>
@@ -141,7 +139,7 @@ export default function ServersPage() {
                   <div>
                     <div className="flex justify-between text-xs text-charcoal-600 dark:text-cream-300 mb-1">
                       <span className="flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-charcoal-400" /> CPU Load
+                        <Cpu aria-hidden="true" size={14} className="text-charcoal-400" /> CPU Load
                       </span>
                       <span className="font-mono font-bold">{formatPercent(server.cpu)}</span>
                     </div>
@@ -159,7 +157,7 @@ export default function ServersPage() {
                   <div>
                     <div className="flex justify-between text-xs text-charcoal-600 dark:text-cream-300 mb-1">
                       <span className="flex items-center gap-1.5">
-                        <HardDrive className="w-3.5 h-3.5 text-charcoal-400" /> Memory Usage
+                        <HardDrive aria-hidden="true" size={14} className="text-charcoal-400" /> Memory Usage
                       </span>
                       <span className="font-mono font-bold">{formatPercent(server.memory)}</span>
                     </div>
@@ -204,7 +202,7 @@ export default function ServersPage() {
                 <div className="p-3 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700 mb-4">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-charcoal-500 font-medium flex items-center gap-1">
-                      <Sliders className="w-3 h-3" /> Adjust Weight
+                      <Slider aria-hidden="true" size={12} /> Adjust Weight
                     </span>
                     <span className="font-mono font-bold text-sage-600">{server.weight}x</span>
                   </div>
@@ -229,7 +227,7 @@ export default function ServersPage() {
                       : 'bg-white dark:bg-charcoal-700 text-charcoal-700 dark:text-cream-200 border-cream-300 dark:border-charcoal-600 hover:bg-cream-100'
                   }`}
                 >
-                  <Power className="w-3.5 h-3.5" />
+                  <Power aria-hidden="true" size={14} />
                   <span>{server.status === 'disabled' ? 'Enable' : 'Disable'}</span>
                 </button>
 
@@ -238,7 +236,7 @@ export default function ServersPage() {
                     onClick={() => recoverServer(server.id)}
                     className="py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1 transition-colors"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <Refresh aria-hidden="true" size={14} />
                     <span>Recover</span>
                   </button>
                 ) : (
@@ -247,7 +245,7 @@ export default function ServersPage() {
                     className="py-2 px-3 rounded-xl text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 hover:bg-rose-100 flex items-center gap-1 transition-colors"
                     title="Simulate hardware/network crash"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <AlertTriangle aria-hidden="true" size={14} />
                     <span>Crash</span>
                   </button>
                 )}
@@ -255,10 +253,11 @@ export default function ServersPage() {
                 <button
                   onClick={() => removeServer(server.id)}
                   disabled={servers.length <= 1}
+                  aria-label="Decommission Server"
                   className="p-2 rounded-xl text-charcoal-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-20 transition-colors"
                   title="Decommission Server"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash aria-hidden="true" size={16} />
                 </button>
               </div>
             </div>
@@ -273,7 +272,7 @@ export default function ServersPage() {
             <div className="flex items-center justify-between pb-3 border-b border-cream-200 dark:border-charcoal-800 mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-sage-100 text-sage-600 flex items-center justify-center">
-                  <Server className="w-4 h-4" />
+                  <Server aria-hidden="true" size={16} />
                 </div>
                 <h3 className="text-base font-bold text-charcoal-900 dark:text-cream-100">
                   Provision New Server Node
@@ -281,9 +280,10 @@ export default function ServersPage() {
               </div>
               <button
                 onClick={() => setAddModalOpen(false)}
+                aria-label="Close modal"
                 className="p-1 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-cream-200"
               >
-                <X className="w-4 h-4" />
+                <X aria-hidden="true" size={16} />
               </button>
             </div>
 

@@ -101,15 +101,21 @@ export default function IsoCylinderNode({
       </g>
 
       {/* Icon on cylinder face */}
-      <text
-        x="0"
-        y={DEPTH / 2 + 6}
-        textAnchor="middle"
-        fontSize="20"
-        className="select-none"
-      >
-        {icon}
-      </text>
+      {React.isValidElement(icon) ? (
+        <foreignObject x="-10" y={DEPTH / 2 - 4} width="20" height="20" className="overflow-visible pointer-events-none">
+          {icon}
+        </foreignObject>
+      ) : (
+        <text
+          x="0"
+          y={DEPTH / 2 + 6}
+          textAnchor="middle"
+          fontSize="20"
+          className="select-none"
+        >
+          {icon}
+        </text>
+      )}
 
       {/* Right satellite pill: "🗄️ users table" */}
       {tableLabel && (

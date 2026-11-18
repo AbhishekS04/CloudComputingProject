@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, Lightbulb, CheckSquare, Square, CornerDownRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Lightbulb, CheckSquare, Stop } from 'reicon-react';
 
 export default function StepExplainer({
   step,
@@ -43,7 +43,7 @@ export default function StepExplainer({
         {step.goodToKnow && (
           <div className="p-3.5 rounded-xl bg-[#EBE6DA]/60 dark:bg-charcoal-800/80 border border-[#DDD6C6] dark:border-charcoal-700 space-y-1">
             <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-400 uppercase">
-              <Lightbulb className="w-3.5 h-3.5 fill-current" />
+              <Lightbulb aria-hidden="true" size={14} />
               <span>Good to Know</span>
             </div>
             <p className="text-[11px] text-charcoal-600 dark:text-cream-300 leading-relaxed">
@@ -75,7 +75,7 @@ export default function StepExplainer({
             disabled={stepIndex === 0}
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-700 dark:text-cream-200 text-xs font-semibold hover:bg-cream-100 disabled:opacity-40 transition-colors shadow-xs"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft aria-hidden="true" size={14} />
             <span>Back</span>
           </button>
 
@@ -85,7 +85,7 @@ export default function StepExplainer({
             className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#C5E5C9] hover:bg-[#B4DDB9] text-[#1E3A24] border border-[#A3D2A7] text-xs font-bold shadow-xs transition-colors disabled:opacity-40"
           >
             <span>{nextStepTitle ? `Next: ${nextStepTitle}` : 'Next Step'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight aria-hidden="true" size={14} />
           </button>
         </div>
 
@@ -112,9 +112,9 @@ export default function StepExplainer({
                 >
                   <div className="mt-0.5 text-emerald-600">
                     {isChecked ? (
-                      <CheckSquare className="w-3.5 h-3.5 fill-emerald-100" />
+                      <CheckSquare aria-hidden="true" size={14} weight="Filled" />
                     ) : (
-                      <Square className="w-3.5 h-3.5 text-charcoal-400" />
+                      <Stop aria-hidden="true" size={14} className="text-charcoal-400" />
                     )}
                   </div>
                   <span

@@ -2,16 +2,12 @@ import React, { useState } from 'react';
 import { useSimulation } from '../hooks/useSimulation';
 import { ALGORITHM_INFO } from '../simulation/loadBalancingAlgorithms';
 import {
-  Settings,
+  Slider,
   Database,
-  Radio,
-  Sliders,
-  RotateCcw,
-  CheckCircle2,
-  Server,
-  Zap,
+  RotateLeft,
+  CheckCircle,
   Save
-} from 'lucide-react';
+} from 'reicon-react';
 
 export default function SettingsPage() {
   const {
@@ -50,7 +46,7 @@ export default function SettingsPage() {
         {/* Section 1: Simulation Tuning */}
         <div className="bg-cream-50 dark:bg-charcoal-800 p-6 rounded-2xl border border-cream-300 dark:border-charcoal-700 shadow-card space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-cream-200 dark:border-charcoal-700">
-            <Sliders className="w-4 h-4 text-sage-600" />
+            <Slider aria-hidden="true" size={16} className="text-sage-600" />
             <h3 className="text-sm font-bold text-charcoal-900 dark:text-cream-100 uppercase tracking-wider">
               Traffic Engine Configuration
             </h3>
@@ -99,7 +95,7 @@ export default function SettingsPage() {
         {/* Section 2: Future Backend Integration Layer */}
         <div className="bg-cream-50 dark:bg-charcoal-800 p-6 rounded-2xl border border-cream-300 dark:border-charcoal-700 shadow-card space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-cream-200 dark:border-charcoal-700">
-            <Database className="w-4 h-4 text-sage-600" />
+            <Database aria-hidden="true" size={16} className="text-sage-600" />
             <h3 className="text-sm font-bold text-charcoal-900 dark:text-cream-100 uppercase tracking-wider">
               Backend Integration Layer (Future Ready)
             </h3>
@@ -158,14 +154,14 @@ export default function SettingsPage() {
             onClick={resetSimulation}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-300 dark:border-rose-900 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateLeft aria-hidden="true" size={14} />
             <span>Reset All Telemetry & Servers</span>
           </button>
 
           <div className="flex items-center gap-3">
             {savedSuccess && (
               <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle aria-hidden="true" size={16} />
                 <span>Settings Saved!</span>
               </span>
             )}
@@ -173,7 +169,7 @@ export default function SettingsPage() {
               type="submit"
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sage-600 hover:bg-sage-700 text-white text-xs font-bold shadow-subtle transition-all"
             >
-              <Save className="w-4 h-4" />
+              <Save aria-hidden="true" size={16} />
               <span>Save Configuration</span>
             </button>
           </div>

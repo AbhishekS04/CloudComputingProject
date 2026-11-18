@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  Grid,
   Layers,
   Server,
-  BarChart3,
+  ChartBar,
   Cpu,
   FileText,
   Settings,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
-  Zap
-} from 'lucide-react';
+  Flash
+} from 'reicon-react';
 import { useSimulationStore } from '../../store/simulationStore';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Overview', icon: LayoutDashboard },
+  { path: '/', label: 'Overview', icon: Grid },
   { path: '/visualizer', label: 'Live Visualizer', icon: Layers },
   { path: '/servers', label: 'Server Management', icon: Server },
-  { path: '/analytics', label: 'Traffic Analytics', icon: BarChart3 },
+  { path: '/analytics', label: 'Traffic Analytics', icon: ChartBar },
   { path: '/algorithms', label: 'Algorithms', icon: Cpu },
   { path: '/logs', label: 'Request Logs', icon: FileText },
   { path: '/settings', label: 'Settings', icon: Settings },
@@ -41,7 +40,7 @@ export default function Sidebar() {
         <div className="flex items-center justify-between p-5 border-b border-cream-200 dark:border-charcoal-800">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-9 h-9 rounded-xl bg-sage-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
-              <Zap className="w-5 h-5 fill-current" />
+              <Flash aria-hidden="true" size={20} weight="Filled" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
@@ -57,9 +56,10 @@ export default function Sidebar() {
 
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-cream-200 dark:hover:bg-charcoal-800 transition-colors hidden md:block"
           >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {isCollapsed ? <ChevronRight aria-hidden="true" size={16} /> : <ChevronLeft aria-hidden="true" size={16} />}
           </button>
         </div>
 
@@ -81,7 +81,7 @@ export default function Sidebar() {
                 }
                 title={isCollapsed ? item.label : undefined}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon aria-hidden="true" size={16} className="shrink-0" />
                 {!isCollapsed && <span>{item.label}</span>}
               </NavLink>
             );

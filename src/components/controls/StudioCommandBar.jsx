@@ -5,16 +5,16 @@ import { ALGORITHM_INFO } from '../../simulation/loadBalancingAlgorithms';
 import {
   Play,
   Pause,
-  RotateCcw,
-  Zap,
+  RotateLeft,
+  Flash,
   Plus,
   Minus,
   Activity,
   Globe,
-  Network,
+  Diagram,
   Server,
   Clock
-} from 'lucide-react';
+} from 'reicon-react';
 
 /**
  * StudioCommandBar
@@ -49,7 +49,7 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
               : 'bg-[#C5E5C9] hover:bg-[#B4DDB9] text-[#1E3A24] border border-[#A3D2A7]'
           }`}
         >
-          {isRunning ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+          {isRunning ? <Pause aria-hidden="true" size={14} weight="Filled" /> : <Play aria-hidden="true" size={14} weight="Filled" />}
           <span>{isRunning ? 'Pause' : 'Resume'}</span>
         </button>
 
@@ -61,22 +61,24 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
           }}
           className="p-1.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA] transition-colors shadow-2xs"
           title="Reset Simulation"
+          aria-label="Reset Simulation"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          <RotateLeft aria-hidden="true" size={14} />
         </button>
 
         <div className="h-4 w-px bg-[#DDD6C6] dark:bg-charcoal-700 mx-1 hidden sm:block" />
 
         {/* Traffic Rate Stepper */}
         <div className="flex items-center gap-1.5 bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 px-2.5 py-1 rounded-xl shadow-2xs">
-          <Activity className="w-3 h-3 text-emerald-600" />
+          <Activity aria-hidden="true" size={12} className="text-emerald-600" />
           <span className="font-mono text-[11px] font-bold text-charcoal-500 uppercase">Traffic:</span>
           <button
             onClick={() => setTargetRps(targetRps - 2)}
             disabled={targetRps <= 1}
+            aria-label="Decrease traffic rate"
             className="p-0.5 rounded text-charcoal-400 hover:text-charcoal-800 disabled:opacity-30"
           >
-            <Minus className="w-3 h-3" />
+            <Minus aria-hidden="true" size={12} />
           </button>
           <span className="font-mono text-xs font-bold text-charcoal-900 dark:text-cream-100 min-w-[42px] text-center">
             {targetRps} rps
@@ -84,9 +86,10 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
           <button
             onClick={() => setTargetRps(targetRps + 2)}
             disabled={targetRps >= 40}
+            aria-label="Increase traffic rate"
             className="p-0.5 rounded text-charcoal-400 hover:text-charcoal-800 disabled:opacity-30"
           >
-            <Plus className="w-3 h-3" />
+            <Plus aria-hidden="true" size={12} />
           </button>
         </div>
 
@@ -96,7 +99,7 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
           className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold shadow-2xs transition-transform active:scale-95"
           title="Simulate 3x traffic surge"
         >
-          <Zap className="w-3 h-3 fill-current" />
+          <Flash aria-hidden="true" size={12} weight="Filled" />
           <span>Spike</span>
         </button>
 
@@ -119,7 +122,7 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
           disabled={servers.length >= 8}
           className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-charcoal-800 hover:bg-[#EBE6DA] border border-[#DDD6C6] dark:border-charcoal-700 disabled:opacity-40 text-charcoal-700 dark:text-cream-200 text-xs font-semibold shadow-2xs"
         >
-          <Plus className="w-3 h-3 text-emerald-600" />
+          <Plus aria-hidden="true" size={12} className="text-emerald-600" />
           <span>Node</span>
         </button>
       </div>
@@ -128,28 +131,28 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
       <div className="flex items-center gap-1.5 font-mono text-[10px]">
         {/* DNS */}
         <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300">
-          <Globe className="w-2.5 h-2.5 text-amber-500" />
+          <Globe aria-hidden="true" size={10} className="text-amber-500" />
           <span className="text-charcoal-400">DNS:</span>
           <span className="font-bold">{timings.dns || '20ms'}</span>
         </div>
 
         {/* CONNECT */}
         <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300">
-          <Network className="w-2.5 h-2.5 text-blue-500" />
+          <Diagram aria-hidden="true" size={10} className="text-blue-500" />
           <span className="text-charcoal-400">TCP:</span>
           <span className="font-bold">{timings.connect || '12ms'}</span>
         </div>
 
         {/* SERVER */}
         <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300">
-          <Server className="w-2.5 h-2.5 text-emerald-500" />
+          <Server aria-hidden="true" size={10} className="text-emerald-500" />
           <span className="text-charcoal-400">SRV:</span>
           <span className="font-bold">{timings.server || '28ms'}</span>
         </div>
 
         {/* TOTAL LATENCY BADGE */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#EBE6DA] dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-bold text-charcoal-900 dark:text-cream-100 shadow-2xs">
-          <Clock className="w-3 h-3 text-emerald-700" />
+          <Clock aria-hidden="true" size={12} className="text-emerald-700" />
           <span>TOTAL:</span>
           <span>{timings.total || '60ms'}</span>
         </div>

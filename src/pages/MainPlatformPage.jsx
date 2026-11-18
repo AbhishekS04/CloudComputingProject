@@ -4,7 +4,6 @@ import CourseSidebar from '../components/learn/CourseSidebar';
 import Visualizer from '../components/visualizer/Visualizer';
 import StepScrubber from '../components/learn/StepScrubber';
 import StudioRightPanel from '../components/layout/StudioRightPanel';
-import StudioCommandBar from '../components/controls/StudioCommandBar';
 import MetricCard from '../components/dashboard/MetricCard';
 import TrafficChart from '../components/dashboard/TrafficChart';
 import RequestDistribution from '../components/charts/RequestDistribution';
@@ -20,18 +19,19 @@ import { formatNumber, formatMs } from '../utils/formatters';
 import { COURSE_MODULES } from '../data/courseData';
 import {
   Clock,
-  BarChart,
+  ChartBar,
   Layers,
   ChevronRight,
   Activity,
-  Zap,
+  Flash,
   Server,
   Bell,
-  CheckCircle2,
+  CheckCircle,
   AlertCircle,
-  BarChart3,
-  ListFilter
-} from 'lucide-react';
+  Chart,
+  Filter,
+  SidebarLeft
+} from 'reicon-react';
 
 export default function MainPlatformPage() {
   const [activeTab, setActiveTab] = useState('learn'); // 'learn' | 'practice' | 'design-lab' | 'cheatsheets'
@@ -39,6 +39,7 @@ export default function MainPlatformPage() {
   const [currentStepIndex, setCurrentStepIndex] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [telemetryView, setTelemetryView] = useState('traffic'); // 'traffic' | 'charts' | 'fleet' | 'logs'
 
   const analyticsRef = useRef(null);
@@ -135,6 +136,8 @@ export default function MainPlatformPage() {
         <CourseSidebar
           modules={COURSE_MODULES}
           activeLessonId={activeLessonId}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           onSelectLesson={(lessonId) => {
             setActiveLessonId(lessonId);
             setCurrentStepIndex(0);
@@ -143,59 +146,66 @@ export default function MainPlatformPage() {
 
         {/* Center & Right Master Workspace */}
         {(activeTab === 'learn' || activeTab === 'practice') && (
-          <main className="flex-1 overflow-y-auto p-4 md:p-5">
+          <main className="flex-1 overflow-y-auto p-3.5 md:p-5">
             <div className="max-w-[1720px] mx-auto flex flex-col xl:flex-row gap-5 items-start">
               {/* ========================================================
                   CENTER COLUMN: Visualizer + Telemetry
                  ======================================================== */}
-              <div className="flex-1 min-w-0 space-y-3.5 w-full">
+              <div className="flex-1 min-w-0 space-y-3 w-full">
                 {/* A. Quiet Lesson Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-0.5">
-                  <div>
-                    {/* Breadcrumbs */}
-                    <div className="flex items-center gap-1.5 text-xs text-charcoal-500 font-mono mb-0.5">
-                      <span>01. Foundations</span>
-                      <ChevronRight className="w-3 h-3 text-charcoal-400" />
-                      <span className="text-charcoal-700 dark:text-cream-300 font-medium">Lesson 1 of 4</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {sidebarCollapsed && (
+                      <button
+                        onClick={() => setSidebarCollapsed(false)}
+                        className="p-1.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA] transition-colors shadow-2xs mr-1"
+                        title="Expand Curriculum Sidebar"
+                        aria-label="Expand Curriculum Sidebar"
+                      >
+                        <SidebarLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                    <div>
+                      {/* Breadcrumbs */}
+                      <div className="flex items-center gap-1.5 text-xs text-charcoal-500 font-mono mb-0.5">
+                        <span>01. Foundations</span>
+                        <ChevronRight className="w-3 h-3 text-charcoal-400" aria-hidden="true" />
+                        <span className="text-charcoal-700 dark:text-cream-300 font-medium">Lesson 1 of 4</span>
+                      </div>
 
-                    <h1 className="text-2xl font-extrabold text-charcoal-900 dark:text-cream-100 font-sans tracking-tight">
-                      {activeLesson.title}
-                    </h1>
+                      <h1 className="text-xl md:text-2xl font-extrabold text-charcoal-900 dark:text-cream-100 font-sans tracking-tight">
+                        {activeLesson.title}
+                      </h1>
+                    </div>
                   </div>
 
                   {/* Badges */}
                   <div className="flex items-center gap-1.5 text-xs">
                     <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[10px] text-charcoal-600 dark:text-cream-300 shadow-2xs">
-                      <Clock className="w-3 h-3 text-charcoal-500" />
+                      <Clock className="w-3 h-3 text-charcoal-500" aria-hidden="true" />
                       <span>{activeLesson.duration || '10 min'}</span>
                     </span>
 
                     <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[10px] text-charcoal-600 dark:text-cream-300 shadow-2xs">
-                      <BarChart className="w-3 h-3 text-emerald-600" />
+                      <ChartBar className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                       <span>{activeLesson.level || 'Beginner'}</span>
                     </span>
 
                     <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EBE6DA] dark:bg-charcoal-700 border border-[#DDD6C6] font-mono text-[10px] font-bold text-charcoal-800 dark:text-cream-100 shadow-2xs">
-                      <Layers className="w-3 h-3 text-charcoal-600" />
-                      <span>{steps.length} steps</span>
+                      <Layers className="w-3 h-3 text-charcoal-600" aria-hidden="true" />
+                      <span>{steps.length} hops</span>
                     </span>
                   </div>
                 </div>
 
-                {/* B. Unified Studio Command Bar (Replaces 2 separate bulky bars with ONE sleek toolbar) */}
-                <StudioCommandBar
-                  timings={currentStep.timings || {}}
-                  onReplay={handleReplay}
-                />
-
-                {/* C. The Visualizer (The Hero Stage) */}
+                {/* B. The Visualizer (The Hero Stage with Integrated Master Toolbar) */}
                 <Visualizer
                   currentStep={currentStep}
                   activeLesson={activeLesson}
+                  onReplay={handleReplay}
                 />
 
-                {/* D. Step Scrubber Timeline */}
+                {/* C. Step Scrubber Timeline */}
                 <StepScrubber
                   steps={steps}
                   currentStepIndex={currentStepIndex}
@@ -205,12 +215,12 @@ export default function MainPlatformPage() {
                   }}
                 />
 
-                {/* E. Compact Telemetry Metric Cards */}
+                {/* D. Compact Telemetry Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <MetricCard
                     title="Incoming Requests"
                     value={formatNumber(metrics.totalRequests)}
-                    subtitle="Total dispatched by simulation"
+                    subtitle="Dispatched by simulation"
                     icon={Layers}
                     trend="+100%"
                     trendLabel="Session"
@@ -222,7 +232,7 @@ export default function MainPlatformPage() {
                     title="Requests Per Second"
                     value={`${metrics.currentRps} RPS`}
                     subtitle={`Target capacity: ${targetRps} req/s`}
-                    icon={Zap}
+                    icon={Flash}
                     trend={metrics.currentRps >= targetRps ? 'Nominal' : 'Pacing'}
                     trendDirection={metrics.currentRps > 0 ? 'up' : 'neutral'}
                     sparklineData={[4, 6, 8, 7, 12, 10, 8, metrics.currentRps]}
@@ -249,7 +259,7 @@ export default function MainPlatformPage() {
                   />
                 </div>
 
-                {/* F. Decluttered Telemetry Drawer (Tabbed clean view instead of endless stacked scrolling) */}
+                {/* E. Decluttered Telemetry Drawer */}
                 <div ref={analyticsRef} className="pt-1 space-y-3">
                   {/* Segmented Switcher for Deep Analytics */}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DDD6C6] dark:border-charcoal-700 pb-2.5">
@@ -263,7 +273,7 @@ export default function MainPlatformPage() {
                         }`}
                       >
                         <Activity className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Traffic Card</span>
+                        <span>Edge Ingress</span>
                       </button>
 
                       <button
@@ -274,8 +284,8 @@ export default function MainPlatformPage() {
                             : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
                         }`}
                       >
-                        <BarChart3 className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Throughput & Load Charts</span>
+                        <Chart className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
+                        <span>Throughput & Charts</span>
                       </button>
 
                       <button
@@ -286,8 +296,8 @@ export default function MainPlatformPage() {
                             : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
                         }`}
                       >
-                        <Server className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Backend Server Fleet</span>
+                        <Server className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                        <span>Server Fleet</span>
                       </button>
 
                       <button
@@ -298,8 +308,8 @@ export default function MainPlatformPage() {
                             : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
                         }`}
                       >
-                        <ListFilter className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Cluster Event Audit</span>
+                        <Filter className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                        <span>Audit Log</span>
                       </button>
                     </div>
 
@@ -308,72 +318,83 @@ export default function MainPlatformPage() {
                     </span>
                   </div>
 
-                  {/* View 0: Dedicated EasyUI Traffic Card Showcase */}
+                  {/* View 0: Edge Ingress Gateway Telemetry */}
                   {telemetryView === 'traffic' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                       <div className="lg:col-span-5">
                         <TrafficCard
                           title="Ingress Traffic"
-                          unit="visits"
+                          unit="reqs"
                           channels={TRAFFIC_CHANNELS}
                           ranges={TRAFFIC_RANGES}
                           defaultRange="day"
                           className="w-full shadow-md"
                         />
                       </div>
-                      <div className="lg:col-span-7 bg-[#FAF8F2] dark:bg-charcoal-900 border border-[#DDD6C6] dark:border-charcoal-700 rounded-2xl p-5 shadow-subtle flex flex-col justify-between">
+                      <div className="lg:col-span-7 bg-[#FAF8F2] dark:bg-charcoal-900 border border-[#DDD6C6] dark:border-charcoal-700 rounded-2xl p-4 md:p-5 shadow-subtle flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between pb-3 border-b border-[#DDD6C6]/60 dark:border-charcoal-700">
                             <div>
                               <h4 className="text-sm font-bold text-charcoal-900 dark:text-cream-100 font-sans">
-                                EasyUI Traffic Card Analytics
+                                Edge Ingress Gateway Telemetry
                               </h4>
                               <p className="text-xs text-charcoal-500 dark:text-cream-400 mt-0.5">
-                                Micro-animated stacked capsule SVG visualization with real-time ingress telemetry
+                                Real-time packet ingestion, edge proxy protocol distribution, and TLS termination statistics
                               </p>
                             </div>
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                              Surajmaurya1/easyui
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-[#C5E5C9] text-[#1E3A24] border border-[#A3D2A7]">
+                              VIP: 203.0.113.7:443
                             </span>
                           </div>
 
+                          {/* Metric Tiles */}
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-4">
                             <div className="p-3 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700">
-                              <span className="text-[10px] font-mono text-charcoal-400">CHANNELS</span>
-                              <p className="text-lg font-black text-charcoal-800 dark:text-cream-100 mt-0.5">5 Ingress</p>
-                              <p className="text-[10px] text-charcoal-500 dark:text-cream-400">Direct, CDN, Edge, API, WS</p>
+                              <span className="text-[10px] font-mono text-charcoal-400 uppercase tracking-wider">Edge Protocol</span>
+                              <p className="text-base font-black text-charcoal-800 dark:text-cream-100 mt-0.5">HTTP/2 + TLS 1.3</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">Session Keep-Alive: ON</p>
                             </div>
                             <div className="p-3 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700">
-                              <span className="text-[10px] font-mono text-charcoal-400">INTERVALS</span>
-                              <p className="text-lg font-black text-charcoal-800 dark:text-cream-100 mt-0.5">Day & Week</p>
-                              <p className="text-[10px] text-charcoal-500 dark:text-cream-400">22 sample columns</p>
+                              <span className="text-[10px] font-mono text-charcoal-400 uppercase tracking-wider">Edge Cache Hit</span>
+                              <p className="text-base font-black text-charcoal-800 dark:text-cream-100 mt-0.5">94.6% Hit Rate</p>
+                              <p className="text-[10px] text-charcoal-500 dark:text-cream-400">CDN Edge Anycast</p>
                             </div>
                             <div className="p-3 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 col-span-2 sm:col-span-1">
-                              <span className="text-[10px] font-mono text-charcoal-400">INTERACTIONS</span>
-                              <p className="text-lg font-black text-charcoal-800 dark:text-cream-100 mt-0.5">Capsule Tooltips</p>
-                              <p className="text-[10px] text-charcoal-500 dark:text-cream-400">Arrow keys + hover</p>
+                              <span className="text-[10px] font-mono text-charcoal-400 uppercase tracking-wider">Ingress Channels</span>
+                              <p className="text-base font-black text-charcoal-800 dark:text-cream-100 mt-0.5">5 Ingress Paths</p>
+                              <p className="text-[10px] text-charcoal-500 dark:text-cream-400">Direct, CDN, Edge, API, WS</p>
                             </div>
                           </div>
 
+                          {/* Protocol & Ingress Channel Health List */}
                           <div className="space-y-2 text-xs text-charcoal-600 dark:text-cream-300">
-                            <div className="flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                              <span><strong>Hand-written SVG Capsules:</strong> Stacked channel pills with 2px gap spacing and rounded borders.</span>
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-charcoal-800/60 border border-[#DDD6C6]/60 dark:border-charcoal-700/60">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                                <span><strong>Direct HTTP & REST:</strong> Low-latency client API endpoints</span>
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-charcoal-700 dark:text-cream-200">~24 ms p50</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                              <span><strong>Cubic Count-Up Animation:</strong> Animated count-up headline responding smoothly to Day / Week switches.</span>
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-charcoal-800/60 border border-[#DDD6C6]/60 dark:border-charcoal-700/60">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                <span><strong>CDN & Static Assets:</strong> Geo-distributed edge POP nodes</span>
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-charcoal-700 dark:text-cream-200">~8 ms p50</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                              <span><strong>Interactive Legend Filter:</strong> Click any channel in the footer legend to isolate or highlight it.</span>
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-charcoal-800/60 border border-[#DDD6C6]/60 dark:border-charcoal-700/60">
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                                <span><strong>Persistent WebSockets:</strong> Stateful bi-directional streaming</span>
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-charcoal-700 dark:text-cream-200">0 reconnect drops</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-[#DDD6C6]/60 dark:border-charcoal-700 flex items-center justify-between text-[11px] text-charcoal-400 mt-4">
-                          <span>Component: <code>@/components/ui/traffic-card</code></span>
-                          <span className="font-mono">Category: Feedback</span>
+                        <div className="pt-3 border-t border-[#DDD6C6]/60 dark:border-charcoal-700 flex items-center justify-between text-[11px] text-charcoal-400 mt-4 font-mono">
+                          <span>L7 Reverse Proxy: Active</span>
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">Health Probes: 100% Passing</span>
                         </div>
                       </div>
                     </div>
@@ -434,11 +455,11 @@ export default function MainPlatformPage() {
                             className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-xs shadow-xs"
                           >
                             <div className="mt-0.5">
-                              {evt.type === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
-                              {evt.type === 'warning' && <AlertCircle className="w-3.5 h-3.5 text-amber-500" />}
-                              {evt.type === 'error' && <AlertCircle className="w-3.5 h-3.5 text-rose-500" />}
+                              {evt.type === 'success' && <CheckCircle className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />}
+                              {evt.type === 'warning' && <AlertCircle className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />}
+                              {evt.type === 'error' && <AlertCircle className="w-3.5 h-3.5 text-rose-500" aria-hidden="true" />}
                               {!['success', 'warning', 'error'].includes(evt.type) && (
-                                <Activity className="w-3.5 h-3.5 text-blue-500" />
+                                <Activity className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" />
                               )}
                             </div>
                             <div className="flex-1 min-w-0">

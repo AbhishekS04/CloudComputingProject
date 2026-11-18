@@ -5,13 +5,11 @@ import {
   Sun,
   Moon,
   HelpCircle,
-  Activity,
-  Layers,
-  Info,
+  InfoCircle,
   X,
-  ExternalLink,
-  ChevronRight
-} from 'lucide-react';
+  ChevronRight,
+  Flash
+} from 'reicon-react';
 
 const PAGE_NAMES = {
   '/': 'Overview Dashboard',
@@ -48,9 +46,9 @@ export default function Topbar() {
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5 text-[11px] text-charcoal-400">
             <span>Cluster</span>
-            <ChevronRight className="w-3 h-3" />
+            <ChevronRight aria-hidden="true" size={12} />
             <span className="text-charcoal-600 dark:text-cream-300 font-medium">Production US-East</span>
-            <ChevronRight className="w-3 h-3" />
+            <ChevronRight aria-hidden="true" size={12} />
             <span className="text-sage-700 dark:text-sage-400 font-semibold">{currentTitle}</span>
           </div>
           <h1 className="text-base font-bold text-charcoal-900 dark:text-cream-100 leading-tight">
@@ -77,19 +75,21 @@ export default function Topbar() {
           {/* Dark / Light Toggle */}
           <button
             onClick={() => setDarkMode(!darkMode)}
+            aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             className="p-2 rounded-xl bg-cream-100 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 text-charcoal-600 dark:text-cream-200 hover:bg-cream-200 dark:hover:bg-charcoal-700 transition-colors"
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            {darkMode ? <Sun aria-hidden="true" size={16} className="text-amber-400" /> : <Moon aria-hidden="true" size={16} />}
           </button>
 
           {/* Help Modal Trigger */}
           <button
             onClick={() => setHelpOpen(true)}
+            aria-label="Educational Guide"
             className="p-2 rounded-xl bg-cream-100 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 text-charcoal-600 dark:text-cream-200 hover:bg-cream-200 dark:hover:bg-charcoal-700 transition-colors"
             title="Educational Guide"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle aria-hidden="true" size={16} />
           </button>
 
           {/* User Profile Placeholder */}
@@ -114,7 +114,7 @@ export default function Topbar() {
             <div className="flex items-center justify-between pb-4 border-b border-cream-200 dark:border-charcoal-800 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-sage-100 dark:bg-sage-950/60 text-sage-600 flex items-center justify-center">
-                  <Info className="w-5 h-5" />
+                  <InfoCircle aria-hidden="true" size={20} />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-charcoal-900 dark:text-cream-100">
@@ -127,9 +127,10 @@ export default function Topbar() {
               </div>
               <button
                 onClick={() => setHelpOpen(false)}
+                aria-label="Close guide modal"
                 className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-cream-200 transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X aria-hidden="true" size={20} />
               </button>
             </div>
 
@@ -154,7 +155,7 @@ export default function Topbar() {
                 <ul className="list-disc list-inside space-y-1">
                   <li><strong>2D / 3D Switch</strong>: Toggle between isometric 3D space and high-clarity 2D topological diagram.</li>
                   <li><strong>Inspector Panel</strong>: Click any server or the load balancer in the visualizer to inspect live metrics and toggle node status.</li>
-                  <li><strong>Traffic Surge ⚡</strong>: Inject a spike of 20+ RPS to observe how backend servers absorb the load.</li>
+                  <li><strong>Traffic Surge</strong> <Flash aria-hidden="true" size={13} className="inline text-amber-500" weight="Filled" />: Inject a spike of 20+ RPS to observe how backend servers absorb the load.</li>
                   <li><strong>Fault Injection</strong>: Disable or fail a server from the Inspector or Server Management page and watch the load balancer reroute traffic automatically without dropped packets.</li>
                   <li><strong>Algorithms Sandbox</strong>: Switch between Round Robin, Least Connections, Random, Weighted Round Robin, and IP Hash to observe differing request distribution shapes.</li>
                 </ul>

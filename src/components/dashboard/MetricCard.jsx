@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendUp, TrendDown, Minus } from 'reicon-react';
 
 export default function MetricCard({
   title,
@@ -20,7 +20,7 @@ export default function MetricCard({
         </span>
         {Icon && (
           <div className="w-7 h-7 rounded-lg bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-charcoal-800 dark:text-cream-200 flex items-center justify-center shadow-xs">
-            <Icon className="w-3.5 h-3.5 text-emerald-600" />
+            <Icon className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
           </div>
         )}
       </div>
@@ -41,19 +41,19 @@ export default function MetricCard({
           <div className="flex items-center gap-1 font-mono text-[10px]">
             {trendDirection === 'up' && (
               <span className="flex items-center text-emerald-600 font-bold">
-                <TrendingUp className="w-3 h-3 mr-0.5" />
+                <TrendUp className="w-3 h-3 mr-0.5" aria-hidden="true" />
                 {trend}
               </span>
             )}
             {trendDirection === 'down' && (
               <span className="flex items-center text-rose-600 font-bold">
-                <TrendingDown className="w-3 h-3 mr-0.5" />
+                <TrendDown className="w-3 h-3 mr-0.5" aria-hidden="true" />
                 {trend}
               </span>
             )}
             {trendDirection === 'neutral' && (
               <span className="flex items-center text-charcoal-400 font-bold">
-                <Minus className="w-3 h-3 mr-0.5" />
+                <Minus className="w-3 h-3 mr-0.5" aria-hidden="true" />
                 {trend}
               </span>
             )}

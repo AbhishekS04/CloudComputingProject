@@ -10,14 +10,14 @@ import { useServers } from '../hooks/useServers';
 import { formatNumber, formatMs } from '../utils/formatters';
 import {
   Activity,
-  Zap,
+  Flash,
   Clock,
   Server,
   Layers,
-  CheckCircle2,
+  CheckCircle,
   AlertCircle,
   Bell
-} from 'lucide-react';
+} from 'reicon-react';
 
 export default function Dashboard() {
   const { metrics, events, targetRps, algorithm } = useSimulation();
@@ -45,7 +45,7 @@ export default function Dashboard() {
           title="Requests Per Second"
           value={`${metrics.currentRps} RPS`}
           subtitle={`Target capacity: ${targetRps} req/s`}
-          icon={Zap}
+          icon={Flash}
           trend={metrics.currentRps >= targetRps ? 'Nominal' : 'Pacing'}
           trendDirection={metrics.currentRps > 0 ? 'up' : 'neutral'}
           sparklineData={[4, 6, 8, 7, 12, 10, 8, metrics.currentRps]}
@@ -76,7 +76,7 @@ export default function Dashboard() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-sage-600" />
+            <Activity aria-hidden="true" size={16} className="text-sage-600" />
             <h2 className="text-sm font-bold uppercase tracking-wider text-charcoal-700 dark:text-cream-300">
               Live Network Flow Visualization
             </h2>
@@ -103,7 +103,7 @@ export default function Dashboard() {
         <div className="bg-cream-50 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 rounded-2xl p-5 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-sage-600" />
+              <Bell aria-hidden="true" size={16} className="text-sage-600" />
               <div>
                 <h4 className="text-sm font-bold text-charcoal-800 dark:text-cream-100">
                   Recent Cluster Events & Routing Log
@@ -128,11 +128,11 @@ export default function Dashboard() {
                   className="flex items-start gap-3 p-3 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-cream-200 dark:border-charcoal-700 text-xs"
                 >
                   <div className="mt-0.5">
-                    {isSuccess && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
-                    {isWarning && <AlertCircle className="w-3.5 h-3.5 text-amber-500" />}
-                    {isError && <AlertCircle className="w-3.5 h-3.5 text-rose-500" />}
+                    {isSuccess && <CheckCircle aria-hidden="true" size={14} className="text-emerald-500" />}
+                    {isWarning && <AlertCircle aria-hidden="true" size={14} className="text-amber-500" />}
+                    {isError && <AlertCircle aria-hidden="true" size={14} className="text-rose-500" />}
                     {!isSuccess && !isWarning && !isError && (
-                      <Activity className="w-3.5 h-3.5 text-blue-500" />
+                      <Activity aria-hidden="true" size={14} className="text-blue-500" />
                     )}
                   </div>
                   <div className="flex-1">

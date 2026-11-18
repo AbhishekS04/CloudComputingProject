@@ -4,15 +4,13 @@ import { useServers } from '../hooks/useServers';
 import {
   FileText,
   Search,
-  Filter,
-  Trash2,
+  Trash,
   Download,
-  CheckCircle2,
-  AlertTriangle,
+  CheckCircle,
   XCircle,
   Pause,
   Play
-} from 'lucide-react';
+} from 'reicon-react';
 import { formatTime, formatMs } from '../utils/formatters';
 
 export default function LogsPage() {
@@ -83,7 +81,7 @@ export default function LogsPage() {
                 : 'bg-white dark:bg-charcoal-700 text-charcoal-700 dark:text-cream-200 border-cream-300'
             }`}
           >
-            {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+            {isPaused ? <Play aria-hidden="true" size={14} weight="Filled" /> : <Pause aria-hidden="true" size={14} weight="Filled" />}
             <span>{isPaused ? 'Resume Stream' : 'Pause Stream'}</span>
           </button>
 
@@ -91,16 +89,17 @@ export default function LogsPage() {
             onClick={handleExportJson}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-600 text-charcoal-700 dark:text-cream-200 text-xs font-semibold hover:bg-cream-100 transition-colors"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download aria-hidden="true" size={14} />
             <span>Export JSON</span>
           </button>
 
           <button
             onClick={clearLogs}
+            aria-label="Clear All Logs"
             className="p-2 rounded-xl text-charcoal-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
             title="Clear All Logs"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash aria-hidden="true" size={16} />
           </button>
         </div>
       </div>
@@ -109,7 +108,7 @@ export default function LogsPage() {
       <div className="flex flex-wrap items-center gap-3 bg-cream-50 dark:bg-charcoal-800 p-4 rounded-2xl border border-cream-300 dark:border-charcoal-700 text-xs">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search aria-hidden="true" size={16} className="text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search request ID, client IP, endpoint, or server..."
@@ -171,7 +170,7 @@ export default function LogsPage() {
               {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center py-12 text-charcoal-400">
-                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <FileText aria-hidden="true" size={32} className="mx-auto mb-2 opacity-40" />
                     <p className="font-medium">No request records matching active filters.</p>
                     <p className="text-[11px] mt-0.5">Ensure the simulation engine is running.</p>
                   </td>
@@ -239,9 +238,9 @@ export default function LogsPage() {
                           }`}
                         >
                           {is200 ? (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <CheckCircle aria-hidden="true" size={12} className="text-emerald-600" />
                           ) : (
-                            <XCircle className="w-3 h-3 text-rose-600" />
+                            <XCircle aria-hidden="true" size={12} className="text-rose-600" />
                           )}
                           <span>
                             {log.status} {log.statusText}

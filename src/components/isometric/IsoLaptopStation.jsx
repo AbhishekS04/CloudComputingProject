@@ -208,9 +208,15 @@ export default function IsoLaptopStation({
             stroke="#252820"
             strokeWidth="2.2"
           />
-          <text x="-66" y="4" fontSize="12" className="select-none">
-            {statusBadge.icon || '🚫'}
-          </text>
+          {statusBadge.icon && React.isValidElement(statusBadge.icon) ? (
+            <foreignObject x="-70" y="-7" width="14" height="14">
+              {statusBadge.icon}
+            </foreignObject>
+          ) : statusBadge.icon ? (
+            <text x="-66" y="4" fontSize="12" className="select-none">
+              {statusBadge.icon}
+            </text>
+          ) : null}
           <text
             x="-2"
             y="3.5"

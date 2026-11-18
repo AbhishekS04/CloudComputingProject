@@ -5,12 +5,12 @@ import { ALGORITHM_INFO } from '../../simulation/loadBalancingAlgorithms';
 import { formatPercent, formatMs, formatNumber } from '../../utils/formatters';
 import {
   BookOpen,
-  Sliders,
-  ListFilter,
+  Slider,
+  Filter,
   ArrowLeft,
   ArrowRight,
   Lightbulb,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   AlertTriangle,
   Server,
@@ -20,11 +20,11 @@ import {
   Cpu,
   HardDrive,
   Power,
-  RotateCcw,
-  Zap,
+  Refresh,
+  Flash,
   Plus,
   Search
-} from 'lucide-react';
+} from 'reicon-react';
 
 export default function StudioRightPanel({
   step,
@@ -108,7 +108,7 @@ export default function StudioRightPanel({
                 : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5" />
+            <Slider className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Inspector</span>
             {selectedNode && (
               <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5" />
@@ -123,7 +123,7 @@ export default function StudioRightPanel({
                 : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
             }`}
           >
-            <ListFilter className="w-3.5 h-3.5" />
+            <Filter className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Audit</span>
           </button>
         </div>
@@ -155,6 +155,36 @@ export default function StudioRightPanel({
             <p className="text-xs text-charcoal-700 dark:text-cream-300 leading-relaxed font-sans">
               {step.explanation}
             </p>
+
+            {/* Step Hop Latency Breakdown */}
+            {step.timings && step.timings.total && (
+              <div className="p-2.5 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700">
+                <div className="flex items-center justify-between text-[10px] font-mono mb-1.5">
+                  <span className="text-charcoal-400 font-bold uppercase tracking-wider">Hop Latency</span>
+                  <span className="font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
+                    {step.timings.total}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[10px] font-mono text-center">
+                  <div className="p-1 rounded bg-[#F5F2EA] dark:bg-charcoal-900">
+                    <div className="text-charcoal-400 text-[9px]">DNS</div>
+                    <div className="font-bold text-charcoal-800 dark:text-cream-200">{step.timings.dns || '-'}</div>
+                  </div>
+                  <div className="p-1 rounded bg-[#F5F2EA] dark:bg-charcoal-900">
+                    <div className="text-charcoal-400 text-[9px]">CONN</div>
+                    <div className="font-bold text-charcoal-800 dark:text-cream-200">{step.timings.connect || '-'}</div>
+                  </div>
+                  <div className="p-1 rounded bg-[#F5F2EA] dark:bg-charcoal-900">
+                    <div className="text-charcoal-400 text-[9px]">LB</div>
+                    <div className="font-bold text-charcoal-800 dark:text-cream-200">{step.timings.lb || '-'}</div>
+                  </div>
+                  <div className="p-1 rounded bg-[#F5F2EA] dark:bg-charcoal-900">
+                    <div className="text-charcoal-400 text-[9px]">SRV</div>
+                    <div className="font-bold text-charcoal-800 dark:text-cream-200">{step.timings.server || '-'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 💡 GOOD TO KNOW Callout */}
             {step.goodToKnow && (
@@ -353,16 +383,18 @@ export default function StudioRightPanel({
                     <button
                       onClick={() => failServer(activeServer.id)}
                       disabled={activeServer.status === 'failed'}
-                      className="py-2 px-3 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 text-[11px] font-bold border border-rose-200 disabled:opacity-40 transition-colors"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 text-[11px] font-bold border border-rose-200 disabled:opacity-40 transition-colors"
                     >
-                      Crash Node 💥
+                      <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                      <span>Crash Node</span>
                     </button>
                     <button
                       onClick={() => recoverServer(activeServer.id)}
                       disabled={activeServer.status === 'healthy'}
-                      className="py-2 px-3 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-bold border border-emerald-200 disabled:opacity-40 transition-colors"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-bold border border-emerald-200 disabled:opacity-40 transition-colors"
                     >
-                      Heal Node 💚
+                      <CheckCircle className="w-3 h-3" aria-hidden="true" />
+                      <span>Heal Node</span>
                     </button>
                   </div>
                 </div>
@@ -446,7 +478,7 @@ export default function StudioRightPanel({
                   onClick={triggerTrafficSpike}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-transform active:scale-95"
                 >
-                  <Zap className="w-3.5 h-3.5 fill-current" />
+                  <Flash className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
                   <span>Simulate 3x Traffic Surge</span>
                 </button>
               </div>
@@ -457,7 +489,7 @@ export default function StudioRightPanel({
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 flex items-center justify-center text-blue-600 shadow-xs">
-                    <Globe className="w-4 h-4" />
+                    <Globe className="w-4 h-4" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-charcoal-900 dark:text-cream-100 font-sans">
@@ -488,7 +520,7 @@ export default function StudioRightPanel({
             {!selectedNode && (
               <div className="space-y-4 text-center py-6">
                 <div className="w-12 h-12 rounded-2xl bg-[#EBE6DA] dark:bg-charcoal-800 flex items-center justify-center mx-auto text-charcoal-600 dark:text-cream-300">
-                  <Sliders className="w-6 h-6" />
+                  <Slider className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-charcoal-800 dark:text-cream-100">
@@ -505,7 +537,7 @@ export default function StudioRightPanel({
                     disabled={servers.length >= 8}
                     className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 text-xs font-bold text-charcoal-800 dark:text-cream-100 hover:bg-[#EBE6DA] transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>Add Server Node to Cluster</span>
                   </button>
 
@@ -513,7 +545,7 @@ export default function StudioRightPanel({
                     onClick={triggerTrafficSpike}
                     className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors"
                   >
-                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    <Flash className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
                     <span>Trigger Traffic Surge</span>
                   </button>
                 </div>
@@ -556,11 +588,11 @@ export default function StudioRightPanel({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 font-bold text-charcoal-900 dark:text-cream-100">
-                        {evt.type === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
-                        {evt.type === 'warning' && <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />}
-                        {evt.type === 'error' && <XCircle className="w-3 h-3 text-rose-500 shrink-0" />}
+                        {evt.type === 'success' && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" aria-hidden="true" />}
+                        {evt.type === 'warning' && <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" aria-hidden="true" />}
+                        {evt.type === 'error' && <XCircle className="w-3 h-3 text-rose-500 shrink-0" aria-hidden="true" />}
                         {!['success', 'warning', 'error'].includes(evt.type) && (
-                          <Activity className="w-3 h-3 text-blue-500 shrink-0" />
+                          <Activity className="w-3 h-3 text-blue-500 shrink-0" aria-hidden="true" />
                         )}
                         <span className="truncate">{evt.title}</span>
                       </div>

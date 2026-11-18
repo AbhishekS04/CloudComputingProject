@@ -1,6 +1,6 @@
 import React from 'react';
 import { CHEATSHEETS_DATA } from '../../data/courseData';
-import { FileSpreadsheet, Clock, Shield, CheckCircle2 } from 'lucide-react';
+import { FileContent } from 'reicon-react';
 
 export default function CheatsheetsView() {
   return (
@@ -8,7 +8,7 @@ export default function CheatsheetsView() {
       {/* Header */}
       <div className="bg-[#FAF8F2] dark:bg-charcoal-900 p-6 rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 shadow-subtle">
         <div className="flex items-center gap-2 mb-1">
-          <FileSpreadsheet className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
+          <FileContent aria-hidden="true" size={20} className="text-emerald-700 dark:text-emerald-400" />
           <h2 className="text-xl font-extrabold text-charcoal-900 dark:text-cream-100 font-sans tracking-tight">
             System Design Cheatsheets & Reference Matrices
           </h2>
