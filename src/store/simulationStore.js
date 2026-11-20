@@ -11,6 +11,7 @@ export const useSimulationStore = create((set, get) => ({
   algorithm: 'ROUND_ROBIN',
   visualizerMode: '3D', // '2D' | '3D'
   selectedNode: { type: 'lb', id: 'load-balancer' }, // Default selection
+  isDarkMode: typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false,
 
   // Infrastructure
   servers: DEFAULT_SERVERS,
@@ -57,6 +58,20 @@ export const useSimulationStore = create((set, get) => ({
 
   // Actions
   setIsRunning: (isRunning) => set({ isRunning }),
+  setDarkMode: (isDarkMode) => {
+    set({ isDarkMode });
+    if (typeof document !== 'undefined') {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  },
+  toggleDarkMode: () => {
+    const next = !get().isDarkMode;
+    get().setDarkMode(next);
+  },
   toggleSimulation: () => {
     const next = !get().isRunning;
     set({ isRunning: next });

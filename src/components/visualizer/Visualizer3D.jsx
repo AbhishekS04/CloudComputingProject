@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 // ============================================================================
 // 1. TRUE 2:1 ISOMETRIC PROJECTION MATH
@@ -36,6 +36,253 @@ const CLIENT_PRESETS = [
 ];
 
 const SERVER_LETTERS = ['A', 'B', 'C', 'D', 'E'];
+
+export const THEMES = {
+  light: {
+    gridLine: '#e2dac8',
+    shadow: 'rgba(156, 142, 118, 0.34)',
+    wireActive: '#23211e',
+    wireDashed: '#8e8678',
+    wireOffline: '#9e9687',
+    portRingFill: '#fdfbf7',
+
+    lbTop0: '#fff9e6',
+    lbTop1: '#f5dc96',
+    lbWall0: '#f3d386',
+    lbWall48: '#e5bf69',
+    lbWall54: '#d7af56',
+    lbWall100: '#e3bd68',
+    lbStroke: '#23211e',
+    lbCrease: 'rgba(35, 33, 30, 0.10)',
+    lbBevel: 'rgba(255, 255, 255, 0.90)',
+    lbIcon: '#23211e',
+    lbTitle: '#23211e',
+    lbSubtitle: '#574c3a',
+    lbHalo: '#d99b26',
+
+    srvTop0: '#f2f7ff',
+    srvTop1: '#c8defa',
+    srvWall0: '#bdd5f6',
+    srvWall48: '#a1bee8',
+    srvWall54: '#8da9d8',
+    srvWall100: '#9fbbe6',
+    srvStroke: '#23211e',
+    srvCrease: 'rgba(35, 33, 30, 0.10)',
+    srvBevel: 'rgba(255, 255, 255, 0.90)',
+    srvRackFill: '#ffffff',
+    srvRackStroke: '#23211e',
+    srvLedIdle: '#23211e',
+    srvLedFlash1: '#48b850',
+    srvLedFlash2: '#f08c65',
+    srvLedOffline: '#d84632',
+    srvTitle: '#23211e',
+    srvHalo: '#5887d8',
+
+    srvOffTop0: '#f3efe8',
+    srvOffTop1: '#dad3c7',
+    srvOffWall0: '#d2cbc0',
+    srvOffWall50: '#b6aea2',
+    srvOffWall100: '#c5beb2',
+    srvOffStroke: '#23211e',
+    srvOffTitle: '#23211e',
+    srvOffRackFill: '#ffffff',
+    srvOffRackStroke: '#23211e',
+
+    padTop0: '#f6f1e7',
+    padTop1: '#e8e0d2',
+    padWall0: '#e1d9c9',
+    padWall50: '#c6bcab',
+    padWall100: '#d6cebe',
+    padStroke: '#23211e',
+    padBevel: 'rgba(255, 255, 255, 0.92)',
+
+    lapShadow: 'rgba(145, 132, 112, 0.30)',
+    lapBaseRim: '#d5cdc0',
+    lapDeck: '#f4efe4',
+    lapStroke: '#23211e',
+    lapKeyFill: '#ebe5d8',
+    lapKeyStroke: '#9a9183',
+    lapTrackpadFill: '#ebe5d8',
+    lapTrackpadStroke: '#9a9183',
+    lapLid0: '#5c5751',
+    lapLid25: '#423e39',
+    lapLid100: '#2c2926',
+    lapBezelFill: '#2b2825',
+    lapBezelStroke: '#23211e',
+    lapSpecular: 'rgba(255, 255, 255, 0.90)',
+    lapViewport: '#fcfaf5',
+    lapToolbar: '#eae3d5',
+    lapUrl: '#ffffff',
+    lapHero: '#cec2f2',
+    lapHeroFlash: '#b9a6f2',
+    lapSkeleton: '#d5cec0',
+
+    pillClientShadow: 'rgba(35, 33, 30, 0.12)',
+    pillServerShadow: 'rgba(35, 33, 30, 0.13)',
+    pillHardShadow: '#23211e',
+    pillBg: '#fdfbf7',
+    pillOfflineBg: '#f5efe6',
+    pillBorder: '#23211e',
+    pillText: '#23211e',
+    pillOfflineText: '#8c3022',
+    pillIcon: '#23211e',
+    pillGear: '#5c5549',
+    pillGearHole: '#fdfbf7',
+    pillTrack: '#e5dfd1',
+    pillToggleOn: '#78c67a',
+    pillToggleOff: '#e08070',
+    pillToggleOffRefresh: '#e28171',
+    pillToggleStroke: '#23211e',
+    pillToggleText: '#23211e',
+
+    pktReqFill: '#f08c65',
+    pktReqStroke: '#23211e',
+    pktResFill: '#78c67a',
+    pktResStroke: '#23211e',
+    pktHandFill: '#f6f1e6',
+    pktHandStroke: '#4f9d52',
+
+    lbArc: '#f08c65',
+    rippleReq: '#f08c65',
+    rippleRes: '#78c67a',
+    floorWaveBurst: '#e6b84e',
+    floorWaveOnline: '#6ec472',
+    floorWaveOffline: '#e06c58',
+
+    toastStroke: '#23211e',
+    toastOkBg: '#e9f7ea',
+    toastOkText: '#1d682d',
+    toastFailBg: '#fde7e3',
+    toastFailText: '#94291b',
+    toastModeBg: '#fff3d1',
+    toastModeText: '#23211e',
+  },
+  dark: {
+    gridLine: '#292533',
+    shadow: 'rgba(6, 5, 12, 0.62)',
+    wireActive: '#e8e1d5',
+    wireDashed: '#7d748a',
+    wireOffline: '#575063',
+    portRingFill: '#1b1822',
+
+    // Vivid Sunburst Golden Amber Load Balancer
+    lbTop0: '#ffe494',
+    lbTop1: '#f5b942',
+    lbWall0: '#eb9f28',
+    lbWall48: '#d98816',
+    lbWall54: '#c4750c',
+    lbWall100: '#d98816',
+    lbStroke: '#141218',
+    lbCrease: 'rgba(20, 18, 24, 0.18)',
+    lbBevel: 'rgba(255, 250, 225, 0.85)',
+    lbIcon: '#1f180a',
+    lbTitle: '#1f180a',
+    lbSubtitle: '#4a350c',
+    lbHalo: '#ffd166',
+
+    // Vivid Electric Periwinkle / Sky Blue Backend Servers
+    srvTop0: '#a8ccff',
+    srvTop1: '#6ca4f8',
+    srvWall0: '#588fe8',
+    srvWall48: '#4176d1',
+    srvWall54: '#3263ba',
+    srvWall100: '#4176d1',
+    srvStroke: '#141218',
+    srvCrease: 'rgba(20, 18, 24, 0.20)',
+    srvBevel: 'rgba(235, 246, 255, 0.80)',
+    srvRackFill: '#ffffff',
+    srvRackStroke: '#141218',
+    srvLedIdle: '#141218',
+    srvLedFlash1: '#22c55e',
+    srvLedFlash2: '#ff7b54',
+    srvLedOffline: '#ef4444',
+    srvTitle: '#0f1b33',
+    srvHalo: '#7cc0ff',
+
+    // Distinct Muted Slate Offline Servers
+    srvOffTop0: '#383442',
+    srvOffTop1: '#2b2733',
+    srvOffWall0: '#25222c',
+    srvOffWall50: '#1c1922',
+    srvOffWall100: '#211e28',
+    srvOffStroke: '#6b6378',
+    srvOffTitle: '#9e96ab',
+    srvOffRackFill: '#2b2733',
+    srvOffRackStroke: '#7d748c',
+
+    // Rich Slate-Plum Client Cushion Pads & Illuminated Laptops
+    padTop0: '#484154',
+    padTop1: '#363140',
+    padWall0: '#2e2938',
+    padWall50: '#211d29',
+    padWall100: '#282330',
+    padStroke: '#9185a6',
+    padBevel: 'rgba(235, 226, 255, 0.36)',
+
+    lapShadow: 'rgba(10, 8, 16, 0.50)',
+    lapBaseRim: '#322d3d',
+    lapDeck: '#524a60',
+    lapStroke: '#141218',
+    lapKeyFill: '#6b627c',
+    lapKeyStroke: '#2b2633',
+    lapTrackpadFill: '#5f566e',
+    lapTrackpadStroke: '#2b2633',
+    lapLid0: '#5e556e',
+    lapLid25: '#3b3445',
+    lapLid100: '#221e29',
+    lapBezelFill: '#18151d',
+    lapBezelStroke: '#a194b8',
+    lapSpecular: 'rgba(245, 238, 255, 0.68)',
+    lapViewport: '#272230',
+    lapToolbar: '#383244',
+    lapUrl: '#4d445c',
+    lapHero: '#a78bfa',
+    lapHeroFlash: '#c4b5fd',
+    lapSkeleton: '#615773',
+
+    // High-Contrast Colorful Pills
+    pillClientShadow: 'rgba(8, 7, 14, 0.45)',
+    pillServerShadow: 'rgba(8, 7, 14, 0.48)',
+    pillHardShadow: '#09080d',
+    pillBg: '#262230',
+    pillOfflineBg: '#1e1b24',
+    pillBorder: '#a194b8',
+    pillText: '#f7f3ff',
+    pillOfflineText: '#ff8577',
+    pillIcon: '#c4b5fd',
+    pillGear: '#c4b5fd',
+    pillGearHole: '#262230',
+    pillTrack: '#3d374a',
+    pillToggleOn: '#4ade80',
+    pillToggleOff: '#fb7185',
+    pillToggleOffRefresh: '#fb7185',
+    pillToggleStroke: '#141218',
+    pillToggleText: '#141218',
+
+    // Luminous Packets & Effects
+    pktReqFill: '#ff7b54',
+    pktReqStroke: '#141218',
+    pktResFill: '#4ade80',
+    pktResStroke: '#141218',
+    pktHandFill: '#1e1b24',
+    pktHandStroke: '#38bdf8',
+
+    lbArc: '#ff7b54',
+    rippleReq: '#ff7b54',
+    rippleRes: '#4ade80',
+    floorWaveBurst: '#ffd166',
+    floorWaveOnline: '#4ade80',
+    floorWaveOffline: '#fb7185',
+
+    toastStroke: '#141218',
+    toastOkBg: '#4ade80',
+    toastOkText: '#0f2918',
+    toastFailBg: '#fb7185',
+    toastFailText: '#2b0910',
+    toastModeBg: '#ffd166',
+    toastModeText: '#261a05',
+  },
+};
 
 function createInitialState() {
   return {
@@ -198,11 +445,23 @@ function createIsoDiamondBlockSVG({
   title1,
   title2,
   subtitle = '',
+  isOffline = false,
+  palette = THEMES.light,
 }) {
+  const isGlobe = iconType === 'globe';
+  const blockStroke = isGlobe ? palette.lbStroke : isOffline ? palette.srvOffStroke : palette.srvStroke;
+  const creaseColor = isGlobe ? palette.lbCrease : palette.srvCrease;
+  const bevelColor = isGlobe ? palette.lbBevel : palette.srvBevel;
+  const haloColor = isGlobe ? palette.lbHalo : palette.srvHalo;
+  const titleColor = isGlobe ? palette.lbTitle : isOffline ? palette.srvOffTitle : palette.srvTitle;
+  const rackFill = isOffline ? palette.srvOffRackFill : palette.srvRackFill;
+  const rackStroke = isOffline ? palette.srvOffRackStroke : palette.srvRackStroke;
+  const initialLedColor = isOffline ? palette.srvLedOffline : palette.srvLedIdle;
+
   const shadowPts = getIsoRoundedSquarePoints(u + 0.08, v + 0.08, halfSize * 1.04, cornerR * 1.04, -3, 12);
   const shadowPath = createSVG('path', {
     d: pointsToClosedPath(shadowPts),
-    fill: 'rgba(156, 142, 118, 0.34)',
+    fill: palette.shadow,
   });
 
   const outerG = createSVG('g', { id, class: 'iso-interactive-node' });
@@ -216,7 +475,7 @@ function createIsoDiamondBlockSVG({
   const wallPath = createSVG('path', {
     d: geom.wallPathD,
     fill: `url(#${wallGradId})`,
-    stroke: '#23211e',
+    stroke: blockStroke,
     'stroke-width': '2.7',
     'stroke-linejoin': 'round',
   });
@@ -227,7 +486,7 @@ function createIsoDiamondBlockSVG({
     y1: (frontCornerTop.y + 3).toFixed(1),
     x2: frontCornerTop.x.toFixed(1),
     y2: (frontCornerTop.y + height - 3).toFixed(1),
-    stroke: 'rgba(35, 33, 30, 0.10)',
+    stroke: creaseColor,
     'stroke-width': '8',
     'stroke-linecap': 'round',
   });
@@ -236,7 +495,7 @@ function createIsoDiamondBlockSVG({
   const topPath = createSVG('path', {
     d: geom.topPathD,
     fill: `url(#${topGradId})`,
-    stroke: '#23211e',
+    stroke: blockStroke,
     'stroke-width': '2.6',
     'stroke-linejoin': 'round',
   });
@@ -245,7 +504,7 @@ function createIsoDiamondBlockSVG({
   const bevelHighlight = createSVG('path', {
     d: geom.bevelHighlightD,
     fill: 'none',
-    stroke: 'rgba(255, 255, 255, 0.90)',
+    stroke: bevelColor,
     'stroke-width': '3.1',
     'stroke-linecap': 'round',
   });
@@ -255,7 +514,7 @@ function createIsoDiamondBlockSVG({
   const haloRing = createSVG('path', {
     d: pointsToClosedPath(haloPts),
     fill: 'none',
-    stroke: iconType === 'globe' ? '#d99b26' : '#5887d8',
+    stroke: haloColor,
     'stroke-width': '2.2',
     'stroke-dasharray': '6 5',
     opacity: '0',
@@ -268,6 +527,8 @@ function createIsoDiamondBlockSVG({
 
   let led1 = null;
   let led2 = null;
+  const rackBoxes = [];
+  const rackLines = [];
 
   if (iconType === 'globe') {
     iconG.appendChild(
@@ -276,7 +537,7 @@ function createIsoDiamondBlockSVG({
         cy: 0,
         r: 20,
         fill: 'none',
-        stroke: '#23211e',
+        stroke: palette.lbIcon,
         'stroke-width': '2.8',
       })
     );
@@ -287,7 +548,7 @@ function createIsoDiamondBlockSVG({
         rx: 9.5,
         ry: 20,
         fill: 'none',
-        stroke: '#23211e',
+        stroke: palette.lbIcon,
         'stroke-width': '2.6',
       })
     );
@@ -297,70 +558,74 @@ function createIsoDiamondBlockSVG({
         y1: 0,
         x2: 19.5,
         y2: 0,
-        stroke: '#23211e',
+        stroke: palette.lbIcon,
         'stroke-width': '2.6',
       })
     );
   } else if (iconType === 'server') {
-    iconG.appendChild(
-      createSVG('rect', {
-        x: -22,
-        y: -18,
-        width: 44,
-        height: 15,
-        rx: 3.6,
-        fill: '#ffffff',
-        stroke: '#23211e',
-        'stroke-width': '2.6',
-      })
-    );
-    iconG.appendChild(
-      createSVG('line', {
-        x1: -14,
-        y1: -10.5,
-        x2: 2,
-        y2: -10.5,
-        stroke: '#23211e',
-        'stroke-width': '2.6',
-        'stroke-linecap': 'round',
-      })
-    );
+    const rackBox1 = createSVG('rect', {
+      x: -22,
+      y: -18,
+      width: 44,
+      height: 15,
+      rx: 3.6,
+      fill: rackFill,
+      stroke: rackStroke,
+      'stroke-width': '2.6',
+    });
+    rackBoxes.push(rackBox1);
+    iconG.appendChild(rackBox1);
+
+    const rackLine1 = createSVG('line', {
+      x1: -14,
+      y1: -10.5,
+      x2: 2,
+      y2: -10.5,
+      stroke: rackStroke,
+      'stroke-width': '2.6',
+      'stroke-linecap': 'round',
+    });
+    rackLines.push(rackLine1);
+    iconG.appendChild(rackLine1);
+
     led1 = createSVG('circle', {
       cx: 12.5,
       cy: -10.5,
       r: 2.8,
-      fill: '#23211e',
+      fill: initialLedColor,
     });
     iconG.appendChild(led1);
 
-    iconG.appendChild(
-      createSVG('rect', {
-        x: -22,
-        y: 2,
-        width: 44,
-        height: 15,
-        rx: 3.6,
-        fill: '#ffffff',
-        stroke: '#23211e',
-        'stroke-width': '2.6',
-      })
-    );
-    iconG.appendChild(
-      createSVG('line', {
-        x1: -14,
-        y1: 9.5,
-        x2: 2,
-        y2: 9.5,
-        stroke: '#23211e',
-        'stroke-width': '2.6',
-        'stroke-linecap': 'round',
-      })
-    );
+    const rackBox2 = createSVG('rect', {
+      x: -22,
+      y: 2,
+      width: 44,
+      height: 15,
+      rx: 3.6,
+      fill: rackFill,
+      stroke: rackStroke,
+      'stroke-width': '2.6',
+    });
+    rackBoxes.push(rackBox2);
+    iconG.appendChild(rackBox2);
+
+    const rackLine2 = createSVG('line', {
+      x1: -14,
+      y1: 9.5,
+      x2: 2,
+      y2: 9.5,
+      stroke: rackStroke,
+      'stroke-width': '2.6',
+      'stroke-linecap': 'round',
+    });
+    rackLines.push(rackLine2);
+    iconG.appendChild(rackLine2);
+
     led2 = createSVG('circle', {
       cx: 12.5,
       cy: 9.5,
       r: 2.8,
-      fill: '#23211e',
+      fill: initialLedColor,
     });
     iconG.appendChild(led2);
   }
@@ -370,7 +635,7 @@ function createIsoDiamondBlockSVG({
     x: centerTop.x.toFixed(1),
     y: (centerTop.y + 27).toFixed(1),
     'text-anchor': 'middle',
-    fill: '#23211e',
+    fill: titleColor,
     'font-family': "'JetBrains Mono', monospace",
     'font-size': subtitle ? '17px' : '18.5px',
     'font-weight': '800',
@@ -383,7 +648,7 @@ function createIsoDiamondBlockSVG({
     x: centerTop.x.toFixed(1),
     y: (centerTop.y + 47).toFixed(1),
     'text-anchor': 'middle',
-    fill: '#23211e',
+    fill: titleColor,
     'font-family': "'JetBrains Mono', monospace",
     'font-size': subtitle ? '16px' : '18px',
     'font-weight': '700',
@@ -397,7 +662,7 @@ function createIsoDiamondBlockSVG({
       x: centerTop.x.toFixed(1),
       y: (centerTop.y + 67).toFixed(1),
       'text-anchor': 'middle',
-      fill: '#574c3a',
+      fill: palette.lbSubtitle,
       'font-family': "'JetBrains Mono', monospace",
       'font-size': '11px',
       'font-weight': '800',
@@ -420,6 +685,10 @@ function createIsoDiamondBlockSVG({
     haloRing,
     led1,
     led2,
+    rackBoxes,
+    rackLines,
+    t1,
+    t2,
     subEl,
     centerTop,
   };
@@ -451,7 +720,7 @@ function buildRoundedQuadPath(pts, radius = 6) {
   return `${d} Z`;
 }
 
-function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
+function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, palette = THEMES.light }) {
   const padHalfS = 1.24 * scale;
   const padCornerR = 0.36 * scale;
   const padH = 20 * scale;
@@ -459,7 +728,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
   const shadowPts = getIsoRoundedSquarePoints(u + 0.07, v + 0.07, padHalfS * 1.05, padCornerR * 1.05, -2, 12);
   const shadowPath = createSVG('path', {
     d: pointsToClosedPath(shadowPts),
-    fill: 'rgba(156, 142, 118, 0.34)',
+    fill: palette.shadow,
   });
 
   const outerG = createSVG('g', { class: 'iso-interactive-node' });
@@ -472,7 +741,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     createSVG('path', {
       d: padGeom.wallPathD,
       fill: 'url(#pad-wall-grad)',
-      stroke: '#23211e',
+      stroke: palette.padStroke,
       'stroke-width': '2.5',
       'stroke-linejoin': 'round',
     })
@@ -482,7 +751,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     createSVG('path', {
       d: padGeom.topPathD,
       fill: 'url(#pad-top-grad)',
-      stroke: '#23211e',
+      stroke: palette.padStroke,
       'stroke-width': '2.4',
       'stroke-linejoin': 'round',
     })
@@ -492,7 +761,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     createSVG('path', {
       d: padGeom.bevelHighlightD,
       fill: 'none',
-      stroke: 'rgba(255, 255, 255, 0.92)',
+      stroke: palette.padBevel,
       'stroke-width': '3.0',
       'stroke-linecap': 'round',
     })
@@ -527,7 +796,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
         ],
         5.5
       ),
-      fill: 'rgba(145, 132, 112, 0.30)',
+      fill: palette.lapShadow,
     })
   );
 
@@ -542,8 +811,8 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
         ],
         5.0
       ),
-      fill: '#d5cdc0',
-      stroke: '#23211e',
+      fill: palette.lapBaseRim,
+      stroke: palette.lapStroke,
       'stroke-width': '2.2',
     })
   );
@@ -551,15 +820,15 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
   laptopG.appendChild(
     createSVG('path', {
       d: buildRoundedQuadPath([p00, p10, p11, p01], 5.0),
-      fill: '#f4efe4',
-      stroke: '#23211e',
+      fill: palette.lapDeck,
+      stroke: palette.lapStroke,
       'stroke-width': '2.2',
     })
   );
 
   const keysG = createSVG('g', {
-    fill: '#ebe5d8',
-    stroke: '#9a9183',
+    fill: palette.lapKeyFill,
+    stroke: palette.lapKeyStroke,
     'stroke-width': '1.0',
     'stroke-linejoin': 'round',
   });
@@ -588,8 +857,8 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
         [lapPt(0.34, 0.63), lapPt(0.66, 0.63), lapPt(0.66, 0.91), lapPt(0.34, 0.91)],
         2.5
       ),
-      fill: '#ebe5d8',
-      stroke: '#9a9183',
+      fill: palette.lapTrackpadFill,
+      stroke: palette.lapTrackpadStroke,
       'stroke-width': '1.2',
     })
   );
@@ -611,7 +880,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     createSVG('path', {
       d: buildRoundedQuadPath([sBL, bBL, bTL, bTR, sTR, sTL], 5.2),
       fill: 'url(#laptop-lid-grad)',
-      stroke: '#23211e',
+      stroke: palette.lapBezelStroke,
       'stroke-width': '2.2',
       'stroke-linejoin': 'round',
     })
@@ -620,8 +889,8 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
   laptopG.appendChild(
     createSVG('path', {
       d: buildRoundedQuadPath([sBL, sBR, sTR, sTL], 4.8),
-      fill: '#2b2825',
-      stroke: '#23211e',
+      fill: palette.lapBezelFill,
+      stroke: palette.lapBezelStroke,
       'stroke-width': '2.2',
       'stroke-linejoin': 'round',
     })
@@ -631,7 +900,7 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     createSVG('path', {
       d: `M ${(bTL.x + 1.5).toFixed(1)} ${(bTL.y + 7.2).toFixed(1)} Q ${(bTL.x + 2.2).toFixed(1)} ${(bTL.y + 1.5).toFixed(1)} ${(sTL.x + 2.4).toFixed(1)} ${(sTL.y + 1.5).toFixed(1)}`,
       fill: 'none',
-      stroke: 'rgba(255, 255, 255, 0.90)',
+      stroke: palette.lapSpecular,
       'stroke-width': '2.8',
       'stroke-linecap': 'round',
     })
@@ -652,8 +921,8 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
     return buildRoundedQuadPath([scrPt(u0, v0), scrPt(u1, v0), scrPt(u1, v1), scrPt(u0, v1)], r);
   }
 
-  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.06, 0.08, 0.935, 0.91, 3.0), fill: '#fcfaf5' }));
-  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.06, 0.08, 0.935, 0.23, 2.4), fill: '#eae3d5' }));
+  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.06, 0.08, 0.935, 0.91, 3.0), fill: palette.lapViewport }));
+  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.06, 0.08, 0.935, 0.23, 2.4), fill: palette.lapToolbar }));
 
   const dot1 = scrPt(0.125, 0.16);
   const dot2 = scrPt(0.19, 0.16);
@@ -662,16 +931,16 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88 }) {
   laptopG.appendChild(createSVG('circle', { cx: dot2.x.toFixed(1), cy: dot2.y.toFixed(1), r: 1.8, fill: '#e8bf56' }));
   laptopG.appendChild(createSVG('circle', { cx: dot3.x.toFixed(1), cy: dot3.y.toFixed(1), r: 1.8, fill: '#78c47a' }));
 
-  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.32, 0.115, 0.89, 0.195, 1.8), fill: '#ffffff' }));
+  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.32, 0.115, 0.89, 0.195, 1.8), fill: palette.lapUrl }));
 
   const heroBannerPath = createSVG('path', {
     d: scrRoundedQuad(0.11, 0.29, 0.88, 0.59, 3.0),
-    fill: '#cec2f2',
+    fill: palette.lapHero,
   });
   laptopG.appendChild(heroBannerPath);
 
-  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.65, 0.70, 0.72, 1.6), fill: '#d5cec0' }));
-  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.76, 0.56, 0.83, 1.6), fill: '#d5cec0' }));
+  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.65, 0.70, 0.72, 1.6), fill: palette.lapSkeleton }));
+  laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.76, 0.56, 0.83, 1.6), fill: palette.lapSkeleton }));
 
   return { shadowPath, group: outerG, bounceG, heroBannerPath, padTopCenter };
 }
@@ -768,7 +1037,7 @@ function buildRounded2DPathAndTable(pts2D, cornerRadius = 32) {
   };
 }
 
-function createArrowheadAndDockSVG(tipPt, fromPt, color = '#23211e') {
+function createArrowheadAndDockSVG(tipPt, fromPt, color = '#23211e', portRingFill = '#fdfbf7') {
   const g = createSVG('g');
   const angle = Math.atan2(tipPt.y - fromPt.y, tipPt.x - fromPt.x) * (180 / Math.PI);
 
@@ -777,7 +1046,7 @@ function createArrowheadAndDockSVG(tipPt, fromPt, color = '#23211e') {
     cy: tipPt.y.toFixed(2),
     rx: '5.5',
     ry: '3.2',
-    fill: '#fdfbf7',
+    fill: portRingFill,
     stroke: color,
     'stroke-width': '2.0',
   });
@@ -793,7 +1062,7 @@ function createArrowheadAndDockSVG(tipPt, fromPt, color = '#23211e') {
   return { group: g, arrow, portRing };
 }
 
-function createClientLabelPillSVG({ cx, cy, text }) {
+function createClientLabelPillSVG({ cx, cy, text, palette = THEMES.light }) {
   const width = Math.max(124, text.length * 8.4 + 42);
   const height = 29;
   const hw = width / 2;
@@ -812,7 +1081,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
       width,
       height,
       rx,
-      fill: 'rgba(35, 33, 30, 0.12)',
+      fill: palette.pillClientShadow,
     })
   );
   g.appendChild(
@@ -822,7 +1091,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
       width,
       height,
       rx,
-      fill: '#23211e',
+      fill: palette.pillHardShadow,
     })
   );
   g.appendChild(
@@ -832,8 +1101,8 @@ function createClientLabelPillSVG({ cx, cy, text }) {
       width,
       height,
       rx,
-      fill: '#fdfbf7',
-      stroke: '#23211e',
+      fill: palette.pillBg,
+      stroke: palette.pillBorder,
       'stroke-width': '2.3',
     })
   );
@@ -845,7 +1114,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
       cy: -3.0,
       r: 3.2,
       fill: 'none',
-      stroke: '#23211e',
+      stroke: palette.pillIcon,
       'stroke-width': '2.0',
     })
   );
@@ -853,7 +1122,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
     createSVG('path', {
       d: 'M -5.5 5.8 C -5.5 2.2 -3.0 0.8 0 0.8 C 3.0 0.8 5.5 2.2 5.5 5.8',
       fill: 'none',
-      stroke: '#23211e',
+      stroke: palette.pillIcon,
       'stroke-width': '2.0',
       'stroke-linecap': 'round',
     })
@@ -864,7 +1133,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
     x: 7,
     y: 4.1,
     'text-anchor': 'middle',
-    fill: '#23211e',
+    fill: palette.pillText,
     'font-family': "'JetBrains Mono', monospace",
     'font-size': '12px',
     'font-weight': '700',
@@ -875,7 +1144,7 @@ function createClientLabelPillSVG({ cx, cy, text }) {
   return { group: g };
 }
 
-function createServerMetricPillSVG({ cx, cy, srv }) {
+function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
   const width = 212;
   const height = 31;
   const hw = width / 2;
@@ -894,7 +1163,7 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
       width,
       height,
       rx,
-      fill: 'rgba(35, 33, 30, 0.13)',
+      fill: palette.pillServerShadow,
     })
   );
   g.appendChild(
@@ -904,7 +1173,7 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
       width,
       height,
       rx,
-      fill: '#23211e',
+      fill: palette.pillHardShadow,
     })
   );
 
@@ -914,8 +1183,8 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
     width,
     height,
     rx,
-    fill: '#fdfbf7',
-    stroke: '#23211e',
+    fill: palette.pillBg,
+    stroke: palette.pillBorder,
     'stroke-width': '2.3',
   });
   g.appendChild(bgRect);
@@ -924,10 +1193,10 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
   const gearPath = createSVG('path', {
     class: 'svg-gear-spin',
     d: 'M -2 -7.2 L 2 -7.2 L 2.6 -5.0 L 4.6 -4.0 L 6.6 -5.0 L 8.2 -2.4 L 6.4 -0.8 L 6.4 0.8 L 8.2 2.4 L 6.6 5.0 L 4.6 4.0 L 2.6 5.0 L 2 7.2 L -2 7.2 L -2.6 5.0 L -4.6 4.0 L -6.6 5.0 L -8.2 2.4 L -6.4 0.8 L -6.4 -0.8 L -8.2 -2.4 L -6.6 -5.0 L -4.6 -4.0 L -2.6 -5.0 Z',
-    fill: '#5c5549',
+    fill: palette.pillGear,
   });
   gearWrap.appendChild(gearPath);
-  gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: '#fdfbf7' }));
+  gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: palette.pillGearHole }));
   g.appendChild(gearWrap);
 
   const trackX = -hw + 30;
@@ -940,7 +1209,7 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
       width: trackW,
       height: trackH,
       rx: 4.1,
-      fill: '#e5dfd1',
+      fill: palette.pillTrack,
     })
   );
 
@@ -959,7 +1228,7 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
     x: trackX + trackW + 7,
     y: 4.0,
     'text-anchor': 'start',
-    fill: '#23211e',
+    fill: palette.pillText,
     'font-family': "'JetBrains Mono', monospace",
     'font-size': '11px',
     'font-weight': '800',
@@ -976,8 +1245,8 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
     width: toggleW,
     height: toggleH,
     rx: 9.75,
-    fill: srv.healthy ? '#78c67a' : '#e08070',
-    stroke: '#23211e',
+    fill: srv.healthy ? palette.pillToggleOn : palette.pillToggleOff,
+    stroke: palette.pillToggleStroke,
     'stroke-width': '1.8',
   });
   g.appendChild(toggleBg);
@@ -986,7 +1255,7 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
     x: toggleX + toggleW / 2,
     y: 3.5,
     'text-anchor': 'middle',
-    fill: '#23211e',
+    fill: palette.pillToggleText,
     'font-family': "'JetBrains Mono', monospace",
     'font-size': '9.5px',
     'font-weight': '800',
@@ -1000,7 +1269,43 @@ function createServerMetricPillSVG({ cx, cy, srv }) {
 // ============================================================================
 // PLAIN REACT 18 COMPONENT
 // ============================================================================
-export function LoadBalancerVisualizer() {
+export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
+  const isControlledTheme = theme === 'light' || theme === 'dark';
+  const [internalTheme, setInternalTheme] = useState(() => {
+    if (theme === 'dark' || theme === 'light') return theme;
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+  const activeTheme = isControlledTheme ? theme : internalTheme;
+  const isDark = activeTheme === 'dark';
+
+  const handleSetTheme = useCallback(
+    (nextMode) => {
+      const normalized = nextMode === 'dark' ? 'dark' : 'light';
+      if (!isControlledTheme) {
+        setInternalTheme(normalized);
+      }
+      if (typeof onThemeChange === 'function') {
+        onThemeChange(normalized);
+      }
+    },
+    [isControlledTheme, onThemeChange]
+  );
+
+  const handleToggleTheme = useCallback(() => {
+    handleSetTheme(activeTheme === 'dark' ? 'light' : 'dark');
+  }, [activeTheme, handleSetTheme]);
+
+  const initialThemeRef = useRef(activeTheme);
+  const themeCallbacksRef = useRef({
+    setTheme: handleSetTheme,
+    toggleTheme: handleToggleTheme,
+  });
+  themeCallbacksRef.current = {
+    setTheme: handleSetTheme,
+    toggleTheme: handleToggleTheme,
+  };
+  const engineApiRef = useRef(null);
+
   const rootRef = useRef(null);
   const stageContainerRef = useRef(null);
   const svgElRef = useRef(null);
@@ -1038,6 +1343,8 @@ export function LoadBalancerVisualizer() {
     }
 
     const STATE = createInitialState();
+    let currentThemeMode = initialThemeRef.current === 'dark' ? 'dark' : 'light';
+    let palette = THEMES[currentThemeMode];
     let currentAlgoIdx = 0;
     let targetRPS = 12;
     let isPaused = false;
@@ -1112,7 +1419,7 @@ export function LoadBalancerVisualizer() {
     }
 
     function resetCameraFit() {
-      camera.cx = 820;
+      camera.cx = 820,
       camera.cy = 485;
       camera.zoom = 1.0;
       applyViewBox();
@@ -1201,7 +1508,7 @@ export function LoadBalancerVisualizer() {
       lbSwitchingArcEl._fadeAge = 0.28;
     }
 
-    function triggerNodeImpact(nodeId, portPt, rippleColor = '#f08c65', toastText = null) {
+    function triggerNodeImpact(nodeId, portPt, rippleColor = palette.rippleReq, toastText = null) {
       const now = performance.now();
       let b = nodeBounces.get(nodeId);
       if (!b) {
@@ -1222,8 +1529,8 @@ export function LoadBalancerVisualizer() {
             sRef.block.centerTop.x,
             sRef.block.centerTop.y - 38,
             toastText,
-            '#e9f7ea',
-            '#1d682d'
+            palette.toastOkBg,
+            palette.toastOkText
           );
         }
       }
@@ -1254,15 +1561,18 @@ export function LoadBalancerVisualizer() {
           sRef.block.bounceG.setAttribute('transform', `translate(0, ${b.offset.toFixed(2)})`);
           sRef.block.haloRing.setAttribute('opacity', (b.flash * 0.7).toFixed(2));
           if (sRef.block.led1 && sRef.srv.healthy) {
-            const ledCol = b.flash > 0.35 ? '#48b850' : '#23211e';
+            const ledCol = b.flash > 0.35 ? palette.srvLedFlash1 : palette.srvLedIdle;
             sRef.block.led1.setAttribute('fill', ledCol);
-            sRef.block.led2.setAttribute('fill', b.flash > 0.55 ? '#f08c65' : '#23211e');
+            sRef.block.led2.setAttribute('fill', b.flash > 0.55 ? palette.srvLedFlash2 : palette.srvLedIdle);
           }
         } else if (clientNodeRefs.has(nodeId)) {
           const cRef = clientNodeRefs.get(nodeId);
           cRef.laptop.bounceG.setAttribute('transform', `translate(0, ${(b.offset * 0.55).toFixed(2)})`);
           if (cRef.laptop.heroBannerPath) {
-            cRef.laptop.heroBannerPath.setAttribute('fill', b.flash > 0.35 ? '#b9a6f2' : '#cec2f2');
+            cRef.laptop.heroBannerPath.setAttribute(
+              'fill',
+              b.flash > 0.35 ? palette.lapHeroFlash : palette.lapHero
+            );
           }
         }
       });
@@ -1364,7 +1674,7 @@ export function LoadBalancerVisualizer() {
       if (dir === 1 && routeIdx < STATE.clients.length) {
         const client = STATE.clients[routeIdx];
         if (client) {
-          triggerNodeImpact(client.id, route.startPt, '#f08c65');
+          triggerNodeImpact(client.id, route.startPt, palette.rippleReq);
         }
       }
       return true;
@@ -1440,23 +1750,23 @@ export function LoadBalancerVisualizer() {
         const { bgRect, fillRect, metricText, gearPath, trackW, toggleBg, toggleText } = refs.pill;
 
         if (!srv.healthy) {
-          bgRect.setAttribute('fill', '#f5efe6');
+          bgRect.setAttribute('fill', palette.pillOfflineBg);
           fillRect.setAttribute('width', '0');
           metricText.textContent = 'OFFLINE';
-          metricText.setAttribute('fill', '#8c3022');
+          metricText.setAttribute('fill', palette.pillOfflineText);
           gearPath.classList.add('svg-gear-paused');
-          toggleBg.setAttribute('fill', '#e28171');
+          toggleBg.setAttribute('fill', palette.pillToggleOffRefresh);
           toggleText.textContent = 'OFF';
         } else {
-          bgRect.setAttribute('fill', '#fdfbf7');
+          bgRect.setAttribute('fill', palette.pillBg);
           const w = Math.max(4, (Math.min(100, srv.cpu) / 100) * trackW);
           fillRect.setAttribute('width', w.toFixed(1));
           const barColor = srv.cpu > 78 ? '#e36652' : srv.cpu > 58 ? '#eba444' : '#6ec472';
           fillRect.setAttribute('fill', barColor);
           metricText.textContent = `${srv.cpu}% • ${srv.connections}c`;
-          metricText.setAttribute('fill', '#23211e');
+          metricText.setAttribute('fill', palette.pillText);
           gearPath.classList.remove('svg-gear-paused');
-          toggleBg.setAttribute('fill', '#78c67a');
+          toggleBg.setAttribute('fill', palette.pillToggleOn);
           toggleText.textContent = 'ON';
         }
       });
@@ -1502,15 +1812,32 @@ export function LoadBalancerVisualizer() {
       if (refs) {
         refs.block.topPath.setAttribute('fill', srv.healthy ? 'url(#srv-top-grad)' : 'url(#srv-off-top-grad)');
         refs.block.wallPath.setAttribute('fill', srv.healthy ? 'url(#srv-wall-grad)' : 'url(#srv-off-wall-grad)');
+        const nextBlockStroke = srv.healthy ? palette.srvStroke : palette.srvOffStroke;
+        refs.block.topPath.setAttribute('stroke', nextBlockStroke);
+        refs.block.wallPath.setAttribute('stroke', nextBlockStroke);
+
+        const nextTitleColor = srv.healthy ? palette.srvTitle : palette.srvOffTitle;
+        refs.block.t1?.setAttribute('fill', nextTitleColor);
+        refs.block.t2?.setAttribute('fill', nextTitleColor);
+
+        const nextRackFill = srv.healthy ? palette.srvRackFill : palette.srvOffRackFill;
+        const nextRackStroke = srv.healthy ? palette.srvRackStroke : palette.srvOffRackStroke;
+        refs.block.rackBoxes?.forEach((box) => {
+          box.setAttribute('fill', nextRackFill);
+          box.setAttribute('stroke', nextRackStroke);
+        });
+        refs.block.rackLines?.forEach((line) => {
+          line.setAttribute('stroke', nextRackStroke);
+        });
 
         if (refs.block.led1 && refs.block.led2) {
-          const ledCol = srv.healthy ? '#23211e' : '#d84632';
+          const ledCol = srv.healthy ? palette.srvLedIdle : palette.srvLedOffline;
           refs.block.led1.setAttribute('fill', ledCol);
           refs.block.led2.setAttribute('fill', ledCol);
         }
 
         if (refs.wireRefs) {
-          const strokeCol = srv.healthy ? '#23211e' : '#9e9687';
+          const strokeCol = srv.healthy ? palette.wireActive : palette.wireOffline;
           refs.wireRefs.wirePath.setAttribute('stroke', strokeCol);
           if (srv.healthy) {
             refs.wireRefs.wirePath.removeAttribute('stroke-dasharray');
@@ -1523,13 +1850,13 @@ export function LoadBalancerVisualizer() {
           refs.wireRefs.ringStart.setAttribute('stroke', strokeCol);
         }
 
-        spawnIsometricFloorWave(srv.u, srv.v, srv.healthy ? '#6ec472' : '#e06c58');
+        spawnIsometricFloorWave(srv.u, srv.v, srv.healthy ? palette.floorWaveOnline : palette.floorWaveOffline);
         spawnMacroToast(
           refs.block.centerTop.x,
           refs.block.centerTop.y - 42,
           srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
-          srv.healthy ? '#e9f7ea' : '#fde7e3',
-          srv.healthy ? '#1d682d' : '#94291b'
+          srv.healthy ? palette.toastOkBg : palette.toastFailBg,
+          srv.healthy ? palette.toastOkText : palette.toastFailText
         );
       }
 
@@ -1559,7 +1886,13 @@ export function LoadBalancerVisualizer() {
 
       if (lbNodeRef && lbNodeRef.subEl) {
         lbNodeRef.subEl.textContent = algo;
-        spawnMacroToast(lbNodeRef.centerTop.x, lbNodeRef.centerTop.y - 44, `MODE: ${algo}`, '#fff3d1', '#23211e');
+        spawnMacroToast(
+          lbNodeRef.centerTop.x,
+          lbNodeRef.centerTop.y - 44,
+          `MODE: ${algo}`,
+          palette.toastModeBg,
+          palette.toastModeText
+        );
       }
 
       const pretty = algo.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -1596,12 +1929,18 @@ export function LoadBalancerVisualizer() {
 
     function triggerBurstWaveMacro() {
       if (isPaused) togglePause();
-      spawnIsometricFloorWave(0, 0, '#e6b84e');
+      spawnIsometricFloorWave(0, 0, palette.floorWaveBurst);
       for (let i = 0; i < STATE.clients.length; i++) {
         spawnPacket(clientRouteIndices[i], STATE.clients[i].dashed ? 2 : 0, 1, 1.12, i, true);
       }
       if (lbNodeRef) {
-        spawnMacroToast(lbNodeRef.centerTop.x, lbNodeRef.centerTop.y - 46, '⚡ BURST WAVE', '#fff3d1', '#23211e');
+        spawnMacroToast(
+          lbNodeRef.centerTop.x,
+          lbNodeRef.centerTop.y - 46,
+          '⚡ BURST WAVE',
+          palette.toastModeBg,
+          palette.toastModeText
+        );
       }
     }
 
@@ -1621,51 +1960,51 @@ export function LoadBalancerVisualizer() {
       const defs = createSVG('defs');
       defs.innerHTML = `
         <linearGradient id="lb-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fff9e6"/>
-          <stop offset="100%" stop-color="#f5dc96"/>
+          <stop offset="0%" stop-color="${palette.lbTop0}"/>
+          <stop offset="100%" stop-color="${palette.lbTop1}"/>
         </linearGradient>
         <linearGradient id="lb-wall-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#f3d386"/>
-          <stop offset="48%" stop-color="#e5bf69"/>
-          <stop offset="54%" stop-color="#d7af56"/>
-          <stop offset="100%" stop-color="#e3bd68"/>
+          <stop offset="0%" stop-color="${palette.lbWall0}"/>
+          <stop offset="48%" stop-color="${palette.lbWall48}"/>
+          <stop offset="54%" stop-color="${palette.lbWall54}"/>
+          <stop offset="100%" stop-color="${palette.lbWall100}"/>
         </linearGradient>
 
         <linearGradient id="srv-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f2f7ff"/>
-          <stop offset="100%" stop-color="#c8defa"/>
+          <stop offset="0%" stop-color="${palette.srvTop0}"/>
+          <stop offset="100%" stop-color="${palette.srvTop1}"/>
         </linearGradient>
         <linearGradient id="srv-wall-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#bdd5f6"/>
-          <stop offset="48%" stop-color="#a1bee8"/>
-          <stop offset="54%" stop-color="#8da9d8"/>
-          <stop offset="100%" stop-color="#9fbbe6"/>
+          <stop offset="0%" stop-color="${palette.srvWall0}"/>
+          <stop offset="48%" stop-color="${palette.srvWall48}"/>
+          <stop offset="54%" stop-color="${palette.srvWall54}"/>
+          <stop offset="100%" stop-color="${palette.srvWall100}"/>
         </linearGradient>
 
         <linearGradient id="srv-off-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f3efe8"/>
-          <stop offset="100%" stop-color="#dad3c7"/>
+          <stop offset="0%" stop-color="${palette.srvOffTop0}"/>
+          <stop offset="100%" stop-color="${palette.srvOffTop1}"/>
         </linearGradient>
         <linearGradient id="srv-off-wall-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#d2cbc0"/>
-          <stop offset="50%" stop-color="#b6aea2"/>
-          <stop offset="100%" stop-color="#c5beb2"/>
+          <stop offset="0%" stop-color="${palette.srvOffWall0}"/>
+          <stop offset="50%" stop-color="${palette.srvOffWall50}"/>
+          <stop offset="100%" stop-color="${palette.srvOffWall100}"/>
         </linearGradient>
 
         <linearGradient id="pad-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f6f1e7"/>
-          <stop offset="100%" stop-color="#e8e0d2"/>
+          <stop offset="0%" stop-color="${palette.padTop0}"/>
+          <stop offset="100%" stop-color="${palette.padTop1}"/>
         </linearGradient>
         <linearGradient id="pad-wall-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#e1d9c9"/>
-          <stop offset="50%" stop-color="#c6bcab"/>
-          <stop offset="100%" stop-color="#d6cebe"/>
+          <stop offset="0%" stop-color="${palette.padWall0}"/>
+          <stop offset="50%" stop-color="${palette.padWall50}"/>
+          <stop offset="100%" stop-color="${palette.padWall100}"/>
         </linearGradient>
 
         <linearGradient id="laptop-lid-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#5c5751"/>
-          <stop offset="25%" stop-color="#423e39"/>
-          <stop offset="100%" stop-color="#2c2926"/>
+          <stop offset="0%" stop-color="${palette.lapLid0}"/>
+          <stop offset="25%" stop-color="${palette.lapLid25}"/>
+          <stop offset="100%" stop-color="${palette.lapLid100}"/>
         </linearGradient>
       `;
       svgEl.appendChild(defs);
@@ -1696,7 +2035,7 @@ export function LoadBalancerVisualizer() {
             y1: pA.y.toFixed(1),
             x2: pB.x.toFixed(1),
             y2: pB.y.toFixed(1),
-            stroke: '#e2dac8',
+            stroke: palette.gridLine,
             'stroke-width': '1.25',
           })
         );
@@ -1709,7 +2048,7 @@ export function LoadBalancerVisualizer() {
             y1: pC.y.toFixed(1),
             x2: pD.x.toFixed(1),
             y2: pD.y.toFixed(1),
-            stroke: '#e2dac8',
+            stroke: palette.gridLine,
             'stroke-width': '1.25',
           })
         );
@@ -1719,7 +2058,7 @@ export function LoadBalancerVisualizer() {
         const el = createSVG('path', {
           d: '',
           fill: 'none',
-          stroke: '#e6b84e',
+          stroke: palette.floorWaveBurst,
           'stroke-width': '2.6',
           display: 'none',
         });
@@ -1753,7 +2092,7 @@ export function LoadBalancerVisualizer() {
         ROUTE_TABLES.push(routeData);
         clientRouteIndices.push(routeIdx);
 
-        const strokeCol = client.dashed ? '#8e8678' : '#23211e';
+        const strokeCol = client.dashed ? palette.wireDashed : palette.wireActive;
         const pathEl = createSVG('path', {
           d: routeData.svgPath,
           fill: 'none',
@@ -1766,8 +2105,13 @@ export function LoadBalancerVisualizer() {
         }
         wiresG.appendChild(pathEl);
 
-        const endDock = createArrowheadAndDockSVG(pts2D[pts2D.length - 1], pts2D[pts2D.length - 2], strokeCol);
-        const startDock = createArrowheadAndDockSVG(pts2D[0], pts2D[1], strokeCol);
+        const endDock = createArrowheadAndDockSVG(
+          pts2D[pts2D.length - 1],
+          pts2D[pts2D.length - 2],
+          strokeCol,
+          palette.portRingFill
+        );
+        const startDock = createArrowheadAndDockSVG(pts2D[0], pts2D[1], strokeCol, palette.portRingFill);
         wiresG.appendChild(endDock.group);
         wiresG.appendChild(startDock.group);
       });
@@ -1788,7 +2132,7 @@ export function LoadBalancerVisualizer() {
         ROUTE_TABLES.push(routeData);
         serverRouteIndices.push(routeIdx);
 
-        const strokeCol = srv.healthy ? '#23211e' : '#9e9687';
+        const strokeCol = srv.healthy ? palette.wireActive : palette.wireOffline;
         const wirePath = createSVG('path', {
           d: routeData.svgPath,
           fill: 'none',
@@ -1801,8 +2145,13 @@ export function LoadBalancerVisualizer() {
         }
         wiresG.appendChild(wirePath);
 
-        const endDock = createArrowheadAndDockSVG(pts2D[pts2D.length - 1], pts2D[pts2D.length - 2], strokeCol);
-        const startDock = createArrowheadAndDockSVG(pts2D[0], pts2D[1], strokeCol);
+        const endDock = createArrowheadAndDockSVG(
+          pts2D[pts2D.length - 1],
+          pts2D[pts2D.length - 2],
+          strokeCol,
+          palette.portRingFill
+        );
+        const startDock = createArrowheadAndDockSVG(pts2D[0], pts2D[1], strokeCol, palette.portRingFill);
         wiresG.appendChild(endDock.group);
         wiresG.appendChild(startDock.group);
 
@@ -1822,12 +2171,12 @@ export function LoadBalancerVisualizer() {
           rx: '5',
           ry: '3',
           fill: 'none',
-          stroke: '#f08c65',
+          stroke: palette.rippleReq,
           'stroke-width': '2.2',
           display: 'none',
         });
         ripplesG.appendChild(el);
-        svgRippleNodes.push({ el, inUse: false, x: 0, y: 0, color: '#f08c65', age: 0, duration: 0.42, maxR: 20 });
+        svgRippleNodes.push({ el, inUse: false, x: 0, y: 0, color: palette.rippleReq, age: 0, duration: 0.42, maxR: 20 });
       }
 
       for (let i = 0; i < SVG_PACKET_POOL_SIZE; i++) {
@@ -1835,8 +2184,8 @@ export function LoadBalancerVisualizer() {
           cx: '0',
           cy: '0',
           r: '6.4',
-          fill: '#f08c65',
-          stroke: '#23211e',
+          fill: palette.pktReqFill,
+          stroke: palette.pktReqStroke,
           'stroke-width': '2.35',
           display: 'none',
         });
@@ -1853,6 +2202,7 @@ export function LoadBalancerVisualizer() {
           u: client.u,
           v: client.v,
           scale,
+          palette,
         });
         laptopObj.group.addEventListener('click', () => {
           spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
@@ -1865,6 +2215,7 @@ export function LoadBalancerVisualizer() {
           cx: pillPos.x,
           cy: pillPos.y,
           text: client.label,
+          palette,
         });
         clientPill.group.addEventListener('click', () => {
           spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
@@ -1887,6 +2238,7 @@ export function LoadBalancerVisualizer() {
         title1: lb.title1,
         title2: lb.title2,
         subtitle: lb.subtitle,
+        palette,
       });
       lbNodeRef.group.addEventListener('click', cycleAlgorithm);
       shadowsG.appendChild(lbNodeRef.shadowPath);
@@ -1895,7 +2247,7 @@ export function LoadBalancerVisualizer() {
       lbSwitchingArcEl = createSVG('path', {
         d: '',
         fill: 'none',
-        stroke: '#f08c65',
+        stroke: palette.lbArc,
         'stroke-width': '3.0',
         'stroke-linecap': 'round',
         'stroke-dasharray': '5 4',
@@ -1921,6 +2273,8 @@ export function LoadBalancerVisualizer() {
           iconType: 'server',
           title1: nameParts[0],
           title2: nameParts[1] || '',
+          isOffline: !srv.healthy,
+          palette,
         });
         srvBlock.group.addEventListener('click', () => toggleServerHealth(idx));
         shadowsG.appendChild(srvBlock.shadowPath);
@@ -1931,6 +2285,7 @@ export function LoadBalancerVisualizer() {
           cx: pillPos.x,
           cy: pillPos.y,
           srv,
+          palette,
         });
         metricPill.group.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1954,15 +2309,15 @@ export function LoadBalancerVisualizer() {
           width: '76',
           height: '22',
           rx: '11',
-          fill: '#e9f7ea',
-          stroke: '#23211e',
+          fill: palette.toastOkBg,
+          stroke: palette.toastStroke,
           'stroke-width': '1.8',
         });
         const label = createSVG('text', {
           x: '0',
           y: '3.6',
           'text-anchor': 'middle',
-          fill: '#1d682d',
+          fill: palette.toastOkText,
           'font-family': "'JetBrains Mono', monospace",
           'font-size': '10px',
           'font-weight': '800',
@@ -1975,6 +2330,18 @@ export function LoadBalancerVisualizer() {
 
       refreshServerPillsUI();
     }
+
+    engineApiRef.current = {
+      applyTheme: (nextMode) => {
+        const normalized = nextMode === 'dark' ? 'dark' : 'light';
+        if (normalized === currentThemeMode) return;
+        currentThemeMode = normalized;
+        palette = THEMES[currentThemeMode];
+        // Rebuild vector scene with new theme palette without clearing live packets or camera state
+        buildCompleteSVGScene();
+        applyViewBox();
+      },
+    };
 
     function addClientDevice(customConfig = {}) {
       if (STATE.clients.length >= 6) return null;
@@ -2169,6 +2536,8 @@ export function LoadBalancerVisualizer() {
         const cIdx = Math.max(0, Math.min(STATE.clients.length - 1, clientIndex));
         spawnPacket(clientRouteIndices[cIdx], STATE.clients[cIdx].dashed ? 2 : 0, 1, 1.0, cIdx, true);
       },
+      setTheme: (mode) => themeCallbacksRef.current.setTheme(mode),
+      toggleTheme: () => themeCallbacksRef.current.toggleTheme(),
       getState: () => JSON.parse(JSON.stringify(STATE)),
     };
 
@@ -2234,7 +2603,7 @@ export function LoadBalancerVisualizer() {
             pktActive[i] = 0;
 
             if (dir === 1 && rIdx < nClients) {
-              triggerNodeImpact('lb', route ? route.endPt : null, '#f08c65');
+              triggerNodeImpact('lb', route ? route.endPt : null, palette.rippleReq);
               const targetSrv = pickHealthyServerIdx(originC);
               if (targetSrv !== -1) {
                 const sRouteIdx = serverRouteIndices[targetSrv];
@@ -2248,17 +2617,17 @@ export function LoadBalancerVisualizer() {
               const srvIdx = rIdx - nClients;
               const srv = STATE.servers[srvIdx];
               if (srv && srv.healthy) {
-                triggerNodeImpact(srv.id, route ? route.endPt : null, '#f08c65', '200 OK');
+                triggerNodeImpact(srv.id, route ? route.endPt : null, palette.rippleReq, '200 OK');
                 spawnPacket(rIdx, 1, -1, speedMult, originC, false);
               }
             } else if (dir === -1 && rIdx >= nClients) {
-              triggerNodeImpact('lb', route ? route.startPt : null, '#78c67a');
+              triggerNodeImpact('lb', route ? route.startPt : null, palette.rippleRes);
               const validClientIdx = originC < nClients ? originC : (Math.random() * nClients) | 0;
               spawnPacket(clientRouteIndices[validClientIdx], 1, -1, speedMult, validClientIdx, false);
             } else if (dir === -1 && rIdx < nClients) {
               const client = STATE.clients[rIdx];
               if (client && route) {
-                triggerNodeImpact(client.id, route.startPt, '#78c67a');
+                triggerNodeImpact(client.id, route.startPt, palette.rippleRes);
               }
             }
           }
@@ -2317,14 +2686,14 @@ export function LoadBalancerVisualizer() {
 
         const pType = pktType[i];
         if (pType === 0) {
-          circleEl.setAttribute('fill', '#f08c65');
-          circleEl.setAttribute('stroke', '#23211e');
+          circleEl.setAttribute('fill', palette.pktReqFill);
+          circleEl.setAttribute('stroke', palette.pktReqStroke);
         } else if (pType === 1) {
-          circleEl.setAttribute('fill', '#78c67a');
-          circleEl.setAttribute('stroke', '#23211e');
+          circleEl.setAttribute('fill', palette.pktResFill);
+          circleEl.setAttribute('stroke', palette.pktResStroke);
         } else {
-          circleEl.setAttribute('fill', '#f6f1e6');
-          circleEl.setAttribute('stroke', '#4f9d52');
+          circleEl.setAttribute('fill', palette.pktHandFill);
+          circleEl.setAttribute('stroke', palette.pktHandStroke);
         }
         circleEl.setAttribute('display', 'inline');
       }
@@ -2357,8 +2726,13 @@ export function LoadBalancerVisualizer() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('resize', syncViewportSize);
+      engineApiRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    engineApiRef.current?.applyTheme(activeTheme);
+  }, [activeTheme]);
 
   return (
     <>
@@ -2373,8 +2747,8 @@ export function LoadBalancerVisualizer() {
         .lb-iso-visualizer {
           position: relative;
           width: 100%;
-          height: 100%;
-          min-height: 640px;
+          min-height: 520px;
+          height: 720px;
           overflow: hidden;
           background: radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 70%, #ebe2d0 100%);
           font-family: 'JetBrains Mono', monospace;
@@ -2713,9 +3087,178 @@ export function LoadBalancerVisualizer() {
         .lb-iso-visualizer .svg-gear-paused {
           animation-play-state: paused;
         }
+
+        /* Dark Mode Colorful Theme Overrides */
+        .lb-iso-visualizer.lb-theme-dark {
+          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .paper-grain {
+          opacity: 0.42;
+          background-image: radial-gradient(rgba(196, 181, 253, 0.11) 0.75px, transparent 0.75px);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card {
+          background: rgba(34, 30, 44, 0.94);
+          border-color: #463f57;
+          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
+          color: #a99fc2;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-dns {
+          color: #ffd166;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-connect {
+          color: #7cc0ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-server {
+          color: #c4b5fd;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-rps {
+          color: #ff9472;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value--green {
+          color: #4ade80;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn {
+          background: #262230;
+          color: #f6f2ff;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
+          background: #332d40;
+          border-color: #a78bfa;
+          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:active {
+          box-shadow: 0 1px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--active {
+          background: #fbbf24;
+          color: #141218;
+          border-color: #fde68a;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--active:hover {
+          background: #fcd34d;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent {
+          background: #472522;
+          color: #ffbaa8;
+          border-color: #e06c58;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent:hover {
+          background: #5c2e2a;
+          color: #ffd6cc;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-group {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-label {
+          color: #f6f2ff;
+          background: #1d1a26;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
+          color: #f6f2ff;
+          background: #262230;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
+          background: #a78bfa;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-group {
+          background: #1d1a26;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn {
+          color: #b4a9cc;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
+          background: #2e293b;
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
+          background: #fbbf24;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .hud-bottom-legend {
+          color: #b4a9cc;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot {
+          border-color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--req {
+          background: #ff7b54;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--res {
+          background: #4ade80;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--hand {
+          background: #1e1b24;
+          border-color: #38bdf8;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-pill {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-btn {
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-btn:hover {
+          background: #332d40;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-readout {
+          color: #f6f2ff;
+          border-left-color: #766b8c;
+          border-right-color: #766b8c;
+        }
       `}</style>
 
-      <div ref={rootRef} className="lb-iso-visualizer">
+      <div ref={rootRef} className={`lb-iso-visualizer${isDark ? ' lb-theme-dark' : ''}`}>
         <div className="paper-grain" />
 
         <div className="hud-top-bar">
@@ -2775,86 +3318,6 @@ export function LoadBalancerVisualizer() {
               <div className="metric-card__value metric-card__value--green" id="metric-total">84 ms</div>
             </div>
           </div>
-
-          <div className="hud-actions-row">
-            <div className="stepper-group" title="Add or Remove Request Devices (Clients)">
-              <span className="stepper-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                  <rect x="3" y="4" width="18" height="12" rx="2" />
-                  <path d="M2 20h20" />
-                </svg>
-                <span ref={countClientsRef}>4 Devices</span>
-              </span>
-              <button type="button" className="stepper-btn" ref={btnRemoveClientRef} title="Remove Request Device">
-                −
-              </button>
-              <button type="button" className="stepper-btn" ref={btnAddClientRef} title="Add Request Device">
-                +
-              </button>
-            </div>
-
-            <div className="stepper-group" title="Add or Remove Backend Servers">
-              <span className="stepper-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                  <rect x="3" y="4" width="18" height="6" rx="1.5" />
-                  <rect x="3" y="14" width="18" height="6" rx="1.5" />
-                </svg>
-                <span ref={countServersRef}>3 Servers</span>
-              </span>
-              <button type="button" className="stepper-btn" ref={btnRemoveServerRef} title="Remove Backend Server">
-                −
-              </button>
-              <button type="button" className="stepper-btn" ref={btnAddServerRef} title="Add Backend Server">
-                +
-              </button>
-            </div>
-
-            <div className="rps-group" title="Requests Per Second">
-              {RPS_LEVELS.map((val, idx) => {
-                const label = val >= 1000 ? `${val / 1000}K/s` : `${val}/s`;
-                return (
-                  <button
-                    key={val}
-                    type="button"
-                    ref={(el) => {
-                      rpsBtnRefs.current[idx] = el;
-                    }}
-                    data-rps={val}
-                    className={`rps-btn ${val === 12 ? 'active' : ''}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button type="button" className="neo-btn" ref={btnAlgoRef} title="Switch Load Balancing Strategy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
-              </svg>
-              <span ref={btnAlgoLabelRef}>Round Robin</span>
-            </button>
-
-            <button
-              type="button"
-              className="neo-btn neo-btn--accent"
-              ref={btnBurstRef}
-              title="Fire Synchronized Burst Wave from All Clients"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-              <span>Burst Wave</span>
-            </button>
-
-            <button type="button" className="neo-btn" ref={btnPauseRef} title="Pause / Resume Visualizer">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-              <span ref={btnPauseLabelRef}>Pause</span>
-            </button>
-          </div>
         </div>
 
         <div ref={stageContainerRef} className="stage-container">
@@ -2902,6 +3365,6 @@ export function LoadBalancerVisualizer() {
   );
 }
 
-export default function Visualizer3D() {
-  return <LoadBalancerVisualizer />;
+export default function Visualizer3D({ theme, onThemeChange, onSelectNode, selectedNode } = {}) {
+  return <LoadBalancerVisualizer theme={theme} onThemeChange={onThemeChange} />;
 }

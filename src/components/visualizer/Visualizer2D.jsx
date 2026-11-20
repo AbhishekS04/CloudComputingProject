@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { THEMES } from './Visualizer3D';
 
 // =========================================================================
 // 1. CONSTANTS & PRESET DATA
@@ -141,7 +142,36 @@ function sampleRouteWithNormal(route, u) {
 // =========================================================================
 // 3. MAIN REACT APPLICATION COMPONENT
 // =========================================================================
-export default function Visualizer2D({ onSelectNode, selectedNode }) {
+export default function Visualizer2D({
+  theme,
+  onThemeChange,
+  onSelectNode,
+  selectedNode
+} = {}) {
+  const isControlledTheme = theme === 'light' || theme === 'dark';
+  const [internalTheme, setInternalTheme] = useState(() => {
+    if (theme === 'dark' || theme === 'light') return theme;
+    return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+  const activeTheme = isControlledTheme ? theme : internalTheme;
+  const isDark = activeTheme === 'dark';
+  const palette = THEMES[isDark ? 'dark' : 'light'];
+
+  const paletteRef = useRef(palette);
+  paletteRef.current = palette;
+
+  useEffect(() => {
+    if (isControlledTheme) {
+      setInternalTheme(theme);
+    }
+  }, [theme, isControlledTheme]);
+
+  const handleToggleTheme = useCallback(() => {
+    const next = activeTheme === 'dark' ? 'light' : 'dark';
+    if (!isControlledTheme) setInternalTheme(next);
+    if (typeof onThemeChange === 'function') onThemeChange(next);
+  }, [activeTheme, isControlledTheme, onThemeChange]);
+
   // --- UI & Topology State ---
   const [clients, setClients] = useState(() => CLIENT_PRESETS.slice(0, 5));
   const [servers, setServers] = useState(() => INITIAL_SERVERS);
@@ -346,28 +376,32 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
   // =========================================================================
   // 5. MACRO EFFECTS & SPRING TRIGGER HELPERS
   // =========================================================================
-  const spawnRipple = useCallback((x, y, color, maxR = 18) => {
+  const spawnRipple = useCallback((x, y, color = null, maxR = 18) => {
     const eng = engineRef.current;
+    const rippleColor = color || paletteRef.current.rippleReq;
     const idx = rippleDomRefs.current.findIndex((el, i) => el && !eng.activeRipples.some((r) => r.poolIdx === i));
     if (idx === -1) return;
     const el = rippleDomRefs.current[idx];
     el.setAttribute('cx', x.toFixed(1));
     el.setAttribute('cy', y.toFixed(1));
-    el.setAttribute('stroke', color);
+    el.setAttribute('stroke', rippleColor);
     el.setAttribute('display', 'inline');
     eng.activeRipples.push({ poolIdx: idx, age: 0, duration: 0.42, maxR });
   }, []);
 
-  const spawnToast = useCallback((x, y, text, bg = '#e9f7ea', fg = '#1d682d') => {
+  const spawnToast = useCallback((x, y, text, bg = null, fg = null) => {
     const eng = engineRef.current;
+    const toastBg = bg || paletteRef.current.toastOkBg;
+    const toastFg = fg || paletteRef.current.toastOkText;
     const idx = toastDomRefs.current.findIndex((obj, i) => obj && !eng.activeToasts.some((t) => t.poolIdx === i));
     if (idx === -1) return;
     const { g, rect, label } = toastDomRefs.current[idx];
     const w = Math.max(76, text.length * 7.4 + 20);
     rect.setAttribute('x', (-w / 2).toFixed(1));
     rect.setAttribute('width', w.toFixed(1));
-    rect.setAttribute('fill', bg);
-    label.setAttribute('fill', fg);
+    rect.setAttribute('fill', toastBg);
+    rect.setAttribute('stroke', paletteRef.current.toastStroke);
+    label.setAttribute('fill', toastFg);
     label.textContent = text;
     g.setAttribute('transform', `translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(0.75)`);
     g.setAttribute('opacity', '1');
@@ -375,20 +409,22 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
     eng.activeToasts.push({ poolIdx: idx, x, y, age: 0, duration: 0.88 });
   }, []);
 
-  const spawnFloorWave = useCallback((x, y, w, h, rx, color = '#e6b84e') => {
+  const spawnFloorWave = useCallback((x, y, w, h, rx, color = null) => {
     const eng = engineRef.current;
+    const waveColor = color || paletteRef.current.floorWaveBurst;
     const idx = waveDomRefs.current.findIndex((el, i) => el && !eng.activeWaves.some((wv) => wv.poolIdx === i));
     if (idx === -1) return;
     const el = waveDomRefs.current[idx];
-    el.setAttribute('stroke', color);
+    el.setAttribute('stroke', waveColor);
     el.setAttribute('display', 'inline');
     eng.activeWaves.push({ poolIdx: idx, x, y, w, h, rx, age: 0, duration: 0.9 });
   }, []);
 
   const triggerNodeImpact = useCallback(
-    (nodeId, portPt, rippleColor = '#f08c65', toastText = null) => {
+    (nodeId, portPt, rippleColor = null, toastText = null) => {
       const now = performance.now();
       const eng = engineRef.current;
+      const rColor = rippleColor || paletteRef.current.rippleReq;
       let b = eng.nodeBounces.get(nodeId);
       if (!b) {
         b = { offset: 0, vel: 0, flash: 0, lastTrigger: 0, lastToast: 0 };
@@ -399,13 +435,13 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
         b.flash = 1.0;
         b.lastTrigger = now;
         if (portPt) {
-          spawnRipple(portPt.x, portPt.y, rippleColor, nodeId === 'lb' ? 19 : 16);
+          spawnRipple(portPt.x, portPt.y, rColor, nodeId === 'lb' ? 19 : 16);
         }
         if (toastText && now - b.lastToast > 560) {
           const srv = layoutRef.current.positionedServers.find((s) => s.id === nodeId);
           if (srv) {
             b.lastToast = now;
-            spawnToast(srv.x, srv.y - srv.h / 2 - 22, toastText, '#e9f7ea', '#1d682d');
+            spawnToast(srv.x, srv.y - srv.h / 2 - 22, toastText, paletteRef.current.toastOkBg, paletteRef.current.toastOkText);
           }
         }
       }
@@ -536,13 +572,20 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
       )
     );
 
-    spawnFloorWave(targetSrv.x, targetSrv.y, targetSrv.w, targetSrv.h, 13, willBeHealthy ? '#6ec472' : '#e06c58');
+    spawnFloorWave(
+      targetSrv.x,
+      targetSrv.y,
+      targetSrv.w,
+      targetSrv.h,
+      13,
+      willBeHealthy ? paletteRef.current.floorWaveOnline : paletteRef.current.floorWaveOffline
+    );
     spawnToast(
       targetSrv.x,
       targetSrv.y - targetSrv.h / 2 - 22,
       willBeHealthy ? `${targetSrv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
-      willBeHealthy ? '#e9f7ea' : '#fde7e3',
-      willBeHealthy ? '#1d682d' : '#94291b'
+      willBeHealthy ? paletteRef.current.toastOkBg : paletteRef.current.toastFailBg,
+      willBeHealthy ? paletteRef.current.toastOkText : paletteRef.current.toastFailText
     );
 
     // Reroute any in-flight forward packets on the downed wire
@@ -571,18 +614,77 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
     const nextIdx = (algoIdx + 1) % ALGORITHMS.length;
     setAlgoIdx(nextIdx);
     const { LB } = layoutRef.current;
-    spawnToast(LB.x, LB.y - LB.h / 2 - 24, `MODE: ${ALGORITHMS[nextIdx]}`, '#fff3d1', '#23211e');
+    spawnToast(LB.x, LB.y - LB.h / 2 - 24, `MODE: ${ALGORITHMS[nextIdx]}`, paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
   };
 
   const handleBurstWave = () => {
     if (isPaused) setIsPaused(false);
     const { LB, clientRoutes } = layoutRef.current;
-    spawnFloorWave(LB.x, LB.y, LB.w, LB.h, 14, '#e6b84e');
+    spawnFloorWave(LB.x, LB.y, LB.w, LB.h, 14, paletteRef.current.floorWaveBurst);
     clientRoutes.forEach((cr, idx) => {
       spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.15, idx, true);
     });
-    spawnToast(LB.x, LB.y - LB.h / 2 - 24, '⚡ BURST WAVE', '#fff3d1', '#23211e');
+    spawnToast(LB.x, LB.y - LB.h / 2 - 24, '⚡ BURST WAVE', paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
   };
+
+  // =========================================================================
+  // 6b. BIDIRECTIONAL CONTROL BRIDGE (Exposes API for StudioRightPanel)
+  // =========================================================================
+  useEffect(() => {
+    window.LoadBalancerVisualizer = {
+      addClient: handleAddClient,
+      removeClient: handleRemoveClient,
+      addServer: handleAddServer,
+      removeServer: handleRemoveServer,
+      toggleServer: handleToggleServer,
+      setAlgorithm: (algo) => {
+        const idx = ALGORITHMS.indexOf(algo);
+        if (idx !== -1) setAlgoIdx(idx);
+      },
+      cycleAlgorithm: handleCycleAlgo,
+      setRequestRate: (rps) => setTargetRPS(rps),
+      triggerBurstWave: handleBurstWave,
+      togglePause: () => setIsPaused((p) => !p),
+      triggerRequest: (clientIdx = 0) => {
+        const cr = layoutRef.current.clientRoutes[clientIdx] || layoutRef.current.clientRoutes[0];
+        if (cr) spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.1, clientIdx, true);
+      },
+      getState: () => ({
+        clients,
+        servers,
+        algorithm: ALGORITHMS[algoIdx],
+        targetRps: targetRPS,
+        isPaused,
+        metrics: {
+          dns: metrics.dns,
+          lb: metrics.dispatch,
+          server: metrics.server,
+          throughput: targetRPS,
+          totalRtt: metrics.rtt,
+        }
+      }),
+      fitView: resetCamera,
+    };
+
+    window.dispatchEvent(
+      new CustomEvent('lb-visualizer-state', {
+        detail: {
+          clients,
+          servers,
+          algorithm: ALGORITHMS[algoIdx],
+          targetRps: targetRPS,
+          isPaused,
+          metrics: {
+            dns: metrics.dns,
+            lb: metrics.dispatch,
+            server: metrics.server,
+            throughput: targetRPS,
+            totalRtt: metrics.rtt,
+          }
+        }
+      })
+    );
+  }, [clients, servers, algoIdx, targetRPS, isPaused, metrics]);
 
   // =========================================================================
   // 7. VIEWPORT RESIZE, PAN & CURSOR-CENTERED ZOOM
@@ -847,7 +949,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 
             // A) Client -> LB Input Port
             if (dir === 1 && rIdx < nClients) {
-              triggerNodeImpact('lb', route ? route.endPt : null, '#f08c65');
+              triggerNodeImpact('lb', route ? route.endPt : null, paletteRef.current.rippleReq);
               const targetSrvIdx = pickHealthyServerIdx(originC);
               if (targetSrvIdx !== -1 && serverRoutes[targetSrvIdx]) {
                 const sRouteObj = serverRoutes[targetSrvIdx];
@@ -857,6 +959,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     'd',
                     `M ${route.endPt.x.toFixed(1)} ${(route.endPt.y + 8).toFixed(1)} Q ${LB.x.toFixed(1)} ${LB.y.toFixed(1)} ${sRouteObj.startPt.x.toFixed(1)} ${(sRouteObj.startPt.y - 8).toFixed(1)}`
                   );
+                  lbArcRef.current.setAttribute('stroke', paletteRef.current.lbArc);
                   lbArcRef.current.setAttribute('opacity', '0.92');
                   eng.switchingArcFade = 0.28;
                 }
@@ -868,13 +971,13 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
               const srvIdx = rIdx - nClients;
               const srv = positionedServers[srvIdx];
               if (srv && srv.healthy) {
-                triggerNodeImpact(srv.id, route ? route.endPt : null, '#f08c65', '200 OK');
+                triggerNodeImpact(srv.id, route ? route.endPt : null, paletteRef.current.rippleReq, '200 OK');
                 spawnPacket(rIdx, 1, -1, speedMult, originC, false);
               }
             }
             // C) Backend Server -> LB Output Port
             else if (dir === -1 && rIdx >= nClients) {
-              triggerNodeImpact('lb', route ? route.startPt : null, '#78c67a');
+              triggerNodeImpact('lb', route ? route.startPt : null, paletteRef.current.rippleRes);
               const validClientIdx = originC < nClients ? originC : 0;
               if (clientRoutes[validClientIdx]) {
                 spawnPacket(clientRoutes[validClientIdx].routeIdx, 1, -1, speedMult, validClientIdx, false);
@@ -884,7 +987,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
             else if (dir === -1 && rIdx < nClients) {
               const client = positionedClients[rIdx];
               if (client && route) {
-                triggerNodeImpact(client.id, route.startPt, '#78c67a');
+                triggerNodeImpact(client.id, route.startPt, paletteRef.current.rippleRes);
               }
             }
           }
@@ -978,14 +1081,14 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 
         const pType = eng.pktType[i];
         if (pType === 0) {
-          el.setAttribute('fill', '#f08c65');
-          el.setAttribute('stroke', '#23211e');
+          el.setAttribute('fill', paletteRef.current.pktReqFill);
+          el.setAttribute('stroke', paletteRef.current.pktReqStroke);
         } else if (pType === 1) {
-          el.setAttribute('fill', '#78c67a');
-          el.setAttribute('stroke', '#23211e');
+          el.setAttribute('fill', paletteRef.current.pktResFill);
+          el.setAttribute('stroke', paletteRef.current.pktResStroke);
         } else {
-          el.setAttribute('fill', '#f6f1e6');
-          el.setAttribute('stroke', '#4f9d52');
+          el.setAttribute('fill', paletteRef.current.pktHandFill);
+          el.setAttribute('stroke', paletteRef.current.pktHandStroke);
         }
         el.setAttribute('display', 'inline');
       }
@@ -1010,10 +1113,13 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 
   return (
     <div
-      className="relative w-full h-[680px] lg:h-[740px] overflow-hidden select-none text-[#23211e]"
+      className={`lb-iso-visualizer relative w-full h-[680px] lg:h-[740px] overflow-hidden select-none ${isDark ? 'lb-theme-dark' : ''}`}
       style={{
         fontFamily: "'JetBrains Mono', monospace",
-        background: 'radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 72%, #ebe2d0 100%)'
+        background: isDark
+          ? 'radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%)'
+          : 'radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 72%, #ebe2d0 100%)',
+        color: palette.pillText
       }}
     >
       {/* Inline Keyframes & Crisp Neo-Brutalist Styles */}
@@ -1031,13 +1137,79 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
         .gear-paused {
           animation-play-state: paused;
         }
+
+        /* Dark Mode Neo-Brutalist Overrides */
+        .lb-iso-visualizer.lb-theme-dark {
+          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
+          color: #f6f2ff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card {
+          background: rgba(34, 30, 44, 0.94);
+          border-color: #463f57;
+          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
+          color: #a99fc2;
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
+          color: #f6f2ff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .neo-btn {
+          background: #262230;
+          color: #f6f2ff;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
+        }
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
+          background: #332d40;
+          border-color: #a78bfa;
+          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-group {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-label {
+          color: #f6f2ff;
+          background: #1d1a26;
+          border-right-color: #766b8c;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
+          color: #f6f2ff;
+          background: #262230;
+          border-right-color: #766b8c;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
+          background: #a78bfa;
+          color: #141218;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-group {
+          background: #1d1a26;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn {
+          color: #c4b5fd;
+          border-right-color: #463f57;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
+          background: #2a2538;
+          color: #ffffff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
+          background: #a78bfa;
+          color: #141218;
+        }
       `}</style>
 
       {/* Unified Dot-Matrix Paper Grain Overlay */}
       <div
         className="absolute inset-0 pointer-events-none z-[2] opacity-25"
         style={{
-          backgroundImage: 'radial-gradient(rgba(115, 100, 78, 0.16) 0.8px, transparent 0.8px)',
+          backgroundImage: isDark
+            ? 'radial-gradient(rgba(196, 181, 253, 0.11) 0.8px, transparent 0.8px)'
+            : 'radial-gradient(rgba(115, 100, 78, 0.16) 0.8px, transparent 0.8px)',
           backgroundSize: '14px 14px'
         }}
       />
@@ -1048,138 +1220,22 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
       <div className="absolute top-3.5 left-4 right-4 z-30 flex flex-wrap items-start justify-between gap-2.5 pointer-events-none">
         {/* Left: Live Telemetry Cards */}
         <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-          <MetricCard label="DNS LOOKUP" value={`${metrics.dns} ms`} icon="globe" />
-          <MetricCard label="LB DISPATCH" value={`${metrics.dispatch} ms`} icon="route" />
+          <MetricCard label="DNS LOOKUP" value={`${metrics.dns} ms`} icon="globe" isDark={isDark} />
+          <MetricCard label="LB DISPATCH" value={`${metrics.dispatch} ms`} icon="route" isDark={isDark} />
           <MetricCard
             label="SERVER EXEC"
             value={healthyCount > 0 ? `${metrics.server} ms` : 'ERR 503'}
             icon="server"
+            isDark={isDark}
           />
-          <MetricCard label="THROUGHPUT" value={`${targetRPS.toLocaleString()} req/s`} icon="pulse" />
+          <MetricCard label="THROUGHPUT" value={`${targetRPS.toLocaleString()} req/s`} icon="pulse" isDark={isDark} />
           <MetricCard
             label="TOTAL RTT"
             value={healthyCount > 0 ? `${metrics.rtt} ms` : 'OFFLINE'}
-            valueClass={healthyCount > 0 ? 'text-[#217238]' : 'text-[#94291b]'}
+            valueClass={healthyCount > 0 ? (isDark ? 'text-emerald-400' : 'text-[#217238]') : 'text-rose-500'}
             icon="clock"
+            isDark={isDark}
           />
-        </div>
-
-        {/* Right: Topology Steppers, RPS Selector, Strategy & Legend */}
-        <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-          {/* Devices Stepper */}
-          <div className="inline-flex items-center bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
-            <span className="px-2.5 py-1.5 text-[11px] font-extrabold bg-[#f4eee1] border-r-[1.5px] border-[#23211e] inline-flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <rect x="3" y="4" width="18" height="12" rx="2" />
-                <path d="M2 20h20" />
-              </svg>
-              {clients.length} Device{clients.length > 1 ? 's' : ''}
-            </span>
-            <button
-              onClick={handleRemoveClient}
-              disabled={clients.length <= 1}
-              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
-              title="Remove Client Device"
-            >
-              −
-            </button>
-            <button
-              onClick={handleAddClient}
-              disabled={clients.length >= 6}
-              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
-              title="Add Client Device"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Servers Stepper */}
-          <div className="inline-flex items-center bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
-            <span className="px-2.5 py-1.5 text-[11px] font-extrabold bg-[#f4eee1] border-r-[1.5px] border-[#23211e] inline-flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <rect x="3" y="4" width="18" height="6" rx="1.5" />
-                <rect x="3" y="14" width="18" height="6" rx="1.5" />
-              </svg>
-              {servers.length} Server{servers.length > 1 ? 's' : ''}
-            </span>
-            <button
-              onClick={handleRemoveServer}
-              disabled={servers.length <= 1}
-              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
-              title="Remove Backend Server"
-            >
-              −
-            </button>
-            <button
-              onClick={handleAddServer}
-              disabled={servers.length >= 5}
-              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
-              title="Add Backend Server"
-            >
-              +
-            </button>
-          </div>
-
-          {/* RPS Selector */}
-          <div className="inline-flex bg-[#efe9dc] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
-            {RPS_OPTIONS.map((opt, i) => (
-              <button
-                key={opt.value}
-                onClick={() => setTargetRPS(opt.value)}
-                className={`px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
-                  i < RPS_OPTIONS.length - 1 ? 'border-r-[1.5px] border-[#23211e]' : ''
-                } ${
-                  targetRPS === opt.value
-                    ? 'bg-[#f3ce75] text-[#23211e] font-extrabold'
-                    : 'text-[#4d473e] font-bold hover:bg-[#f9f3e3]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Algorithm Switcher */}
-          <button
-            onClick={handleCycleAlgo}
-            className="bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-              <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
-            </svg>
-            <span>{algoFormatted}</span>
-          </button>
-
-          {/* Burst Wave */}
-          <button
-            onClick={handleBurstWave}
-            className="bg-[#fde5d9] hover:bg-[#fbd5c2] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-            <span>Burst Wave</span>
-          </button>
-
-          {/* Pause / Resume */}
-          <button
-            onClick={() => setIsPaused((p) => !p)}
-            className={`${
-              isPaused ? 'bg-[#f3ce75]' : 'bg-[#fdfbf7] hover:bg-[#fff7e4]'
-            } active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform`}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-            <span>{isPaused ? 'Resume' : 'Pause'}</span>
-          </button>
-
-          {/* Top-Right Active Node Counter Pill */}
-          <div className="hidden xl:inline-flex items-center gap-2 bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11px] font-extrabold shadow-[0_2.5px_0_#23211e]">
-            <span className="w-2 h-2 rounded-full bg-[#48b850] inline-block" />
-            <span>NODES: {totalNodes}</span>
-          </div>
         </div>
       </div>
 
@@ -1200,32 +1256,32 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
           <defs>
             {/* Unified Seamless Blueprint Grid */}
             <pattern id="minor-grid-2d" width="36" height="36" patternUnits="userSpaceOnUse">
-              <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#e5decb" strokeWidth="1.15" />
+              <path d="M 36 0 L 0 0 0 36" fill="none" stroke={palette.gridLine} strokeWidth="1.15" />
             </pattern>
             <pattern id="major-grid-2d" width="180" height="180" patternUnits="userSpaceOnUse">
               <rect width="180" height="180" fill="url(#minor-grid-2d)" />
-              <path d="M 180 0 L 0 0 0 180" fill="none" stroke="#d8cfbb" strokeWidth="1.4" />
+              <path d="M 180 0 L 0 0 0 180" fill="none" stroke={isDark ? '#383244' : '#d8cfbb'} strokeWidth="1.4" />
             </pattern>
 
             {/* Neo-Brutalist Card Gradients */}
             <linearGradient id="lb-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#fff9e6" />
-              <stop offset="100%" stopColor="#f5dc96" />
+              <stop offset="0%" stopColor={palette.lbTop0} />
+              <stop offset="100%" stopColor={palette.lbTop1} />
             </linearGradient>
 
             <linearGradient id="srv-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f2f7ff" />
-              <stop offset="100%" stopColor="#c8defa" />
+              <stop offset="0%" stopColor={palette.srvTop0} />
+              <stop offset="100%" stopColor={palette.srvTop1} />
             </linearGradient>
 
             <linearGradient id="srv-off-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f3efe8" />
-              <stop offset="100%" stopColor="#dad3c7" />
+              <stop offset="0%" stopColor={palette.srvOffTop0} />
+              <stop offset="100%" stopColor={palette.srvOffTop1} />
             </linearGradient>
 
             <linearGradient id="client-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#fdfbf7" />
-              <stop offset="100%" stopColor="#f2ece0" />
+              <stop offset="0%" stopColor={isDark ? palette.padTop0 : '#fdfbf7'} />
+              <stop offset="100%" stopColor={isDark ? palette.padTop1 : '#f2ece0'} />
             </linearGradient>
           </defs>
 
@@ -1242,7 +1298,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
               <path
                 key={i}
                 d={`M ${mx} ${my - 8} V ${my + 8} M ${mx - 8} ${my} H ${mx + 8}`}
-                stroke="#b8af9e"
+                stroke={isDark ? '#575063' : '#b8af9e'}
                 strokeWidth="1.4"
               />
             ))}
@@ -1253,7 +1309,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 key={i}
                 ref={(el) => (waveDomRefs.current[i] = el)}
                 fill="none"
-                stroke="#e6b84e"
+                stroke={palette.floorWaveBurst}
                 strokeWidth="2.6"
                 display="none"
               />
@@ -1264,7 +1320,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
           <g>
             {/* Client -> LB Core Wires */}
             {layout.clientRoutes.map(({ route, client, startPt, endPt }) => {
-              const strokeCol = client.dashed ? '#8e8678' : '#23211e';
+              const strokeCol = client.dashed ? palette.wireDashed : palette.wireActive;
               return (
                 <g key={client.id}>
                   <path
@@ -1276,14 +1332,14 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     strokeDasharray={client.dashed ? '7 6' : undefined}
                   />
                   {/* Start Port Dock */}
-                  <circle cx={startPt.x} cy={startPt.y} r="4.8" fill="#fdfbf7" stroke={strokeCol} strokeWidth="2.1" />
+                  <circle cx={startPt.x} cy={startPt.y} r="4.8" fill={palette.portRingFill} stroke={strokeCol} strokeWidth="2.1" />
                   <path
                     d="M 0 0 L -11 -5 L -8.4 0 L -11 5 Z"
                     fill={strokeCol}
                     transform={`translate(${startPt.x}, ${startPt.y}) rotate(-90)`}
                   />
                   {/* End Port Dock at LB */}
-                  <circle cx={endPt.x} cy={endPt.y} r="4.8" fill="#fdfbf7" stroke={strokeCol} strokeWidth="2.1" />
+                  <circle cx={endPt.x} cy={endPt.y} r="4.8" fill={palette.portRingFill} stroke={strokeCol} strokeWidth="2.1" />
                   <path
                     d="M 0 0 L -11 -5 L -8.4 0 L -11 5 Z"
                     fill={strokeCol}
@@ -1295,7 +1351,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 
             {/* LB Core -> Backend Server Wires */}
             {layout.serverRoutes.map(({ route, server, startPt, endPt }) => {
-              const strokeCol = server.healthy ? '#23211e' : '#9e9687';
+              const strokeCol = server.healthy ? palette.wireActive : palette.wireOffline;
               return (
                 <g key={server.id}>
                   <path
@@ -1307,14 +1363,14 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     strokeDasharray={server.healthy ? undefined : '7 6'}
                   />
                   {/* Start Port Dock at LB */}
-                  <circle cx={startPt.x} cy={startPt.y} r="4.8" fill="#fdfbf7" stroke={strokeCol} strokeWidth="2.1" />
+                  <circle cx={startPt.x} cy={startPt.y} r="4.8" fill={palette.portRingFill} stroke={strokeCol} strokeWidth="2.1" />
                   <path
                     d="M 0 0 L -11 -5 L -8.4 0 L -11 5 Z"
                     fill={strokeCol}
                     transform={`translate(${startPt.x}, ${startPt.y}) rotate(90)`}
                   />
                   {/* End Port Dock at Server */}
-                  <circle cx={endPt.x} cy={endPt.y} r="4.8" fill="#fdfbf7" stroke={strokeCol} strokeWidth="2.1" />
+                  <circle cx={endPt.x} cy={endPt.y} r="4.8" fill={palette.portRingFill} stroke={strokeCol} strokeWidth="2.1" />
                   <path
                     d="M 0 0 L -11 -5 L -8.4 0 L -11 5 Z"
                     fill={strokeCol}
@@ -1375,7 +1431,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
               >
                 <g ref={(el) => (clientBounceRefs.current[c.id] = el)}>
                   {/* Hard Neo-Brutalist Offset Shadow */}
-                  <rect x="3.5" y="4.5" width={c.w} height={c.h} rx="12" fill="#23211e" />
+                  <rect x="3.5" y="4.5" width={c.w} height={c.h} rx="12" fill={palette.pillHardShadow} />
                   {/* Main Card Body */}
                   <rect
                     x="0"
@@ -1384,13 +1440,13 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     height={c.h}
                     rx="12"
                     fill="url(#client-top-grad)"
-                    stroke="#23211e"
+                    stroke={palette.padStroke}
                     strokeWidth="2.3"
                   />
                   {/* White Top Bevel Highlight */}
                   <path
                     d={`M 12 2.4 H ${c.w - 12}`}
-                    stroke="rgba(255,255,255,0.92)"
+                    stroke={palette.padBevel}
                     strokeWidth="2.5"
                     strokeLinecap="round"
                   />
@@ -1399,18 +1455,18 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                   <g transform="translate(24, 24)">
                     {c.type === 'mobile' ? (
                       <>
-                        <rect x="-5.5" y="-8.5" width="11" height="17" rx="2.2" fill="#fdfbf7" stroke="#23211e" strokeWidth="1.9" />
-                        <circle cx="0" cy="5.2" r="1.1" fill="#23211e" />
+                        <rect x="-5.5" y="-8.5" width="11" height="17" rx="2.2" fill={palette.portRingFill} stroke={palette.padStroke} strokeWidth="1.9" />
+                        <circle cx="0" cy="5.2" r="1.1" fill={palette.padStroke} />
                       </>
                     ) : c.type === 'api' || c.type === 'edge' ? (
                       <>
-                        <rect x="-7.5" y="-6.5" width="15" height="13" rx="2.8" fill="#f3ce75" stroke="#23211e" strokeWidth="1.9" />
-                        <path d="M -3.2 0 H 3.2 M 0 -3.2 V 3.2" stroke="#23211e" strokeWidth="1.7" strokeLinecap="round" />
+                        <rect x="-7.5" y="-6.5" width="15" height="13" rx="2.8" fill="#f3ce75" stroke={palette.padStroke} strokeWidth="1.9" />
+                        <path d="M -3.2 0 H 3.2 M 0 -3.2 V 3.2" stroke={palette.padStroke} strokeWidth="1.7" strokeLinecap="round" />
                       </>
                     ) : (
                       <>
-                        <rect x="-7.5" y="-6.5" width="15" height="10" rx="1.8" fill="#cec2f2" stroke="#23211e" strokeWidth="1.9" />
-                        <path d="M -9.5 5.5 H 9.5" stroke="#23211e" strokeWidth="2.1" strokeLinecap="round" />
+                        <rect x="-7.5" y="-6.5" width="15" height="10" rx="1.8" fill="#cec2f2" stroke={palette.padStroke} strokeWidth="1.9" />
+                        <path d="M -9.5 5.5 H 9.5" stroke={palette.padStroke} strokeWidth="2.1" strokeLinecap="round" />
                       </>
                     )}
                   </g>
@@ -1422,7 +1478,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     fontFamily="'Inter', sans-serif"
                     fontSize="13.5"
                     fontWeight="800"
-                    fill="#23211e"
+                    fill={palette.pillText}
                   >
                     {c.name}
                   </text>
@@ -1435,7 +1491,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                     fontFamily="'JetBrains Mono', monospace"
                     fontSize="10.5"
                     fontWeight="600"
-                    fill="#6b6356"
+                    fill={isDark ? '#a99fc2' : '#6b6356'}
                   >
                     {c.ip} · {c.region}
                   </text>
@@ -1462,8 +1518,8 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 width={layout.LB.w}
                 height={layout.LB.h}
                 rx="14"
-                fill="#e5bf69"
-                stroke="#23211e"
+                fill={palette.lbWall48}
+                stroke={palette.lbStroke}
                 strokeWidth="2.6"
               />
               {/* Top Golden Amber Surface */}
@@ -1474,13 +1530,13 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 height={layout.LB.h}
                 rx="14"
                 fill="url(#lb-top-grad)"
-                stroke="#23211e"
+                stroke={palette.lbStroke}
                 strokeWidth="2.6"
               />
               {/* Crisp White Bevel Highlight */}
               <path
                 d={`M 14 2.6 H ${layout.LB.w - 14}`}
-                stroke="rgba(255,255,255,0.92)"
+                stroke={palette.lbBevel}
                 strokeWidth="2.8"
                 strokeLinecap="round"
               />
@@ -1494,7 +1550,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 height={layout.LB.h - 10}
                 rx="10"
                 fill="none"
-                stroke="#d99b26"
+                stroke={palette.lbHalo}
                 strokeWidth="2.2"
                 strokeDasharray="6 5"
                 opacity="0"
@@ -1502,9 +1558,9 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 
               {/* Globe Icon */}
               <g transform="translate(38, 37)">
-                <circle cx="0" cy="0" r="14.5" fill="#fffdf7" stroke="#23211e" strokeWidth="2.3" />
-                <ellipse cx="0" cy="0" rx="6.8" ry="14.5" fill="none" stroke="#23211e" strokeWidth="2.1" />
-                <line x1="-14" y1="0" x2="14" y2="0" stroke="#23211e" strokeWidth="2.1" />
+                <circle cx="0" cy="0" r="14.5" fill={palette.portRingFill} stroke={palette.lbIcon} strokeWidth="2.3" />
+                <ellipse cx="0" cy="0" rx="6.8" ry="14.5" fill="none" stroke={palette.lbIcon} strokeWidth="2.1" />
+                <line x1="-14" y1="0" x2="14" y2="0" stroke={palette.lbIcon} strokeWidth="2.1" />
               </g>
 
               {/* Title & VIP */}
@@ -1515,7 +1571,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 fontFamily="'Inter', sans-serif"
                 fontSize="16.5"
                 fontWeight="800"
-                fill="#23211e"
+                fill={palette.lbTitle}
               >
                 Load Balancer Core
               </text>
@@ -1526,14 +1582,14 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 fontFamily="'JetBrains Mono', monospace"
                 fontSize="11.5"
                 fontWeight="700"
-                fill="#5c5240"
+                fill={palette.lbSubtitle}
               >
                 VIP: {layout.LB.vip}
               </text>
 
               {/* Divider & Junction Node */}
-              <line x1="14" y1="73" x2={layout.LB.w - 14} y2="73" stroke="#23211e" strokeWidth="1.9" />
-              <circle cx={layout.LB.w / 2} cy="73" r="4.6" fill="#f08c65" stroke="#23211e" strokeWidth="2" />
+              <line x1="14" y1="73" x2={layout.LB.w - 14} y2="73" stroke={palette.lbStroke} strokeWidth="1.9" />
+              <circle cx={layout.LB.w / 2} cy="73" r="4.6" fill={palette.rippleReq} stroke={palette.lbStroke} strokeWidth="2" />
 
               {/* Active Algorithm Pill */}
               <rect
@@ -1542,8 +1598,8 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 width="196"
                 height="33"
                 rx="8"
-                fill="#fdfbf7"
-                stroke="#23211e"
+                fill={palette.pillBg}
+                stroke={palette.pillBorder}
                 strokeWidth="2.1"
               />
               <text
@@ -1554,7 +1610,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                 fontSize="12"
                 fontWeight="800"
                 letterSpacing="0.06em"
-                fill="#23211e"
+                fill={palette.pillText}
               >
                 [ {ALGORITHMS[algoIdx]} ]
               </text>
@@ -1587,8 +1643,8 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       width={s.w}
                       height={s.h}
                       rx="13"
-                      fill={s.healthy ? '#a1bee8' : '#b8b0a2'}
-                      stroke="#23211e"
+                      fill={s.healthy ? palette.srvWall48 : palette.srvOffWall50}
+                      stroke={s.healthy ? palette.srvStroke : palette.srvOffStroke}
                       strokeWidth="2.5"
                     />
                     {/* Top Surface */}
@@ -1599,21 +1655,21 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       height={s.h}
                       rx="13"
                       fill={s.healthy ? 'url(#srv-top-grad)' : 'url(#srv-off-grad)'}
-                      stroke="#23211e"
+                      stroke={s.healthy ? palette.srvStroke : palette.srvOffStroke}
                       strokeWidth="2.5"
                     />
                     {/* White Top Bevel Highlight */}
                     <path
                       d={`M 14 2.5 H ${s.w - 14}`}
-                      stroke="rgba(255,255,255,0.92)"
+                      stroke={palette.srvBevel}
                       strokeWidth="2.6"
                       strokeLinecap="round"
                     />
 
                     {/* Stacked Server Rack Icon with Live Flashing LEDs */}
                     <g transform="translate(29, 33)">
-                      <rect x="-15" y="-13" width="30" height="10.5" rx="2.5" fill="#ffffff" stroke="#23211e" strokeWidth="2.1" />
-                      <line x1="-9" y1="-7.7" x2="1" y2="-7.7" stroke="#23211e" strokeWidth="2.1" strokeLinecap="round" />
+                      <rect x="-15" y="-13" width="30" height="10.5" rx="2.5" fill={s.healthy ? palette.srvRackFill : palette.srvOffRackFill} stroke={s.healthy ? palette.srvRackStroke : palette.srvOffRackStroke} strokeWidth="2.1" />
+                      <line x1="-9" y1="-7.7" x2="1" y2="-7.7" stroke={s.healthy ? palette.srvRackStroke : palette.srvOffRackStroke} strokeWidth="2.1" strokeLinecap="round" />
                       <circle
                         ref={(el) => {
                           if (!serverLedRefs.current[s.id]) serverLedRefs.current[s.id] = {};
@@ -1622,11 +1678,11 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                         cx="8.5"
                         cy="-7.7"
                         r="2.2"
-                        fill={s.healthy ? '#23211e' : '#d84632'}
+                        fill={s.healthy ? palette.srvLedIdle : palette.srvLedOffline}
                       />
 
-                      <rect x="-15" y="1.5" width="30" height="10.5" rx="2.5" fill="#ffffff" stroke="#23211e" strokeWidth="2.1" />
-                      <line x1="-9" y1="6.7" x2="1" y2="6.7" stroke="#23211e" strokeWidth="2.1" strokeLinecap="round" />
+                      <rect x="-15" y="1.5" width="30" height="10.5" rx="2.5" fill={s.healthy ? palette.srvRackFill : palette.srvOffRackFill} stroke={s.healthy ? palette.srvRackStroke : palette.srvOffRackStroke} strokeWidth="2.1" />
+                      <line x1="-9" y1="6.7" x2="1" y2="6.7" stroke={s.healthy ? palette.srvRackStroke : palette.srvOffRackStroke} strokeWidth="2.1" strokeLinecap="round" />
                       <circle
                         ref={(el) => {
                           if (!serverLedRefs.current[s.id]) serverLedRefs.current[s.id] = {};
@@ -1635,7 +1691,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                         cx="8.5"
                         cy="6.7"
                         r="2.2"
-                        fill={s.healthy ? '#23211e' : '#d84632'}
+                        fill={s.healthy ? palette.srvLedIdle : palette.srvLedOffline}
                       />
                     </g>
 
@@ -1646,7 +1702,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       fontFamily="'Inter', sans-serif"
                       fontSize="15"
                       fontWeight="800"
-                      fill="#23211e"
+                      fill={s.healthy ? palette.srvTitle : palette.srvOffTitle}
                     >
                       {s.name}
                     </text>
@@ -1656,7 +1712,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       fontFamily="'JetBrains Mono', monospace"
                       fontSize="11"
                       fontWeight="600"
-                      fill="#4a5568"
+                      fill={isDark ? '#a99fc2' : '#4a5568'}
                     >
                       {s.ip}
                     </text>
@@ -1668,8 +1724,8 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       width="37"
                       height="20"
                       rx="10"
-                      fill={s.healthy ? '#78c67a' : '#e28171'}
-                      stroke="#23211e"
+                      fill={s.healthy ? palette.pillToggleOn : palette.pillToggleOff}
+                      stroke={s.healthy ? palette.srvStroke : palette.srvOffStroke}
                       strokeWidth="2"
                     />
                     <text
@@ -1691,8 +1747,8 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       width={s.w - 24}
                       height="67"
                       rx="9"
-                      fill="#fdfbf7"
-                      stroke="#23211e"
+                      fill={s.healthy ? palette.pillBg : palette.pillOfflineBg}
+                      stroke={s.healthy ? palette.srvStroke : palette.srvOffStroke}
                       strokeWidth="2.1"
                     />
 
@@ -1701,9 +1757,9 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
                       <path
                         className={`gear-spin ${!s.healthy || isPaused ? 'gear-paused' : ''}`}
                         d="M -2 -7.2 L 2 -7.2 L 2.6 -5.0 L 4.6 -4.0 L 6.6 -5.0 L 8.2 -2.4 L 6.4 -0.8 L 6.4 0.8 L 8.2 2.4 L 6.6 5.0 L 4.6 4.0 L 2.6 5.0 L 2 7.2 L -2 7.2 L -2.6 5.0 L -4.6 4.0 L -6.6 5.0 L -8.2 2.4 L -6.4 0.8 L -6.4 -0.8 L -8.2 -2.4 L -6.6 -5.0 L -4.6 -4.0 L -2.6 -5.0 Z"
-                        fill="#4a443b"
+                        fill={palette.pillGear}
                       />
-                      <circle cx="0" cy="0" r="2.5" fill="#fdfbf7" />
+                      <circle cx="0" cy="0" r="2.5" fill={palette.pillBg} />
                     </g>
 
                     {/* CPU Progress Bar */}
@@ -1800,20 +1856,20 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
       {/* =====================================================================
           BOTTOM-LEFT LEGEND & INTERACTION HINT
          ===================================================================== */}
-      <div className="absolute left-4 bottom-3.5 z-25 flex flex-wrap items-center gap-4 text-[12px] font-semibold text-[#665f54] pointer-events-none">
+      <div className="absolute left-4 bottom-3.5 z-25 flex flex-wrap items-center gap-4 text-[12px] font-semibold text-[#665f54] dark:text-[#a99fc2] pointer-events-none">
         <span className="inline-flex items-center gap-1.5">
-          <i className="w-2.5 h-2.5 rounded-full bg-[#f08c65] border-2 border-[#23211e] inline-block" />
+          <i className="w-2.5 h-2.5 rounded-full bg-[#f08c65] border-2 border-[#23211e] dark:border-[#766b8c] inline-block" />
           request
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <i className="w-2.5 h-2.5 rounded-full bg-[#78c67a] border-2 border-[#23211e] inline-block" />
+          <i className="w-2.5 h-2.5 rounded-full bg-[#78c67a] border-2 border-[#23211e] dark:border-[#766b8c] inline-block" />
           response
         </span>
         <span className="inline-flex items-center gap-1.5">
           <i className="w-2.5 h-2.5 rounded-full bg-[#f6f1e6] border-2 border-[#4f9d52] inline-block" />
           handshake
         </span>
-        <span className="hidden md:inline-block text-[11px] text-[#7c7365] bg-[#fdfbf7]/85 px-2.5 py-0.5 rounded-md border border-[#d6cebe]">
+        <span className="hidden md:inline-block text-[11px] text-[#7c7365] dark:text-[#c4b5fd] bg-[#fdfbf7]/85 dark:bg-[#262230]/85 px-2.5 py-0.5 rounded-md border border-[#d6cebe] dark:border-[#463f57]">
           Click Client to fire • Click LB Core to switch strategy • Click Server for failover
         </span>
       </div>
@@ -1822,24 +1878,24 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
           BOTTOM-RIGHT ZOOM & FIT CONTROLS
          ===================================================================== */}
       <div className="absolute right-4 bottom-3.5 z-25 flex items-center gap-2 pointer-events-auto">
-        <div className="inline-flex items-center bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] shadow-[0_2.5px_0_#23211e] overflow-hidden">
+        <div className="inline-flex items-center bg-[#fdfbf7] dark:bg-[#262230] border-2 border-[#23211e] dark:border-[#766b8c] rounded-[10px] shadow-[0_2.5px_0_#23211e] dark:shadow-[0_2.5px_0_#09080d] overflow-hidden">
           <button
             onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.45, c.zoom / 1.22) }))}
-            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] cursor-pointer"
+            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
             title="Zoom Out"
           >
             −
           </button>
           <div
             onClick={resetCamera}
-            className="px-2.5 py-1 text-[11px] font-bold border-x-[1.5px] border-[#23211e] min-w-[54px] text-center tabular-nums cursor-pointer"
+            className="px-2.5 py-1 text-[11px] font-bold border-x-[1.5px] border-[#23211e] dark:border-[#766b8c] min-w-[54px] text-center tabular-nums text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
             title="Click to Reset 100% Fit"
           >
             {Math.round(camera.zoom * 100)}%
           </div>
           <button
             onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(4.0, c.zoom * 1.22) }))}
-            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] cursor-pointer"
+            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
             title="Zoom In"
           >
             +
@@ -1847,7 +1903,7 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
         </div>
         <button
           onClick={resetCamera}
-          className="bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1 text-[11px] font-bold shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
+          className="neo-btn bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1 text-[11px] font-bold shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
         >
           Fit View
         </button>
@@ -1859,10 +1915,10 @@ export default function Visualizer2D({ onSelectNode, selectedNode }) {
 // =========================================================================
 // 4. REUSABLE TOP TELEMETRY CARD SUBCOMPONENT
 // =========================================================================
-function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon }) {
+function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon, isDark = false }) {
   return (
-    <div className="bg-[#fdfbf7]/95 border-[1.8px] border-[#23211e] rounded-[10px] px-3 py-1.5 min-w-[108px] shadow-[0_2px_0_#23211e,0_3px_8px_rgba(35,33,30,0.06)] backdrop-blur-sm">
-      <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold text-[#787063] tracking-wider uppercase mb-0.5">
+    <div className="metric-card bg-[#fdfbf7]/95 border-[1.8px] border-[#23211e] rounded-[10px] px-3 py-1.5 min-w-[108px] shadow-[0_2px_0_#23211e,0_3px_8px_rgba(35,33,30,0.06)] backdrop-blur-sm">
+      <div className="metric-card__header flex items-center gap-1.5 text-[9.5px] font-extrabold text-[#787063] tracking-wider uppercase mb-0.5">
         {icon === 'globe' && (
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
             <circle cx="12" cy="12" r="9" />
@@ -1895,7 +1951,7 @@ function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon }) {
         )}
         <span>{label}</span>
       </div>
-      <div className={`text-[15px] font-extrabold tracking-tight tabular-nums ${valueClass}`}>
+      <div className={`metric-card__value text-[15px] font-extrabold tracking-tight tabular-nums ${valueClass}`}>
         {value}
       </div>
     </div>

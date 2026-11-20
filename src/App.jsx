@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainPlatformPage from './pages/MainPlatformPage';
+import MonitoringDashboardPage from './pages/MonitoringDashboardPage';
 import { simulationEngine } from './simulation/engine';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<MainPlatformPage />} />
+        <Route path="/monitoring" element={<MonitoringDashboardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

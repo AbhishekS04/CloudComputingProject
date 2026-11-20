@@ -3,6 +3,98 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --heatmap-level-0: #e2e8f0;
+    --heatmap-level-1: #9be9a8;
+    --heatmap-level-2: #40c463;
+    --heatmap-level-3: #30a14e;
+    --heatmap-level-4: #216e39;
+
+    --chart-1: #6366f1;
+    --chart-2: #eab308;
+    --chart-3: #a855f7;
+    --chart-4: #10b981;
+    --chart-5: #06b6d4;
+    --chart-label: #64748b;
+    --foreground: #0f172a;
+
+    /* Arc Design System Tokens */
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --tracking-body: normal;
+    --text-muted: #64748b;
+    --text-secondary: #475569;
+    --text-sm: 0.875rem;
+    --text-xs: 0.75rem;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.04);
+    --border-strong: rgba(0, 0, 0, 0.16);
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --shadow-floating: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    --series-1: #2563eb;
+    --series-2: #7c3aed;
+    --series-3: #ea580c;
+    --series-4: #059669;
+    --duration-instant: 0.05s;
+    --duration-fast: 0.15s;
+    --duration-standard: 0.2s;
+    --duration-considered: 0.36s;
+    --duration-spring: 0.3s;
+    --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --radius-pill: 9999px;
+    --leading-body: 1.4;
+  }
+
+  .dark {
+    --heatmap-level-0: #26262b;
+    --heatmap-level-1: #0e4429;
+    --heatmap-level-2: #006d32;
+    --heatmap-level-3: #26a641;
+    --heatmap-level-4: #39d353;
+
+    --chart-1: #6366f1;
+    --chart-2: #eab308;
+    --chart-3: #a855f7;
+    --chart-4: #34d399;
+    --chart-5: #22d3ee;
+    --chart-label: #94a3b8;
+    --foreground: #f8fafc;
+
+    /* Arc Design System Tokens (Dark) */
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --tracking-body: normal;
+    --text-muted: #94a3b8;
+    --text-secondary: #cbd5e1;
+    --text-sm: 0.875rem;
+    --text-xs: 0.75rem;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-subtle: rgba(255, 255, 255, 0.05);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --surface: #161a23;
+    --surface-raised: #1e2430;
+    --shadow-floating: 0 12px 36px rgba(0, 0, 0, 0.5);
+    --series-1: #60a5fa;
+    --series-2: #a78bfa;
+    --series-3: #fbbf24;
+    --series-4: #34d399;
+    --duration-instant: 0.05s;
+    --duration-fast: 0.15s;
+    --duration-standard: 0.2s;
+    --duration-considered: 0.36s;
+    --duration-spring: 0.3s;
+    --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --radius-pill: 9999px;
+    --leading-body: 1.4;
+  }
+
   body {
     @apply bg-cream-200 text-charcoal-800 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
