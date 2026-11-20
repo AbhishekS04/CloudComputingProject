@@ -87,19 +87,19 @@ export default function PullRequestClock({
 
   return (
     <div
-      className={`p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 shadow-xs backdrop-blur-md flex flex-col justify-between ${className}`}
+      className={`p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md flex flex-col justify-between font-sans ${className}`}
     >
       {/* Apple Bento Card Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-white/10 mb-4">
+      <div className="flex items-center justify-between pb-3 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-indigo-500" />
-          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-            {label}
+          <h3 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+            24-Hour Diurnal Traffic Cycle
           </h3>
         </div>
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40 flex items-center gap-1.5">
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center gap-1.5">
           <Radio className="w-2.5 h-2.5 text-indigo-500 animate-pulse" />
-          24h Polar Loop
+          Polar Clock
         </span>
       </div>
 

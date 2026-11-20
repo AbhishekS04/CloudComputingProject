@@ -1,3 +1,19 @@
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,7 +35,7 @@
     --foreground: #0f172a;
 
     /* Arc Design System Tokens */
-    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --tracking-body: normal;
     --text-muted: #64748b;
     --text-secondary: #475569;
@@ -65,7 +81,7 @@
     --foreground: #f8fafc;
 
     /* Arc Design System Tokens (Dark) */
-    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --tracking-body: normal;
     --text-muted: #94a3b8;
     --text-secondary: #cbd5e1;

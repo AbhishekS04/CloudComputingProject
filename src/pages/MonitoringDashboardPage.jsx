@@ -122,20 +122,17 @@ export default function MonitoringDashboardPage() {
       <SystemDesignNavbar />
 
       {/* 2. Monitoring Workspace Header Banner */}
-      <div className="border-b border-neutral-200/80 dark:border-white/10 bg-white/60 dark:bg-white/[0.02] backdrop-blur-md px-4 sm:px-6 py-4">
+      <div className="border-b border-black/[0.06] dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.02] backdrop-blur-md px-4 sm:px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h1 className="text-lg sm:text-xl font-bold font-mono tracking-tight text-neutral-900 dark:text-white">
-                Cluster Telemetry & Performance Monitor
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
+                Cluster Telemetry
               </h1>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                AZURE VM FLEET
-              </span>
             </div>
-            <p className="text-xs font-mono text-neutral-500 dark:text-neutral-400 mt-1">
-              Virtual Network: <span className="font-semibold text-neutral-700 dark:text-neutral-300">vnet-eastus-prod-01</span> · Resource Group: <span className="font-semibold text-neutral-700 dark:text-neutral-300">rg-cloud-balancing</span> · Synced: {liveClock}
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+              Real-time ingress throughput, routing efficiency, and edge performance · Synced {liveClock}
             </p>
           </div>
 
@@ -144,21 +141,21 @@ export default function MonitoringDashboardPage() {
             <button
               type="button"
               onClick={triggerTrafficSpike}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-all active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 shadow-xs transition-all active:scale-95 cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5 fill-current" />
-              <span>Simulate Traffic Surge</span>
+              <span>Simulate Surge</span>
             </button>
 
-            <div className="h-8 px-3 rounded-xl bg-neutral-100 dark:bg-white/5 border border-neutral-200 dark:border-white/10 font-mono text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-2">
+            <div className="h-8 px-3 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-2">
               <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
               <span>Live Probe: 1.0s</span>
             </div>
 
-            <div className="h-8 px-3 rounded-xl bg-neutral-100 dark:bg-white/5 border border-neutral-200 dark:border-white/10 font-mono text-xs text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+            <div className="h-8 px-3 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
               <Server className="w-3.5 h-3.5 text-blue-500" />
-              <span className="font-bold">{activeServers}/{totalServers}</span>
-              <span className="text-neutral-400">Nodes Online</span>
+              <span className="font-semibold text-neutral-900 dark:text-white">{activeServers}/{totalServers}</span>
+              <span className="text-neutral-500 dark:text-neutral-400">Nodes Active</span>
             </div>
           </div>
         </div>

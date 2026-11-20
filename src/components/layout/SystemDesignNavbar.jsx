@@ -55,33 +55,33 @@ export default function SystemDesignNavbar() {
   };
 
   return (
-    <header className="h-14 px-4 sm:px-6 bg-[#FAF7F0] dark:bg-[#121212] border-b border-[#E5E0D5] dark:border-white/10 flex items-center justify-between z-30 shrink-0 select-none transition-colors duration-200">
-      {/* 1. Left: Minimal Brand Typography & Segmented View Switcher */}
-      <div className="flex items-center gap-3 sm:gap-5">
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-[15px] tracking-wider text-charcoal-900 dark:text-[#ededed] uppercase font-mono">
-            LOADFLOW
+    <header className="h-14 px-4 sm:px-6 bg-white/75 dark:bg-[#111215]/80 backdrop-blur-xl border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between sticky top-0 z-50 shrink-0 select-none transition-colors duration-200 font-sans">
+      {/* 1. Left: Pure Apple Brand Mark & Segmented Navigation */}
+      <div className="flex items-center gap-4 sm:gap-6">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-b from-neutral-900 to-neutral-800 dark:from-white dark:to-neutral-200 text-white dark:text-neutral-900 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform duration-200">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5" cy="12" r="2.5" />
+              <circle cx="19" cy="6" r="2" />
+              <circle cx="19" cy="18" r="2" />
+              <path d="M7.5 12h3.5c2 0 3-1.5 4-4.5l.5-1.5" />
+              <path d="M11 12c1 0 2 1.5 3 4.5l.5 1.5" />
+            </svg>
+          </div>
+          <span className="font-semibold text-[15px] tracking-tight text-neutral-900 dark:text-white">
+            LoadFlow
           </span>
-          <span className="text-[#DDD6C6] dark:text-charcoal-700 font-light text-xs hidden sm:inline">
-            |
-          </span>
-          <span className="text-[12px] font-mono text-[#71717A] dark:text-gray-400 hidden lg:inline">
-            L7 Load Balancer
-          </span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#EFECE6] dark:bg-white/5 text-[#71717A] dark:text-gray-400 border border-[#DDD6C6] dark:border-white/10 hidden sm:inline">
-            PROD-V1
-          </span>
-        </div>
+        </Link>
 
         {/* Apple HIG Segmented Navigation: Studio vs Monitoring */}
-        <nav className="flex items-center p-0.5 rounded-full bg-[#EAE5D8] dark:bg-white/10 border border-[#DCD5C6] dark:border-white/10 text-xs font-mono shadow-inner">
+        <nav className="flex items-center p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06] text-xs">
           <Link
             to="/"
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all text-xs font-medium cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-150 text-xs font-medium cursor-pointer",
               location.pathname === '/'
-                ? "bg-white dark:bg-[#252525] text-neutral-900 dark:text-white shadow-xs font-bold"
-                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                ? "bg-white dark:bg-[#202227] text-neutral-900 dark:text-white shadow-xs font-semibold"
+                : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
             )}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -90,10 +90,10 @@ export default function SystemDesignNavbar() {
           <Link
             to="/monitoring"
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all text-xs font-medium cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-150 text-xs font-medium cursor-pointer",
               location.pathname === '/monitoring'
-                ? "bg-white dark:bg-[#252525] text-neutral-900 dark:text-white shadow-xs font-bold"
-                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                ? "bg-white dark:bg-[#202227] text-neutral-900 dark:text-white shadow-xs font-semibold"
+                : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
             )}
           >
             <BarChart3 className="w-3.5 h-3.5" />
@@ -103,64 +103,49 @@ export default function SystemDesignNavbar() {
         </nav>
       </div>
 
-      {/* 2. Right: Precision Telemetry & Utility Actions */}
+      {/* 2. Right: Quiet Apple Telemetry & Circular Glass Utilities */}
       <div className="flex items-center gap-2">
-        {/* Unified Architecture Telemetry Capsule */}
-        <div className="hidden md:flex h-8 items-center gap-2.5 px-3 rounded-full bg-white dark:bg-[#1a1a1a] border border-[#E5E0D5] dark:border-white/10 shadow-2xs text-[11px] font-mono">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-              }`}
-            />
-            <span className="font-semibold text-charcoal-800 dark:text-[#ededed] uppercase tracking-wide text-[10px]">
-              {isOnline ? 'Cluster Online' : 'Paused'}
-            </span>
-          </div>
-
-          <span className="text-[#DDD6C6] dark:text-charcoal-700">|</span>
-
-          <div className="flex items-center gap-1 text-[11px]">
-            <span className="text-[#8E8E93] dark:text-gray-400">ALGO:</span>
-            <span className="font-bold text-charcoal-900 dark:text-[#ededed]">
-              {String(activeAlgo).replace(/_/g, ' ')}
-            </span>
-          </div>
-
-          <span className="text-[#DDD6C6] dark:text-charcoal-700">|</span>
-
-          <div className="flex items-center gap-1 text-[11px]">
-            <span className="text-[#8E8E93] dark:text-gray-400">RATE:</span>
-            <span className="font-bold text-blue-600 dark:text-blue-400">
-              {activeRps} req/s
-            </span>
-          </div>
+        {/* Subtle Live Cluster Pill */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs">
+          <span
+            className={cn(
+              "w-2 h-2 rounded-full",
+              isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+            )}
+          />
+          <span className="text-neutral-600 dark:text-neutral-300 font-medium">
+            {isOnline ? 'Active' : 'Paused'}
+          </span>
+          <span className="text-neutral-300 dark:text-neutral-600">·</span>
+          <span className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">
+            {activeRps} req/s
+          </span>
         </div>
 
-        {/* Nodes Health Pill */}
-        <div className="h-8 px-2.5 rounded-full bg-white dark:bg-[#1a1a1a] border border-[#E5E0D5] dark:border-white/10 font-mono text-[11px] text-charcoal-700 dark:text-gray-300 flex items-center gap-1.5 shadow-2xs">
-          <span className="font-bold text-charcoal-900 dark:text-[#ededed]">
+        {/* Quiet Nodes Status Pill */}
+        <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-500 dark:text-neutral-400">
+          <span className="font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
             {healthyNodes}/{totalNodes}
           </span>
-          <span className="text-[#8E8E93] dark:text-gray-400 text-[10px]">Nodes Active</span>
+          <span>nodes</span>
         </div>
 
-        {/* Theme Toggle Button */}
+        {/* Circular Glass Theme Toggle Button */}
         <button
           type="button"
           onClick={toggleDarkMode}
-          className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1a1a] border border-[#E5E0D5] dark:border-white/10 text-[#71717A] dark:text-gray-300 hover:text-charcoal-900 dark:hover:text-white hover:bg-[#F2EFE8] dark:hover:bg-white/5 active:scale-95 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
+          className="w-8 h-8 rounded-full bg-black/[0.03] hover:bg-black/[0.07] dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-black/[0.04] dark:border-white/[0.08] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white active:scale-95 flex items-center justify-center transition-all cursor-pointer"
           title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Fullscreen Toggle Button */}
+        {/* Circular Glass Fullscreen Toggle Button */}
         <button
           type="button"
           onClick={toggleFullscreen}
-          className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1a1a] border border-[#E5E0D5] dark:border-white/10 text-[#71717A] dark:text-gray-300 hover:text-charcoal-900 dark:hover:text-white hover:bg-[#F2EFE8] dark:hover:bg-white/5 active:scale-95 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
+          className="w-8 h-8 rounded-full bg-black/[0.03] hover:bg-black/[0.07] dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-black/[0.04] dark:border-white/[0.08] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white active:scale-95 flex items-center justify-center transition-all cursor-pointer"
           title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
         >
