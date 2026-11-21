@@ -46,6 +46,8 @@ export default function MonitoringDashboardPage() {
   const targetRps = useSimulationStore((state) => state.targetRps);
   const toggleServer = useSimulationStore((state) => state.toggleServer);
   const triggerTrafficSpike = useSimulationStore((state) => state.triggerTrafficSpike);
+  const crashRandomServer = useSimulationStore((state) => state.crashRandomServer);
+  const recoverAllServers = useSimulationStore((state) => state.recoverAllServers);
 
   // Live timer tick
   useEffect(() => {
@@ -59,15 +61,31 @@ export default function MonitoringDashboardPage() {
   const totalServers = servers.length;
   const activeServers = servers.filter((s) => s.status === 'healthy' || s.healthy).length;
 
-  // Donut chart dataset: Traffic by Protocol & Service
-  const protocolData = useMemo(() => [
-    { key: 'http2', label: 'HTTP/2 APIs', value: Math.round(targetRps * 45) + 320, color: '#3B82F6' },
-    { key: 'ws', label: 'WebSocket Streams', value: Math.round(targetRps * 25) + 180, color: '#10B981' },
-    { key: 'grpc', label: 'gRPC Microservices', value: Math.round(targetRps * 18) + 120, color: '#8B5CF6' },
-    { key: 'rest', label: 'REST v1/v2', value: Math.round(targetRps * 10) + 90, color: '#F59E0B' },
-    { key: 'static', label: 'Edge Static Assets', value: Math.round(targetRps * 8) + 50, color: '#EC4899' },
-    { key: 'probes', label: 'Health Probes', value: 24, color: '#64748B' },
-  ], [targetRps]);
+  // Donut chart dataset: Dynamic Traffic Distribution Across Backend Azure VMs
+  const backendVmTrafficData = useMemo(() => {
+    const activeList = servers.filter((s) => s.status === 'healthy' || s.healthy);
+    const totalActive = activeList.length;
+    const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B'];
+
+    const vmSlices = servers.map((s, idx) => {
+      const isHealthy = s.status === 'healthy' || s.healthy;
+      const baseShare = isHealthy
+        ? Math.round(((targetRps * 45) / Math.max(1, totalActive)) * (s.weight || 1))
+        : 0;
+
+      return {
+        key: s.id,
+        label: `${s.name} (${s.ip || `10.0.1.1${idx}`}) ${isHealthy ? '' : '🚨 CRASHED'}`,
+        value: baseShare,
+        color: isHealthy ? colors[idx % colors.length] : '#EF4444',
+      };
+    });
+
+    return [
+      ...vmSlices,
+      { key: 'lb-probes', label: 'Azure LB Health Probes', value: 24, color: '#64748B' }
+    ];
+  }, [servers, targetRps]);
 
   // Transform rolling traffic history for the Line Chart
   const lineChartData = useMemo(() => {
@@ -128,34 +146,55 @@ export default function MonitoringDashboardPage() {
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
-                Cluster Telemetry
+                Azure VM Fleet · Cluster Telemetry
               </h1>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              Real-time ingress throughput, routing efficiency, and edge performance · Synced {liveClock}
+              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) · VNet: <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> · Synced {liveClock}
             </p>
           </div>
 
           {/* Header Action Badges */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={triggerTrafficSpike}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 shadow-xs transition-all active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 shadow-xs transition-all active:scale-95 cursor-pointer"
+              title="Inject sudden traffic surge into the cluster"
             >
-              <Zap className="w-3.5 h-3.5 fill-current" />
+              <Zap className="w-3.5 h-3.5 fill-current text-amber-400" />
               <span>Simulate Surge</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={crashRandomServer}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer"
+              title="Simulate crash on a healthy Azure VM to test failover"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Simulate VM Crash</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={recoverAllServers}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer"
+              title="Restore all crashed Azure backend nodes"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Restore Fleet</span>
             </button>
 
             <div className="h-8 px-3 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-2">
               <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-              <span>Live Probe: 1.0s</span>
+              <span>Probe: 1.0s</span>
             </div>
 
             <div className="h-8 px-3 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
               <Server className="w-3.5 h-3.5 text-blue-500" />
               <span className="font-semibold text-neutral-900 dark:text-white">{activeServers}/{totalServers}</span>
-              <span className="text-neutral-500 dark:text-neutral-400">Nodes Active</span>
+              <span className="text-neutral-500 dark:text-neutral-400">VMs Active</span>
             </div>
           </div>
         </div>
@@ -244,7 +283,7 @@ export default function MonitoringDashboardPage() {
           {/* MultiSeriesLineChart (8 Cols / ~67% width) */}
           <div className="lg:col-span-8 flex flex-col">
             <MultiSeriesLineChart
-              title="REAL-TIME INGRESS THROUGHPUT & RESPONSE LATENCY"
+              title="AZURE LOAD BALANCER GATEWAY INGRESS & LATENCY"
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
               height={240}
@@ -253,20 +292,20 @@ export default function MonitoringDashboardPage() {
           </div>
 
           {/* DonutChart (4 Cols / ~33% width) */}
-          <div className="lg:col-span-4 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 shadow-xs backdrop-blur-md flex flex-col justify-between">
+          <div className="lg:col-span-4 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md flex flex-col justify-between font-sans">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-                Traffic Share by Protocol
+              <span className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                Backend Load Distribution
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-400">
-                L7 Breakdown
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/10 text-neutral-600 dark:text-neutral-300 font-medium">
+                3 Compute VMs
               </span>
             </div>
             <DonutChart
-              data={protocolData}
-              label="Protocol Distribution"
+              data={backendVmTrafficData}
+              label="Backend VM Load"
               unit="req/s"
-              totalLabel="Total Ingress"
+              totalLabel="Total Routed"
               size={210}
               thickness={26}
             />
@@ -278,12 +317,12 @@ export default function MonitoringDashboardPage() {
         {/* ================================================================ */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Contribution Heatmap Chart (8 Cols / ~67% width) */}
-          <div className="lg:col-span-8 flex flex-col">
+          <div className="lg:col-span-8 flex flex-col relative z-20">
             <ContributionHeatmapCard className="flex-1" />
           </div>
 
           {/* 24-Hour Diurnal Radial Clock (4 Cols / ~33% width) */}
-          <div className="lg:col-span-4 flex flex-col">
+          <div className="lg:col-span-4 flex flex-col relative z-10">
             <RadialChart className="flex-1" />
           </div>
         </section>
@@ -298,19 +337,19 @@ export default function MonitoringDashboardPage() {
           </div>
 
           {/* StatusBars Fleet Strips (6 Cols / 50% width) */}
-          <div className="lg:col-span-6 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 shadow-xs backdrop-blur-md space-y-3">
+          <div className="lg:col-span-6 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md space-y-3 font-sans">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-                Azure Node Uptime History (90-Day Strips)
+              <span className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                Azure Node Uptime History (60-Day Strips)
               </span>
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                All Systems Normal
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                {activeServers === totalServers ? 'All Nodes Healthy' : `${totalServers - activeServers} Node Degraded/Offline`}
               </span>
             </div>
 
             <StatusBars
-              label="Server A · vm-eastus-prod-01"
-              sublabel="Azure East US · 10.0.1.10"
+              label="Backend Node 1 · vm-backend-01"
+              sublabel="Azure East US · 10.0.1.10:8081"
               uptime={99.99}
               maxDays={60}
               incidents={[
@@ -319,8 +358,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Server B · vm-eastus-prod-02"
-              sublabel="Azure East US · 10.0.1.11"
+              label="Backend Node 2 · vm-backend-02"
+              sublabel="Azure East US · 10.0.1.11:8082"
               uptime={99.96}
               maxDays={60}
               incidents={[
@@ -329,8 +368,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Server C · vm-eastus-prod-03"
-              sublabel="Azure East US · 10.0.1.12"
+              label="Backend Node 3 · vm-backend-03"
+              sublabel="Azure East US · 10.0.1.12:8083"
               uptime={99.98}
               maxDays={60}
               incidents={[
@@ -339,8 +378,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Cloud Load Balancer Core"
-              sublabel="Managed L7 Envoy Proxy Layer"
+              label="Azure VM 1 · Load Balancer Gateway"
+              sublabel="Managed L7 Reverse Proxy · 10.0.1.4:80"
               uptime={100.0}
               maxDays={60}
               incidents={[]}
@@ -353,7 +392,7 @@ export default function MonitoringDashboardPage() {
         {/* ================================================================ */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           {/* Azure VM Fleet Table (8 Cols / ~67% width) */}
-          <div className="lg:col-span-8 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 shadow-xs backdrop-blur-md">
+          <div className="lg:col-span-8 p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md font-sans">
             <NodeFleetTable
               servers={servers}
               onToggleServer={toggleServer}
@@ -369,12 +408,12 @@ export default function MonitoringDashboardPage() {
         {/* ================================================================ */}
         {/* SECTION G: REAL-TIME DIAGNOSTIC AUDIT & EVENT TICKER             */}
         {/* ================================================================ */}
-        <section className="p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 shadow-xs backdrop-blur-md">
+        <section className="p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md font-sans">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-                Real-Time Health Checks & Orchestration Event Stream
+              <span className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                Cluster Health Checks & Orchestration Audit Trail
               </span>
             </div>
 

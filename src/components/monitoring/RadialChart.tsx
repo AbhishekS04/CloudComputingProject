@@ -10,15 +10,15 @@ import {
 import { Clock, Radio, RotateCcw } from 'lucide-react';
 
 const series = [
-  { dataKey: "merged", label: "Merged", color: "var(--chart-1)" },
-  { dataKey: "ready", label: "Ready for merge", color: "var(--chart-2)" },
-  { dataKey: "draft", label: "Draft", color: "var(--chart-3)", emphasize: true },
+  { dataKey: "delivered", label: "Delivered (req/s)", color: "var(--chart-4)" },
+  { dataKey: "queued", label: "Queued / Retried", color: "var(--chart-2)" },
+  { dataKey: "burst", label: "Burst Overhead", color: "var(--chart-1)", emphasize: true },
 ];
 
 /**
  * Generates 96 × 15-minute bins for the 24-hour diurnal cycle (00:00 to 23:45).
- * Bins after "now" have null counts for today's series and positive values for "yesterday",
- * enabling RadialDotBar to draw ghost dots in future bins.
+ * Models real-world ingress traffic arriving at the Azure Load Balancer VM
+ * across daytime peaks and nighttime troughs.
  */
 function generateRadialChartData() {
   const bins = [];
@@ -34,34 +34,31 @@ function generateRadialChartData() {
 
     // Realistic diurnal activity curve
     const hourFloat = hours + minutes / 60;
-    const diurnalCurve = Math.max(0.12, 0.45 + 0.55 * Math.sin(((hourFloat - 6) / 24) * Math.PI * 2));
+    const diurnalCurve = Math.max(0.15, 0.45 + 0.55 * Math.sin(((hourFloat - 6) / 24) * Math.PI * 2));
 
-    // Yesterday comparison baseline across all 96 bins
-    const yesterday = Math.round(45 + diurnalCurve * 32 + (Math.sin(i * 0.4) * 8));
+    // Yesterday comparison baseline
+    const yesterday = Math.round(180 + diurnalCurve * 140 + (Math.sin(i * 0.4) * 20));
 
     if (i <= nowBinIndex) {
-      // Past & current bins have actual counts
-      // Tuned to produce realistic totals matching reference:
-      // ~39k merged, ~1.4k ready, ~3.5k draft across full diurnal day
-      const merged = Math.round(380 + diurnalCurve * 360 + (Math.cos(i * 0.3) * 45));
-      const ready = Math.round(12 + diurnalCurve * 18 + ((i % 4) * 2));
-      const draft = Math.round(26 + diurnalCurve * 38 + ((i % 3) * 5));
+      const delivered = Math.round(190 + diurnalCurve * 160 + (Math.cos(i * 0.3) * 18));
+      const queued = Math.round(8 + diurnalCurve * 12 + ((i % 4) * 2));
+      const burst = Math.round(15 + diurnalCurve * 25 + ((i % 3) * 4));
 
       bins.push({
         time: timeStr,
-        merged,
-        ready,
-        draft,
-        yesterday: yesterday * 10,
+        delivered,
+        queued,
+        burst,
+        yesterday,
       });
     } else {
-      // Future bins after "now" have null for active series
+      // Future bins after "now" have null for active series, ghost dots for yesterday
       bins.push({
         time: timeStr,
-        merged: null,
-        ready: null,
-        draft: null,
-        yesterday: yesterday * 10,
+        delivered: null,
+        queued: null,
+        burst: null,
+        yesterday,
       });
     }
   }
@@ -69,13 +66,15 @@ function generateRadialChartData() {
   return { bins, nowBinIndex };
 }
 
-export default function PullRequestClock({
-  label = "24-HOUR DIURNAL TRAFFIC CYCLE (POLAR CLOCK)",
+export default function RadialChartComponent({
+  label = "24-Hour Diurnal Ingress Cycle",
   className = "",
+}: {
+  label?: string;
+  className?: string;
 }) {
   const [{ bins, nowBinIndex }, setChartState] = useState(() => generateRadialChartData());
 
-  // Periodically update "now" bin indicator
   useEffect(() => {
     const timer = setInterval(() => {
       setChartState(generateRadialChartData());
@@ -94,12 +93,12 @@ export default function PullRequestClock({
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-indigo-500" />
           <h3 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            24-Hour Diurnal Traffic Cycle
+            {label}
           </h3>
         </div>
         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center gap-1.5">
           <Radio className="w-2.5 h-2.5 text-indigo-500 animate-pulse" />
-          Polar Clock
+          Azure LB Clock
         </span>
       </div>
 
@@ -120,55 +119,55 @@ export default function PullRequestClock({
             rows={14}
             dotSize={0.48}
           />
-          <RadialScrubber showDot variant="solid" color="var(--chart-3)" />
+          <RadialScrubber showDot variant="solid" color="var(--chart-4)" />
           <RadialCenter>
             {({ datum, label: hoverLabel }) => {
               if (datum) {
-                const merged = (datum.merged as number) ?? 0;
-                const ready = (datum.ready as number) ?? 0;
-                const draft = (datum.draft as number) ?? 0;
-                const total = merged + ready + draft;
+                const delivered = (datum.delivered as number) ?? 0;
+                const queued = (datum.queued as number) ?? 0;
+                const burst = (datum.burst as number) ?? 0;
+                const total = delivered + queued + burst;
                 const yesterday = (datum.yesterday as number) ?? 0;
                 const diff = total - yesterday;
 
                 return (
                   <div className="flex flex-col items-center justify-center text-center select-none">
-                    <span className="text-3xl sm:text-4xl font-extrabold font-mono text-neutral-900 dark:text-white tabular-nums tracking-tight">
+                    <span className="text-3xl sm:text-4xl font-semibold text-neutral-900 dark:text-white tabular-nums tracking-tight">
                       {total.toLocaleString()}
                     </span>
-                    <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
-                      merged at {hoverLabel || (datum.time as string)}
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      req/s at {hoverLabel || (datum.time as string)}
                     </span>
                     <span
-                      className={`text-[11px] font-mono font-bold mt-0.5 ${
+                      className={`text-xs font-medium mt-0.5 ${
                         diff >= 0 ? "text-emerald-500" : "text-rose-500"
                       }`}
                     >
-                      {diff > 0 ? `+${diff}` : diff} vs yesterday
+                      {diff > 0 ? `+${diff}` : diff} req/s vs yesterday
                     </span>
                   </div>
                 );
               }
 
-              // At rest default display (matching reference screenshot)
-              const restMerged = (activeBin?.merged as number) ?? 51;
-              const restYesterday = (activeBin?.yesterday as number) ?? 68;
-              const restDiff = restMerged - restYesterday;
+              // At rest default display
+              const restDelivered = (activeBin?.delivered as number) ?? 240;
+              const restYesterday = (activeBin?.yesterday as number) ?? 210;
+              const restDiff = restDelivered - restYesterday;
 
               return (
                 <div className="flex flex-col items-center justify-center text-center select-none">
-                  <span className="text-3xl sm:text-4xl font-extrabold font-mono text-neutral-900 dark:text-white tabular-nums tracking-tight">
-                    {restMerged}
+                  <span className="text-3xl sm:text-4xl font-semibold text-neutral-900 dark:text-white tabular-nums tracking-tight">
+                    {restDelivered}
                   </span>
-                  <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    merged at {activeBin?.time || "01:30"}
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    req/s at {activeBin?.time || "12:00"}
                   </span>
                   <span
-                    className={`text-[11px] font-mono font-bold mt-0.5 ${
+                    className={`text-xs font-medium mt-0.5 ${
                       restDiff >= 0 ? "text-emerald-500" : "text-rose-500"
                     }`}
                   >
-                    {restDiff > 0 ? `+${restDiff}` : restDiff} vs yesterday
+                    {restDiff > 0 ? `+${restDiff}` : restDiff} req/s vs yesterday
                   </span>
                 </div>
               );
@@ -179,11 +178,11 @@ export default function PullRequestClock({
       </div>
 
       {/* Footer System Status */}
-      <div className="pt-3 border-t border-neutral-200/80 dark:border-white/10 flex items-center justify-between text-[11px] font-mono text-neutral-400 dark:text-neutral-500 mt-2">
-        <span>Clock Resolution: 15-min / 96 Bins</span>
+      <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 mt-2">
+        <span>Diurnal Ingress · 96 Bins (15-min)</span>
         <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
           <RotateCcw className="w-3 h-3" />
-          Synchronized
+          LB Gateway Synced
         </span>
       </div>
     </div>

@@ -10,6 +10,7 @@ import React, {
   type ReactNode,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* -------------------------------------------------------------------------- */
@@ -450,8 +451,13 @@ export interface HeatmapTooltipProps {
 
 export function HeatmapTooltip({ className = "" }: HeatmapTooltipProps) {
   const { hovered } = useHeatmapInteraction();
+  const [mounted, setMounted] = useState(false);
 
-  if (!hovered) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!hovered || !mounted || typeof document === "undefined") return null;
 
   const dateStr = hovered.date instanceof Date
     ? hovered.date.toLocaleDateString("en-US", {
@@ -461,22 +467,29 @@ export function HeatmapTooltip({ className = "" }: HeatmapTooltipProps) {
       })
     : "Unknown date";
 
-  return (
+  // Prevent overflowing viewport width
+  const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const clampedX = Math.max(80, Math.min(screenWidth - 80, hovered.x));
+
+  const tooltipElement = (
     <div
-      className={`pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full mb-2 px-2.5 py-1.5 rounded-lg bg-neutral-900/95 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[11px] font-mono shadow-md backdrop-blur-md border border-white/10 dark:border-black/10 transition-all duration-75 ${className}`}
+      className={`pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full mb-2 px-3 py-2 rounded-xl bg-neutral-900/95 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-sans shadow-2xl backdrop-blur-md border border-white/15 dark:border-black/10 transition-all duration-75 select-none ${className}`}
       style={{
-        left: hovered.x,
-        top: hovered.y - 6,
+        left: clampedX,
+        top: hovered.y - 8,
       }}
     >
-      <div className="font-semibold">
-        {hovered.count} {hovered.count === 1 ? "request spike" : "activity units"}
+      <div className="font-semibold text-[12px] tracking-tight flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        <span>{hovered.count} {hovered.count === 1 ? "request spike" : "activity units"}</span>
       </div>
-      <div className="text-[10px] text-neutral-400 dark:text-neutral-600">
-        {dateStr}
+      <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+        {dateStr} · East US Cluster
       </div>
     </div>
   );
+
+  return createPortal(tooltipElement, document.body);
 }
 
 /* -------------------------------------------------------------------------- */

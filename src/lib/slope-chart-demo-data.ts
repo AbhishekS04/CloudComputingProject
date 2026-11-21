@@ -8,43 +8,34 @@ export interface RegionSlopeDataset {
 }
 
 export const SLOPE_CHART_REGIONS: Record<string, RegionSlopeDataset> = {
-  Americas: {
-    region: 'Americas',
-    period: 'Q1 to Q2 2026',
-    highlightKey: 'email',
+  "Round Robin": {
+    region: 'Round Robin',
+    period: 'Raw Ingress vs Balanced Distribution',
+    highlightKey: 'vm-01',
     items: [
-      { key: 'direct', label: 'Direct', start: 3.9, end: 3.7 },
-      { key: 'organic', label: 'Organic search', start: 3.4, end: 3.6 },
-      { key: 'email', label: 'Email', start: 3.1, end: 4.6 },
-      { key: 'paid-search', label: 'Paid search', start: 2.8, end: 2.5 },
-      { key: 'referral', label: 'Referral', start: 2.6, end: 3.2 },
-      { key: 'social', label: 'Paid social', start: 1.9, end: 1.3 },
+      { key: 'vm-01', label: 'vm-backend-01 (10.0.1.10)', start: 51.4, end: 33.3 },
+      { key: 'vm-02', label: 'vm-backend-02 (10.0.1.11)', start: 16.2, end: 33.4 },
+      { key: 'vm-03', label: 'vm-backend-03 (10.0.1.12)', start: 32.4, end: 33.3 },
     ]
   },
-  Europe: {
-    region: 'Europe',
-    period: 'Q1 to Q2 2026',
-    highlightKey: 'email',
+  "Least Connections": {
+    region: 'Least Connections',
+    period: 'Connection Drain vs Equalized Load',
+    highlightKey: 'vm-02',
     items: [
-      { key: 'organic', label: 'Organic search', start: 3.8, end: 4.2 },
-      { key: 'direct', label: 'Direct', start: 3.5, end: 3.1 },
-      { key: 'email', label: 'Email', start: 2.9, end: 4.0 },
-      { key: 'paid-search', label: 'Paid search', start: 3.0, end: 2.7 },
-      { key: 'referral', label: 'Referral', start: 2.4, end: 2.9 },
-      { key: 'social', label: 'Paid social', start: 1.6, end: 1.2 },
+      { key: 'vm-01', label: 'vm-backend-01 (10.0.1.10)', start: 48.0, end: 31.0 },
+      { key: 'vm-02', label: 'vm-backend-02 (10.0.1.11)', start: 14.5, end: 35.0 },
+      { key: 'vm-03', label: 'vm-backend-03 (10.0.1.12)', start: 37.5, end: 34.0 },
     ]
   },
-  "Asia Pacific": {
-    region: 'Asia Pacific',
-    period: 'Q1 to Q2 2026',
-    highlightKey: 'email',
+  "Weighted RR": {
+    region: 'Weighted RR',
+    period: 'VM SKU Capacity Ratio (3:2:1)',
+    highlightKey: 'vm-01',
     items: [
-      { key: 'direct', label: 'Direct', start: 4.2, end: 3.8 },
-      { key: 'email', label: 'Email', start: 2.7, end: 4.4 },
-      { key: 'organic', label: 'Organic search', start: 3.0, end: 3.5 },
-      { key: 'referral', label: 'Referral', start: 2.8, end: 3.4 },
-      { key: 'paid-search', label: 'Paid search', start: 3.3, end: 2.9 },
-      { key: 'social', label: 'Paid social', start: 2.1, end: 1.5 },
+      { key: 'vm-01', label: 'vm-backend-01 (8 Cores)', start: 33.3, end: 50.0 },
+      { key: 'vm-02', label: 'vm-backend-02 (4 Cores)', start: 33.3, end: 33.3 },
+      { key: 'vm-03', label: 'vm-backend-03 (2 Cores)', start: 33.4, end: 16.7 },
     ]
   }
 };

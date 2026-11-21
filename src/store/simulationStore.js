@@ -162,6 +162,38 @@ export const useSimulationStore = create((set, get) => ({
     });
   },
 
+  toggleServer: (serverId) => get().toggleServerStatus(serverId),
+
+  crashRandomServer: () => {
+    const healthyServers = get().servers.filter((s) => s.status === 'healthy' || s.healthy);
+    if (healthyServers.length === 0) {
+      get().addEvent({
+        type: 'warning',
+        title: 'All Servers Down',
+        description: 'No active backend server remaining to crash.'
+      });
+      return;
+    }
+    const victim = healthyServers[Math.floor(Math.random() * healthyServers.length)];
+    get().failServer(victim.id);
+  },
+
+  recoverAllServers: () => {
+    const servers = get().servers.map((s) => ({
+      ...s,
+      status: 'healthy',
+      cpu: 24,
+      memory: 40,
+      activeConnections: 4
+    }));
+    set({ servers });
+    get().addEvent({
+      type: 'success',
+      title: 'Cluster Fleet Restored',
+      description: 'All 3 backend Azure VMs returned to service. Traffic rebalanced.'
+    });
+  },
+
   toggleServerStatus: (serverId) => {
     const servers = get().servers.map((s) => {
       if (s.id === serverId) {
