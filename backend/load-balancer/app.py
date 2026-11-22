@@ -8,6 +8,9 @@ from flask_cors import CORS
 import config
 from algorithms.round_robin import RoundRobinBalancer
 from algorithms.least_connections import LeastConnectionsBalancer
+from algorithms.random_balancer import RandomBalancer
+from algorithms.weighted_round_robin import WeightedRoundRobinBalancer
+from algorithms.ip_hash import IPHashBalancer
 from services.request_tracker import RequestTracker
 from services.health_check import HealthChecker
 
@@ -25,6 +28,7 @@ def create_app(start_health_checker=True):
     }
     state_lock = threading.Lock()
     current_algorithm = ["round_robin"]
+    lb_paused = [False]
 
     def get_algorithm():
         with state_lock:
@@ -116,10 +120,24 @@ def create_app(start_health_checker=True):
             return jsonify({"status": "error", "message": "Server not found"}), 404
         return jsonify({"status": "success", "server": updated}), 200
 
+    @app.route("/api/lb/toggle", methods=["POST"])
+    def toggle_lb():
+        payload = request.get_json(silent=True) or {}
+        with state_lock:
+            if "paused" in payload:
+                lb_paused[0] = bool(payload["paused"])
+            else:
+                lb_paused[0] = not lb_paused[0]
+            paused_now = lb_paused[0]
+        return jsonify({"status": "success", "paused": paused_now}), 200
+
     @app.route("/api/stats", methods=["GET"])
     @app.route("/api/metrics", methods=["GET"])
     def stats():
-        return jsonify(tracker.get_stats(get_algorithm())), 200
+        data = tracker.get_stats(get_algorithm())
+        with state_lock:
+            data["lb_paused"] = lb_paused[0]
+        return jsonify(data), 200
 
     @app.route("/api/logs", methods=["GET"])
     def logs():
@@ -142,7 +160,12 @@ def create_app(start_health_checker=True):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }), 503
 
-        selected = balancers[algo].select_server(healthy_servers)
+        payload = request.get_json(silent=True) or {}
+        client_ip = payload.get("clientIp") or payload.get("client_ip") or request.headers.get("X-Forwarded-For") or request.remote_addr
+        try:
+            selected = balancers[algo].select_server(healthy_servers, client_ip=client_ip)
+        except TypeError:
+            selected = balancers[algo].select_server(healthy_servers)
         server_id = selected["id"]
         target_url = f"{selected['url']}/api/process"
 
@@ -214,3 +237,5 @@ def create_app(start_health_checker=True):
 if __name__ == "__main__":
     application = create_app(start_health_checker=True)
     application.run(host=config.HOST, port=config.PORT, threaded=True)
+
+

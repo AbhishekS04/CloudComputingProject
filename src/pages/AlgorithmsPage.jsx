@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useSimulation } from '../hooks/useSimulation';
 import { useServers } from '../hooks/useServers';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
@@ -10,21 +10,65 @@ import {
   Play
 } from 'reicon-react';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+
 export default function AlgorithmsPage() {
   const { algorithm, setAlgorithm } = useSimulation();
   const { servers } = useServers();
 
   const [testResult, setTestResult] = useState(null);
   const [testIp, setTestIp] = useState('192.168.1.42');
+  const [isDispatching, setIsDispatching] = useState(false);
 
-  const handleTestDispatch = () => {
+  const handleTestDispatch = async () => {
+    if (BASE_URL) {
+      setIsDispatching(true);
+      const t0 = performance.now();
+      try {
+        const response = await fetch(`${BASE_URL}/api/request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientIp: testIp,
+            endpoint: '/api/process',
+            probe: true
+          })
+        });
+        const res = await response.json();
+        const elapsed = (performance.now() - t0).toFixed(1);
+        const target =
+          servers.find((s) => s.id === res.selected_server || s.name === res.selected_server) ||
+          servers[0] || { name: res.selected_server || 'Backend VM', ip: '', activeConnections: 0 };
+
+        setTestResult({
+          server: target,
+          timestamp: new Date().toLocaleTimeString(),
+          clientIp: testIp,
+          algorithm: ALGORITHM_INFO[algorithm].name,
+          latencyMs: res.response_time_ms ?? elapsed
+        });
+      } catch (err) {
+        setTestResult({
+          server: { name: 'Load Balancer Error', ip: err.message, activeConnections: 0 },
+          timestamp: new Date().toLocaleTimeString(),
+          clientIp: testIp,
+          algorithm: ALGORITHM_INFO[algorithm].name,
+          latencyMs: '-'
+        });
+      } finally {
+        setIsDispatching(false);
+      }
+      return;
+    }
+
     const selected = algorithmManager.selectServer(algorithm, servers, testIp);
     if (selected) {
       setTestResult({
         server: selected,
         timestamp: new Date().toLocaleTimeString(),
         clientIp: testIp,
-        algorithm: ALGORITHM_INFO[algorithm].name
+        algorithm: ALGORITHM_INFO[algorithm].name,
+        latencyMs: '< 0.2'
       });
     }
   };
@@ -37,7 +81,7 @@ export default function AlgorithmsPage() {
           Load Balancing Algorithms & Routing Logic
         </h2>
         <p className="text-xs text-charcoal-500 dark:text-cream-400">
-          Explore the mathematical mechanics, trade-offs, and behavioral properties of core distributed routing algorithms.
+          Switch active routing algorithms on your live Azure Load Balancer and test routing decisions in real time.
         </p>
       </div>
 
@@ -170,13 +214,13 @@ export default function AlgorithmsPage() {
           </h3>
         </div>
         <p className="text-xs text-charcoal-500 dark:text-cream-400 mb-5">
-          Send test probe requests through the currently selected algorithm ({ALGORITHM_INFO[algorithm].name}) to verify target selection in real-time.
+          Send a real probe request through the currently selected algorithm ({ALGORITHM_INFO[algorithm].name}) to verify Azure VM target selection in real time.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
             <label className="text-xs font-semibold text-charcoal-600 dark:text-cream-300 block mb-1">
-              Simulated Client IP
+              Client IP Header
             </label>
             <input
               type="text"
@@ -198,10 +242,11 @@ export default function AlgorithmsPage() {
           <div>
             <button
               onClick={handleTestDispatch}
-              className="w-full py-2.5 px-4 bg-sage-600 hover:bg-sage-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+              disabled={isDispatching}
+              className="w-full py-2.5 px-4 bg-sage-600 hover:bg-sage-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
             >
               <Play aria-hidden="true" size={14} weight="Filled" />
-              <span>Dispatch Test Probe</span>
+              <span>{isDispatching ? 'Dispatching...' : 'Dispatch Live Probe'}</span>
             </button>
           </div>
         </div>
@@ -210,7 +255,7 @@ export default function AlgorithmsPage() {
         {testResult && (
           <div className="mt-4 p-4 rounded-xl bg-cream-100 dark:bg-charcoal-900 border border-sage-300 dark:border-sage-800 text-xs animate-in fade-in">
             <span className="font-bold text-sage-800 dark:text-sage-300 block mb-2">
-              Routing Decision Output:
+              Live Routing Decision Output:
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-charcoal-600 dark:text-cream-300">
               <div>
@@ -218,9 +263,9 @@ export default function AlgorithmsPage() {
                 <span className="font-mono font-semibold">{testResult.clientIp}</span>
               </div>
               <div>
-                <span className="text-charcoal-400 text-[10px] block">Target Node:</span>
+                <span className="text-charcoal-400 text-[10px] block">Target Azure VM:</span>
                 <span className="font-bold text-charcoal-900 dark:text-cream-100">
-                  {testResult.server.name} ({testResult.server.ip})
+                  {testResult.server.name} {testResult.server.ip ? `(${testResult.server.ip})` : ''}
                 </span>
               </div>
               <div>
@@ -228,8 +273,8 @@ export default function AlgorithmsPage() {
                 <span className="font-mono font-semibold">{testResult.server.activeConnections}</span>
               </div>
               <div>
-                <span className="text-charcoal-400 text-[10px] block">Decision Time:</span>
-                <span className="font-mono text-emerald-600">&lt; 0.2 ms</span>
+                <span className="text-charcoal-400 text-[10px] block">Round-Trip Latency:</span>
+                <span className="font-mono text-emerald-600">{testResult.latencyMs} ms</span>
               </div>
             </div>
           </div>

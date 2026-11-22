@@ -1,12 +1,15 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { DEFAULT_SERVERS, createNewServer } from '../simulation/serverManager';
 import { MOCK_CLIENTS } from '../simulation/trafficGenerator';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+
 export const useSimulationStore = create((set, get) => ({
   // Core simulation state
   isRunning: true,
+  lbOnline: true,
   targetRps: 6, // Requests per second
   algorithm: 'ROUND_ROBIN',
   visualizerMode: '3D', // '2D' | '3D'
@@ -102,7 +105,6 @@ export const useSimulationStore = create((set, get) => ({
       description: `Sudden spike to ${spikeRps} RPS! Backend servers adjusting.`
     });
 
-    // Auto ramp down after 7 seconds
     setTimeout(() => {
       set({ targetRps: oldRps });
       get().addEvent({
@@ -117,6 +119,14 @@ export const useSimulationStore = create((set, get) => ({
     if (ALGORITHM_INFO[algorithm]) {
       algorithmManager.reset();
       set({ algorithm });
+      if (BASE_URL) {
+        const backendAlgo = algorithm.toLowerCase();
+        fetch(`${BASE_URL}/api/algorithm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ algorithm: backendAlgo })
+        }).catch(() => {});
+      }
       get().addEvent({
         type: 'info',
         title: `Algorithm Switched: ${ALGORITHM_INFO[algorithm].name}`,
@@ -195,6 +205,9 @@ export const useSimulationStore = create((set, get) => ({
   },
 
   toggleServerStatus: (serverId) => {
+    if (BASE_URL) {
+      fetch(`${BASE_URL}/api/servers/${serverId}/toggle`, { method: 'POST' }).catch(() => {});
+    }
     const servers = get().servers.map((s) => {
       if (s.id === serverId) {
         const nextStatus = s.status === 'healthy' ? 'disabled' : 'healthy';
@@ -212,8 +225,8 @@ export const useSimulationStore = create((set, get) => ({
     get().addEvent({
       type: target.status === 'healthy' ? 'success' : 'warning',
       title: `${target.name} ${target.status === 'healthy' ? 'Enabled' : 'Disabled'}`,
-      description: target.status === 'healthy' 
-        ? 'Restored into rotation. Health checks passing.' 
+      description: target.status === 'healthy'
+        ? 'Restored into rotation. Health checks passing.'
         : 'Traffic draining. No new requests will route to this node.'
     });
   },
@@ -235,7 +248,7 @@ export const useSimulationStore = create((set, get) => ({
     const target = servers.find((s) => s.id === serverId);
     get().addEvent({
       type: 'error',
-      title: `🚨 Server Outage: ${target.name}`,
+      title: `Server Outage: ${target.name}`,
       description: 'Host unreachable (503 Service Unavailable). Failing over active traffic.'
     });
   },
@@ -276,6 +289,7 @@ export const useSimulationStore = create((set, get) => ({
     algorithmManager.reset();
     set({
       isRunning: true,
+  lbOnline: true,
       targetRps: 6,
       algorithm: 'ROUND_ROBIN',
       servers: DEFAULT_SERVERS.map((s) => ({
@@ -324,7 +338,6 @@ export const useSimulationStore = create((set, get) => ({
 
   clearLogs: () => set({ requestLogs: [] }),
 
-  // Visual packet management
   addPacket: (packet) => {
     set((state) => ({
       activePackets: [...state.activePackets.slice(-30), packet]
@@ -348,3 +361,5 @@ export const useSimulationStore = create((set, get) => ({
     }));
   }
 }));
+
+

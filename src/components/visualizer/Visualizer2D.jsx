@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { THEMES } from './Visualizer3D';
 
 // =========================================================================
@@ -174,10 +174,46 @@ export default function Visualizer2D({
 
   // --- UI & Topology State ---
   const [clients, setClients] = useState(() => CLIENT_PRESETS.slice(0, 5));
+  const storeServers = useSimulationStore((state) => state.servers);
+  const storeToggleServer = useSimulationStore((state) => state.toggleServerStatus);
+  const storeToggleSimulation = useSimulationStore((state) => state.toggleSimulation);
+  const storeIsRunning = useSimulationStore((state) => state.isRunning);
+  const storeLbOnline = useSimulationStore((state) => state.lbOnline);
+  const storeTargetRps = useSimulationStore((state) => state.targetRps);
+  const storeAlgorithm = useSimulationStore((state) => state.algorithm);
   const [servers, setServers] = useState(() => INITIAL_SERVERS);
+
+  useEffect(() => {
+    if (!IS_LIVE_BACKEND || !storeServers || storeServers.length === 0) return;
+    setServers(
+      storeServers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        ip: s.ip + ':' + s.port,
+        cpu: s.cpu ?? 25,
+        conn: s.activeConnections ?? 0,
+        healthy: s.status === 'healthy'
+      }))
+    );
+  }, [storeServers]);
   const [algoIdx, setAlgoIdx] = useState(0);
   const [targetRPS, setTargetRPS] = useState(12);
   const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (!IS_LIVE_BACKEND) return;
+    setIsPaused(!storeIsRunning);
+  }, [storeIsRunning]);
+
+  useEffect(() => {
+    if (!IS_LIVE_BACKEND) return;
+    setTargetRPS(storeTargetRps);
+  }, [storeTargetRps]);
+
+  useEffect(() => {
+    if (!IS_LIVE_BACKEND) return;
+    setAlgoIdx(storeAlgorithm === 'LEAST_CONNECTIONS' ? 1 : 0);
+  }, [storeAlgorithm]);
 
   // Live HUD Metrics
   const [metrics, setMetrics] = useState({
@@ -529,6 +565,7 @@ export default function Visualizer2D({
   };
 
   const handleAddServer = () => {
+    if (IS_LIVE_BACKEND) return;
     if (servers.length >= 5) return;
     clearPackets();
     setServers((prev) => {
@@ -549,6 +586,7 @@ export default function Visualizer2D({
   };
 
   const handleRemoveServer = () => {
+    if (IS_LIVE_BACKEND) return;
     if (servers.length <= 1) return;
     clearPackets();
     setServers((prev) => prev.slice(0, -1));
@@ -558,6 +596,9 @@ export default function Visualizer2D({
     const targetSrv = layoutRef.current.positionedServers[srvIdx];
     if (!targetSrv) return;
     const willBeHealthy = !targetSrv.healthy;
+    if (IS_LIVE_BACKEND) {
+      storeToggleServer(targetSrv.id);
+    }
 
     setServers((prev) =>
       prev.map((s, i) =>
@@ -583,7 +624,7 @@ export default function Visualizer2D({
     spawnToast(
       targetSrv.x,
       targetSrv.y - targetSrv.h / 2 - 22,
-      willBeHealthy ? `${targetSrv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
+      willBeHealthy ? `${targetSrv.name.toUpperCase()} ONLINE` : 'FAILOVER â€¢ REROUTING',
       willBeHealthy ? paletteRef.current.toastOkBg : paletteRef.current.toastFailBg,
       willBeHealthy ? paletteRef.current.toastOkText : paletteRef.current.toastFailText
     );
@@ -624,7 +665,7 @@ export default function Visualizer2D({
     clientRoutes.forEach((cr, idx) => {
       spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.15, idx, true);
     });
-    spawnToast(LB.x, LB.y - LB.h / 2 - 24, '⚡ BURST WAVE', paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
+    spawnToast(LB.x, LB.y - LB.h / 2 - 24, 'âš¡ BURST WAVE', paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
   };
 
   // =========================================================================
@@ -1237,6 +1278,128 @@ export default function Visualizer2D({
             isDark={isDark}
           />
         </div>
+=======
+
+        {/* Right: Topology Steppers, RPS Selector, Strategy & Legend */}
+        {!IS_LIVE_BACKEND && (
+        <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          {/* Devices Stepper */}
+          <div className="inline-flex items-center bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
+            <span className="px-2.5 py-1.5 text-[11px] font-extrabold bg-[#f4eee1] border-r-[1.5px] border-[#23211e] inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                <rect x="3" y="4" width="18" height="12" rx="2" />
+                <path d="M2 20h20" />
+              </svg>
+              {clients.length} Device{clients.length > 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={handleRemoveClient}
+              disabled={clients.length <= 1}
+              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
+              title="Remove Client Device"
+            >
+              Ã¢Ë†â€™
+            </button>
+            <button
+              onClick={handleAddClient}
+              disabled={clients.length >= 6}
+              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
+              title="Add Client Device"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Servers Stepper */}
+          <div className="inline-flex items-center bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
+            <span className="px-2.5 py-1.5 text-[11px] font-extrabold bg-[#f4eee1] border-r-[1.5px] border-[#23211e] inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                <rect x="3" y="4" width="18" height="6" rx="1.5" />
+                <rect x="3" y="14" width="18" height="6" rx="1.5" />
+              </svg>
+              {servers.length} Server{servers.length > 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={handleRemoveServer}
+              disabled={servers.length <= 1}
+              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
+              title="Remove Backend Server"
+            >
+              Ã¢Ë†â€™
+            </button>
+            <button
+              onClick={handleAddServer}
+              disabled={servers.length >= 5}
+              className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
+              title="Add Backend Server"
+            >
+              +
+            </button>
+          </div>
+
+          {/* RPS Selector */}
+          <div className="inline-flex bg-[#efe9dc] border-2 border-[#23211e] rounded-[10px] overflow-hidden shadow-[0_2.5px_0_#23211e]">
+            {RPS_OPTIONS.map((opt, i) => (
+              <button
+                key={opt.value}
+                onClick={() => setTargetRPS(opt.value)}
+                className={`px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
+                  i < RPS_OPTIONS.length - 1 ? 'border-r-[1.5px] border-[#23211e]' : ''
+                } ${
+                  targetRPS === opt.value
+                    ? 'bg-[#f3ce75] text-[#23211e] font-extrabold'
+                    : 'text-[#4d473e] font-bold hover:bg-[#f9f3e3]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Algorithm Switcher */}
+          <button
+            onClick={handleCycleAlgo}
+            className="bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+              <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+            </svg>
+            <span>{algoFormatted}</span>
+          </button>
+
+          {/* Burst Wave */}
+          <button
+            onClick={handleBurstWave}
+            className="bg-[#fde5d9] hover:bg-[#fbd5c2] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+            <span>Burst Wave</span>
+          </button>
+
+          {/* Pause / Resume */}
+          <button
+            onClick={() => setIsPaused((p) => !p)}
+            className={`${
+              isPaused ? 'bg-[#f3ce75]' : 'bg-[#fdfbf7] hover:bg-[#fff7e4]'
+            } active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11.5px] font-bold inline-flex items-center gap-1.5 shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+            <span>{isPaused ? 'Resume' : 'Pause'}</span>
+          </button>
+
+          {/* Top-Right Active Node Counter Pill */}
+          <div className="hidden xl:inline-flex items-center gap-2 bg-[#fdfbf7] border-2 border-[#23211e] rounded-[10px] px-3 py-1.5 text-[11px] font-extrabold shadow-[0_2.5px_0_#23211e]">
+            <span className="w-2 h-2 rounded-full bg-[#48b850] inline-block" />
+            <span>NODES: {totalNodes}</span>
+          </div>
+        </div>
+        )}
+>>>>>>> 0de3c85 (Local UI fixes and live Python backend integration)
       </div>
 
       {/* =====================================================================
@@ -1493,7 +1656,7 @@ export default function Visualizer2D({
                     fontWeight="600"
                     fill={isDark ? '#a99fc2' : '#6b6356'}
                   >
-                    {c.ip} · {c.region}
+                    {c.ip} Ã‚Â· {c.region}
                   </text>
                 </g>
               </g>
@@ -1793,7 +1956,7 @@ export default function Visualizer2D({
                       fontWeight="800"
                       fill={s.healthy ? '#23211e' : '#94291b'}
                     >
-                      {s.healthy ? `CPU ${s.cpu}% • ${s.conn}c` : 'OFFLINE • FAILOVER ACTIVE'}
+                      {s.healthy ? `CPU ${s.cpu}% Ã¢â‚¬Â¢ ${s.conn}c` : 'OFFLINE Ã¢â‚¬Â¢ FAILOVER ACTIVE'}
                     </text>
                   </g>
                 </g>
@@ -1869,8 +2032,9 @@ export default function Visualizer2D({
           <i className="w-2.5 h-2.5 rounded-full bg-[#f6f1e6] border-2 border-[#4f9d52] inline-block" />
           handshake
         </span>
+<<<<<<< HEAD
         <span className="hidden md:inline-block text-[11px] text-[#7c7365] dark:text-[#c4b5fd] bg-[#fdfbf7]/85 dark:bg-[#262230]/85 px-2.5 py-0.5 rounded-md border border-[#d6cebe] dark:border-[#463f57]">
-          Click Client to fire • Click LB Core to switch strategy • Click Server for failover
+          Click Client to fire â€¢ Click LB Core to switch strategy â€¢ Click Server for failover
         </span>
       </div>
 
@@ -1884,7 +2048,7 @@ export default function Visualizer2D({
             className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
             title="Zoom Out"
           >
-            −
+            Ã¢Ë†â€™
           </button>
           <div
             onClick={resetCamera}
@@ -1901,6 +2065,7 @@ export default function Visualizer2D({
             +
           </button>
         </div>
+        )}
         <button
           onClick={resetCamera}
           className="neo-btn bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1 text-[11px] font-bold shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
@@ -1957,3 +2122,13 @@ function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon, isDark 
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

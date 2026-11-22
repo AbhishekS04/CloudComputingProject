@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 // ============================================================================
 // 1. TRUE 2:1 ISOMETRIC PROJECTION MATH
@@ -1233,7 +1233,7 @@ function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
     'font-size': '11px',
     'font-weight': '800',
   });
-  metricText.textContent = `${srv.cpu}% • ${srv.connections}c`;
+  metricText.textContent = `${srv.cpu}% Ã¢â‚¬Â¢ ${srv.connections}c`;
   g.appendChild(metricText);
 
   const toggleW = 35;
@@ -1348,6 +1348,31 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let currentAlgoIdx = 0;
     let targetRPS = 12;
     let isPaused = false;
+    if (IS_LIVE_BACKEND) {
+      const liveSrvs = useSimulationStore.getState().servers;
+      if (liveSrvs && liveSrvs.length > 0) {
+        STATE.servers = liveSrvs.map((s) => ({
+          id: s.id,
+          name: s.name,
+          cpu: s.cpu ?? 25,
+          connections: s.activeConnections ?? 0,
+          healthy: s.status === 'healthy',
+          halfSize: 1.38,
+          cornerR: 0.42,
+          height: 58,
+          u: 0,
+          v: 0,
+        }));
+      }
+      isPaused = !useSimulationStore.getState().isRunning || !useSimulationStore.getState().lbOnline;
+      targetRPS = useSimulationStore.getState().targetRps;
+      currentAlgoIdx = useSimulationStore.getState().algorithm === 'LEAST_CONNECTIONS' ? 1 : 0;
+      if (metricRpsRef.current) {
+        const initState = useSimulationStore.getState();
+        const rpsVal = initState.metrics?.currentRps ?? initState.targetRps ?? 0;
+        metricRpsRef.current.textContent = rpsVal + " req/s";
+      }
+    }
     let rrCounter = 0;
 
     const ROUTE_TABLES = [];
@@ -1763,7 +1788,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           fillRect.setAttribute('width', w.toFixed(1));
           const barColor = srv.cpu > 78 ? '#e36652' : srv.cpu > 58 ? '#eba444' : '#6ec472';
           fillRect.setAttribute('fill', barColor);
-          metricText.textContent = `${srv.cpu}% • ${srv.connections}c`;
+          metricText.textContent = `${srv.cpu}% â€¢ ${srv.connections}c`;
           metricText.setAttribute('fill', palette.pillText);
           gearPath.classList.remove('svg-gear-paused');
           toggleBg.setAttribute('fill', palette.pillToggleOn);
@@ -1807,6 +1832,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       const srv = STATE.servers[srvIdx];
       if (!srv) return;
       srv.healthy = typeof forceState === 'boolean' ? forceState : !srv.healthy;
+      if (IS_LIVE_BACKEND && typeof forceState !== 'boolean') {
+        useSimulationStore.getState().toggleServerStatus(srv.id);
+      }
 
       const refs = serverNodeRefs.get(srv.id);
       if (refs) {
@@ -1854,7 +1882,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         spawnMacroToast(
           refs.block.centerTop.x,
           refs.block.centerTop.y - 42,
-          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
+          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER â€¢ REROUTING',
           srv.healthy ? palette.toastOkBg : palette.toastFailBg,
           srv.healthy ? palette.toastOkText : palette.toastFailText
         );
@@ -1909,7 +1937,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     function applyRequestRate(rps) {
       targetRPS = Math.max(1, Math.min(10000, Number(rps) || 12));
       if (metricRpsRef.current) {
-        metricRpsRef.current.textContent = `${targetRPS.toLocaleString()} req/s`;
+        metricRpsRef.current.textContent = rpsVal + " req/s";
       }
       rpsBtnRefs.current.forEach((b) => {
         if (!b) return;
@@ -1937,7 +1965,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         spawnMacroToast(
           lbNodeRef.centerTop.x,
           lbNodeRef.centerTop.y - 46,
-          '⚡ BURST WAVE',
+          'âš¡ BURST WAVE',
           palette.toastModeBg,
           palette.toastModeText
         );
@@ -2244,6 +2272,16 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       shadowsG.appendChild(lbNodeRef.shadowPath);
       blocksG.appendChild(lbNodeRef.group);
 
+      if (lbNodeRef && lbNodeRef.group) {
+        lbNodeRef.group.style.cursor = 'pointer';
+        lbNodeRef.group.addEventListener('click', () => {
+          if (IS_LIVE_BACKEND) {
+            useSimulationStore.getState().toggleSimulation();
+          } else {
+            togglePause();
+          }
+        });
+      }
       lbSwitchingArcEl = createSVG('path', {
         d: '',
         fill: 'none',
@@ -2344,7 +2382,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     };
 
     function addClientDevice(customConfig = {}) {
-      if (STATE.clients.length >= 6) return null;
+      if (IS_LIVE_BACKEND || STATE.clients.length >= 6) return null;
       const nextIdx = STATE.clients.length;
       const preset = CLIENT_PRESETS[nextIdx % CLIENT_PRESETS.length];
       const newClient = {
@@ -2361,7 +2399,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     }
 
     function removeClientDevice(targetId = null) {
-      if (STATE.clients.length <= 1) return false;
+      if (IS_LIVE_BACKEND || STATE.clients.length <= 1) return false;
       if (targetId) {
         const idx = STATE.clients.findIndex((c) => c.id === targetId);
         if (idx !== -1) STATE.clients.splice(idx, 1);
@@ -2374,7 +2412,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     }
 
     function addBackendServer(customConfig = {}) {
-      if (STATE.servers.length >= 5) return null;
+      if (IS_LIVE_BACKEND || STATE.servers.length >= 5) return null;
       const nextIdx = STATE.servers.length;
       const letter = SERVER_LETTERS[nextIdx] || `${nextIdx + 1}`;
       const newServer = {
@@ -2396,7 +2434,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     }
 
     function removeBackendServer(targetId = null) {
-      if (STATE.servers.length <= 1) return false;
+      if (IS_LIVE_BACKEND || STATE.servers.length <= 1) return false;
       if (targetId) {
         const idx = STATE.servers.findIndex((s) => s.id === targetId);
         if (idx !== -1) STATE.servers.splice(idx, 1);
@@ -2554,15 +2592,42 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let rafId = 0;
 
     function renderLoop(now) {
-      rafId = requestAnimationFrame(renderLoop);
+      const unsubStore = useSimulationStore.subscribe((st) => {
+      if (!IS_LIVE_BACKEND) return;
+      isPaused = !st.isRunning || !st.lbOnline;
+      targetRPS = st.targetRps;
+      if (metricRpsRef.current) {
+        const liveRps = st.isRunning ? (st.metrics?.currentRps ?? st.targetRps) : 0;
+        metricRpsRef.current.textContent = liveRps + " req/s";
+      }
+      const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : 'ROUND ROBIN';
+      if (ALGORITHMS[currentAlgoIdx] !== desiredAlgo) {
+        applyAlgorithmName(desiredAlgo);
+      }
+      if (st.servers && st.servers.length === STATE.servers.length) {
+        st.servers.forEach((s, i) => {
+          STATE.servers[i].name = s.name;
+          STATE.servers[i].cpu = s.cpu ?? 25;
+          STATE.servers[i].connections = s.activeConnections ?? 0;
+          STATE.servers[i].healthy = s.status === 'healthy';
+        });
+        refreshServerPillsUI();
+      }
+      if (!st.lbOnline) {
+        clearAllPackets();
+        STATE.servers.forEach((s, i) => { toggleServerHealth(i, false); });
+      }
+    });
+    rafId = requestAnimationFrame(renderLoop);
       const dt = Math.min((now - lastTime) * 0.001, 0.05);
       lastTime = now;
 
       const nClients = STATE.clients.length;
 
-      if (!isPaused) {
+      if (!isPaused && (!IS_LIVE_BACKEND || useSimulationStore.getState().lbOnline)) {
         updateMacroAndSpringAnimations(dt);
 
+        if (IS_LIVE_BACKEND && !useSimulationStore.getState().lbOnline) { clearAllPackets(); return; }
         const visualEmitRate =
           targetRPS <= 12
             ? 3.2
@@ -2705,10 +2770,37 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       }
     }
 
+    const unsubStore = useSimulationStore.subscribe((st) => {
+      if (!IS_LIVE_BACKEND) return;
+      isPaused = !st.isRunning || !st.lbOnline;
+      targetRPS = st.targetRps;
+      if (metricRpsRef.current) {
+        const liveRps = st.isRunning ? (st.metrics?.currentRps ?? st.targetRps) : 0;
+        metricRpsRef.current.textContent = liveRps + " req/s";
+      }
+      const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : 'ROUND ROBIN';
+      if (ALGORITHMS[currentAlgoIdx] !== desiredAlgo) {
+        applyAlgorithmName(desiredAlgo);
+      }
+      if (st.servers && st.servers.length === STATE.servers.length) {
+        st.servers.forEach((s, i) => {
+          STATE.servers[i].name = s.name;
+          STATE.servers[i].cpu = s.cpu ?? 25;
+          STATE.servers[i].connections = s.activeConnections ?? 0;
+          STATE.servers[i].healthy = s.status === 'healthy';
+        });
+        refreshServerPillsUI();
+      }
+      if (!st.lbOnline) {
+        clearAllPackets();
+        STATE.servers.forEach((s, i) => { toggleServerHealth(i, false); });
+      }
+    });
     rafId = requestAnimationFrame(renderLoop);
 
     return () => {
       cancelAnimationFrame(rafId);
+      unsubStore();
       addClientEl?.removeEventListener('click', onAddClient);
       removeClientEl?.removeEventListener('click', onRemoveClient);
       addServerEl?.removeEventListener('click', onAddServer);
@@ -3318,6 +3410,89 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
               <div className="metric-card__value metric-card__value--green" id="metric-total">84 ms</div>
             </div>
           </div>
+<<<<<<< HEAD
+=======
+
+          {!IS_LIVE_BACKEND && (<div className="hud-actions-row">
+            <div className="stepper-group" title="Add or Remove Request Devices (Clients)">
+              <span className="stepper-label">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                  <rect x="3" y="4" width="18" height="12" rx="2" />
+                  <path d="M2 20h20" />
+                </svg>
+                <span ref={countClientsRef}>4 Devices</span>
+              </span>
+              <button type="button" className="stepper-btn" ref={btnRemoveClientRef} title="Remove Request Device">
+                Ã¢Ë†â€™
+              </button>
+              <button type="button" className="stepper-btn" ref={btnAddClientRef} title="Add Request Device">
+                +
+              </button>
+            </div>
+
+            <div className="stepper-group" title="Add or Remove Backend Servers">
+              <span className="stepper-label">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                  <rect x="3" y="4" width="18" height="6" rx="1.5" />
+                  <rect x="3" y="14" width="18" height="6" rx="1.5" />
+                </svg>
+                <span ref={countServersRef}>3 Servers</span>
+              </span>
+              <button type="button" className="stepper-btn" ref={btnRemoveServerRef} title="Remove Backend Server">
+                Ã¢Ë†â€™
+              </button>
+              <button type="button" className="stepper-btn" ref={btnAddServerRef} title="Add Backend Server">
+                +
+              </button>
+            </div>
+
+            <div className="rps-group" title="Requests Per Second">
+              {RPS_LEVELS.map((val, idx) => {
+                const label = val >= 1000 ? `${val / 1000}K/s` : `${val}/s`;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    ref={(el) => {
+                      rpsBtnRefs.current[idx] = el;
+                    }}
+                    data-rps={val}
+                    className={`rps-btn ${val === 12 ? 'active' : ''}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button type="button" className="neo-btn" ref={btnAlgoRef} title="Switch Load Balancing Strategy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+              </svg>
+              <span ref={btnAlgoLabelRef}>Round Robin</span>
+            </button>
+
+            <button
+              type="button"
+              className="neo-btn neo-btn--accent"
+              ref={btnBurstRef}
+              title="Fire Synchronized Burst Wave from All Clients"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              <span>Burst Wave</span>
+            </button>
+
+            <button type="button" className="neo-btn" ref={btnPauseRef} title="Pause / Resume Visualizer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+              <span ref={btnPauseLabelRef}>Pause</span>
+            </button>
+          </div>)}
+>>>>>>> 0de3c85 (Local UI fixes and live Python backend integration)
         </div>
 
         <div ref={stageContainerRef} className="stage-container">
@@ -3342,7 +3517,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         <div className="hud-zoom-controls">
           <div className="zoom-pill">
             <button type="button" className="zoom-btn" ref={btnZoomOutRef} title="Zoom Out">
-              −
+              Ã¢Ë†â€™
             </button>
             <div className="zoom-readout" ref={zoomReadoutRef} title="Click to Reset 100% Fit">
               100%
@@ -3368,3 +3543,12 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 export default function Visualizer3D({ theme, onThemeChange, onSelectNode, selectedNode } = {}) {
   return <LoadBalancerVisualizer theme={theme} onThemeChange={onThemeChange} />;
 }
+
+
+
+
+
+
+
+
+
