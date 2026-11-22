@@ -86,7 +86,7 @@ export const useSimulationStore = create((set, get) => ({
   },
 
   setTargetRps: (targetRps) => {
-    const bounded = Math.max(1, Math.min(40, targetRps));
+    const bounded = Math.max(1, Math.min(5000, Number(targetRps)));
     set({ targetRps: bounded });
     get().addEvent({
       type: 'info',
@@ -361,5 +361,6 @@ export const useSimulationStore = create((set, get) => ({
     }));
   }
 }));
+
 
 

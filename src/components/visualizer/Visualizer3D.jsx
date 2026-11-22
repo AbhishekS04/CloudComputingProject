@@ -1,4 +1,7 @@
 ﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useSimulationStore } from '../../store/simulationStore';
+
+const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
 
 // ============================================================================
 // 1. TRUE 2:1 ISOMETRIC PROJECTION MATH
@@ -2268,20 +2271,17 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         subtitle: lb.subtitle,
         palette,
       });
-      lbNodeRef.group.addEventListener('click', cycleAlgorithm);
       shadowsG.appendChild(lbNodeRef.shadowPath);
       blocksG.appendChild(lbNodeRef.group);
-
-      if (lbNodeRef && lbNodeRef.group) {
-        lbNodeRef.group.style.cursor = 'pointer';
-        lbNodeRef.group.addEventListener('click', () => {
-          if (IS_LIVE_BACKEND) {
-            useSimulationStore.getState().toggleSimulation();
-          } else {
-            togglePause();
-          }
-        });
-      }
+      lbNodeRef.group.style.cursor = 'pointer';
+      lbNodeRef.group.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (IS_LIVE_BACKEND) {
+          useSimulationStore.getState().toggleSimulation();
+        } else {
+          togglePause();
+        }
+      });
       lbSwitchingArcEl = createSVG('path', {
         d: '',
         fill: 'none',
@@ -2555,7 +2555,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     window.addEventListener('resize', syncViewportSize);
 
     // Expose programmatic API on window
-    window.LoadBalancerVisualizer = {
+    window.LoadBalancerVisualizer = { ...(window.LoadBalancerVisualizer || {}),
       addClient: (config) => addClientDevice(config),
       removeClient: (id) => removeClientDevice(id),
       addServer: (config) => addBackendServer(config),
@@ -3410,89 +3410,6 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
               <div className="metric-card__value metric-card__value--green" id="metric-total">84 ms</div>
             </div>
           </div>
-<<<<<<< HEAD
-=======
-
-          {!IS_LIVE_BACKEND && (<div className="hud-actions-row">
-            <div className="stepper-group" title="Add or Remove Request Devices (Clients)">
-              <span className="stepper-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                  <rect x="3" y="4" width="18" height="12" rx="2" />
-                  <path d="M2 20h20" />
-                </svg>
-                <span ref={countClientsRef}>4 Devices</span>
-              </span>
-              <button type="button" className="stepper-btn" ref={btnRemoveClientRef} title="Remove Request Device">
-                Ã¢Ë†â€™
-              </button>
-              <button type="button" className="stepper-btn" ref={btnAddClientRef} title="Add Request Device">
-                +
-              </button>
-            </div>
-
-            <div className="stepper-group" title="Add or Remove Backend Servers">
-              <span className="stepper-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                  <rect x="3" y="4" width="18" height="6" rx="1.5" />
-                  <rect x="3" y="14" width="18" height="6" rx="1.5" />
-                </svg>
-                <span ref={countServersRef}>3 Servers</span>
-              </span>
-              <button type="button" className="stepper-btn" ref={btnRemoveServerRef} title="Remove Backend Server">
-                Ã¢Ë†â€™
-              </button>
-              <button type="button" className="stepper-btn" ref={btnAddServerRef} title="Add Backend Server">
-                +
-              </button>
-            </div>
-
-            <div className="rps-group" title="Requests Per Second">
-              {RPS_LEVELS.map((val, idx) => {
-                const label = val >= 1000 ? `${val / 1000}K/s` : `${val}/s`;
-                return (
-                  <button
-                    key={val}
-                    type="button"
-                    ref={(el) => {
-                      rpsBtnRefs.current[idx] = el;
-                    }}
-                    data-rps={val}
-                    className={`rps-btn ${val === 12 ? 'active' : ''}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button type="button" className="neo-btn" ref={btnAlgoRef} title="Switch Load Balancing Strategy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
-              </svg>
-              <span ref={btnAlgoLabelRef}>Round Robin</span>
-            </button>
-
-            <button
-              type="button"
-              className="neo-btn neo-btn--accent"
-              ref={btnBurstRef}
-              title="Fire Synchronized Burst Wave from All Clients"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-              <span>Burst Wave</span>
-            </button>
-
-            <button type="button" className="neo-btn" ref={btnPauseRef} title="Pause / Resume Visualizer">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-              <span ref={btnPauseLabelRef}>Pause</span>
-            </button>
-          </div>)}
->>>>>>> 0de3c85 (Local UI fixes and live Python backend integration)
         </div>
 
         <div ref={stageContainerRef} className="stage-container">
@@ -3543,6 +3460,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 export default function Visualizer3D({ theme, onThemeChange, onSelectNode, selectedNode } = {}) {
   return <LoadBalancerVisualizer theme={theme} onThemeChange={onThemeChange} />;
 }
+
+
+
+
+
 
 
 

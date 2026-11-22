@@ -1,5 +1,8 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { THEMES } from './Visualizer3D';
+import { useSimulationStore } from '../../store/simulationStore';
+
+const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
 
 // =========================================================================
 // 1. CONSTANTS & PRESET DATA
@@ -672,7 +675,7 @@ export default function Visualizer2D({
   // 6b. BIDIRECTIONAL CONTROL BRIDGE (Exposes API for StudioRightPanel)
   // =========================================================================
   useEffect(() => {
-    window.LoadBalancerVisualizer = {
+    window.LoadBalancerVisualizer = { ...(window.LoadBalancerVisualizer || {}),
       addClient: handleAddClient,
       removeClient: handleRemoveClient,
       addServer: handleAddServer,
@@ -1399,7 +1402,6 @@ export default function Visualizer2D({
           </div>
         </div>
         )}
->>>>>>> 0de3c85 (Local UI fixes and live Python backend integration)
       </div>
 
       {/* =====================================================================
@@ -2032,7 +2034,6 @@ export default function Visualizer2D({
           <i className="w-2.5 h-2.5 rounded-full bg-[#f6f1e6] border-2 border-[#4f9d52] inline-block" />
           handshake
         </span>
-<<<<<<< HEAD
         <span className="hidden md:inline-block text-[11px] text-[#7c7365] dark:text-[#c4b5fd] bg-[#fdfbf7]/85 dark:bg-[#262230]/85 px-2.5 py-0.5 rounded-md border border-[#d6cebe] dark:border-[#463f57]">
           Click Client to fire â€¢ Click LB Core to switch strategy â€¢ Click Server for failover
         </span>
@@ -2065,7 +2066,6 @@ export default function Visualizer2D({
             +
           </button>
         </div>
-        )}
         <button
           onClick={resetCamera}
           className="neo-btn bg-[#fdfbf7] hover:bg-[#fff7e4] active:translate-y-[1.5px] border-2 border-[#23211e] rounded-[10px] px-3 py-1 text-[11px] font-bold shadow-[0_2.5px_0_#23211e] cursor-pointer transition-transform"
@@ -2122,6 +2122,10 @@ function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon, isDark 
     </div>
   );
 }
+
+
+
+
 
 
 

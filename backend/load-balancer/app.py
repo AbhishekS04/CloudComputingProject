@@ -17,7 +17,7 @@ from services.health_check import HealthChecker
 
 def create_app(start_health_checker=True):
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, expose_headers=["X-Backend-Server", "X-Response-Time", "X-Load-Balancer-Algo"])
 
     tracker = RequestTracker(config.get_initial_servers())
     health_checker = HealthChecker(tracker, interval=config.HEALTH_CHECK_INTERVAL)
@@ -231,11 +231,30 @@ def create_app(start_health_checker=True):
         health_checker.check_all_now()
         health_checker.start()
 
+    @app.route("/gateway-health", methods=["GET"])
+    def gateway_health():
+        with state_lock:
+            paused_now = lb_paused[0]
+        return jsonify({
+            "status": "paused" if paused_now else "healthy",
+            "gateway": "python-flask-lb-5000",
+            "paused": paused_now
+        }), 200
+
+    @app.route("/cluster-status", methods=["GET"])
+    def cluster_status():
+        return get_servers()
+
+    @app.route("/api/data", methods=["GET", "POST"])
+    def api_data_alias():
+        return route_request()
+
     return app
 
 
 if __name__ == "__main__":
     application = create_app(start_health_checker=True)
     application.run(host=config.HOST, port=config.PORT, threaded=True)
+
 
 

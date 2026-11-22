@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import SystemDesignNavbar from '../components/layout/SystemDesignNavbar';
 import MultiSeriesLineChart from '../components/monitoring/MultiSeriesLineChart';
 import DonutChart from '../components/monitoring/DonutChart';
@@ -75,7 +75,7 @@ export default function MonitoringDashboardPage() {
 
       return {
         key: s.id,
-        label: `${s.name} (${s.ip || `10.0.1.1${idx}`}) ${isHealthy ? '' : '🚨 CRASHED'}`,
+        label: `${s.name} (${s.ip || `10.0.1.1${idx}`}) ${isHealthy ? '' : 'ðŸš¨ CRASHED'}`,
         value: baseShare,
         color: isHealthy ? colors[idx % colors.length] : '#EF4444',
       };
@@ -92,7 +92,7 @@ export default function MonitoringDashboardPage() {
     if (!trafficHistory || trafficHistory.length === 0) return [];
     return trafficHistory.map((item, idx) => ({
       time: item.time || `${12 + Math.floor(idx / 2)}:${String((idx * 3) % 60).padStart(2, '0')}`,
-      rps: (item.rps || targetRps) * 45 + (idx % 3) * 15,
+      rps: item.rps ?? metrics?.currentRps ?? targetRps,
       latency: item.latency || 22 + (idx % 2) * 2,
     }));
   }, [trafficHistory, targetRps]);
@@ -146,11 +146,11 @@ export default function MonitoringDashboardPage() {
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
-                Azure VM Fleet · Cluster Telemetry
+                Azure VM Fleet Â· Cluster Telemetry
               </h1>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) · VNet: <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> · Synced {liveClock}
+              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) Â· VNet: <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> Â· Synced {liveClock}
             </p>
           </div>
 
@@ -213,7 +213,7 @@ export default function MonitoringDashboardPage() {
             trend={trafficHistory.map((h) => (h.rps || targetRps) * 45)}
             trendLabels={trafficHistory.map((h) => h.time)}
             format={(n) => `${Math.round(n).toLocaleString()} req/s`}
-            period={`Peak: ${(targetRps * 68).toLocaleString()} req/s · 99.99% Delivered`}
+            period={`Peak: ${(targetRps * 68).toLocaleString()} req/s Â· 99.99% Delivered`}
             color="#3B82F6"
             goodWhen="up"
           />
@@ -225,19 +225,19 @@ export default function MonitoringDashboardPage() {
             trend={trafficHistory.map((h) => h.latency || 22)}
             trendLabels={trafficHistory.map((h) => h.time)}
             format={(n) => `${n.toFixed(1)} ms`}
-            period="SLA Target: <50ms · Healthy Margin"
+            period="SLA Target: <50ms Â· Healthy Margin"
             color="#10B981"
             goodWhen="down"
           />
 
           <StatCard
             label="ACTIVE TCP SOCKETS"
-            value={servers.reduce((acc, s) => acc + (s.connections || 16), 0)}
+            value={servers.reduce((acc, s) => acc + (s.activeConnections ?? s.connections ?? 0), 0)}
             previous={42}
             trend={[34, 38, 41, 45, 42, 48, 52]}
             trendLabels={["14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30"]}
             format={(n) => `${Math.round(n)} connections`}
-            period={`Fleet: ${activeServers}/${totalServers} Nodes Active · Balanced`}
+            period={`Fleet: ${activeServers}/${totalServers} Nodes Active Â· Balanced`}
             color="#8B5CF6"
             goodWhen="up"
           />
@@ -249,7 +249,7 @@ export default function MonitoringDashboardPage() {
             trend={[99.91, 99.93, 99.94, 99.96, 99.97, 99.98]}
             trendLabels={["Aug", "Sep", "Oct", "Nov", "Dec", "Jan"]}
             format={(n) => `${n.toFixed(2)}%`}
-            period="Automatic Failovers: 2 · MTTR: 1.2s"
+            period="Automatic Failovers: 2 Â· MTTR: 1.2s"
             color="#06B6D4"
             goodWhen="up"
           />
@@ -348,8 +348,8 @@ export default function MonitoringDashboardPage() {
             </div>
 
             <StatusBars
-              label="Backend Node 1 · vm-backend-01"
-              sublabel="Azure East US · 10.0.1.10:8081"
+              label="Backend Node 1 Â· vm-backend-01"
+              sublabel="Azure East US Â· 10.0.1.10:8081"
               uptime={99.99}
               maxDays={60}
               incidents={[
@@ -358,8 +358,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Backend Node 2 · vm-backend-02"
-              sublabel="Azure East US · 10.0.1.11:8082"
+              label="Backend Node 2 Â· vm-backend-02"
+              sublabel="Azure East US Â· 10.0.1.11:8082"
               uptime={99.96}
               maxDays={60}
               incidents={[
@@ -368,8 +368,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Backend Node 3 · vm-backend-03"
-              sublabel="Azure East US · 10.0.1.12:8083"
+              label="Backend Node 3 Â· vm-backend-03"
+              sublabel="Azure East US Â· 10.0.1.12:8083"
               uptime={99.98}
               maxDays={60}
               incidents={[
@@ -378,8 +378,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Azure VM 1 · Load Balancer Gateway"
-              sublabel="Managed L7 Reverse Proxy · 10.0.1.4:80"
+              label="Azure VM 1 Â· Load Balancer Gateway"
+              sublabel="Managed L7 Reverse Proxy Â· 10.0.1.4:80"
               uptime={100.0}
               maxDays={60}
               incidents={[]}
@@ -478,3 +478,4 @@ export default function MonitoringDashboardPage() {
     </div>
   );
 }
+

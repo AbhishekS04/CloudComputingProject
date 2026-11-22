@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import ServerNodeCard from '../ui/ServerNodeCard';
+import { useSimulationStore } from '../../store/simulationStore';
+import { simulationEngine } from '../../simulation/engine';
+
+const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
 import {
   Server,
   Slider,
@@ -41,122 +45,91 @@ const ALGORITHMS = [
 ];
 
 export default function StudioRightPanel() {
-  // State synchronized from Visualizer engine
-  const [visState, setVisState] = useState(() => {
-    if (typeof window !== 'undefined' && window.LoadBalancerVisualizer?.getState) {
-      return window.LoadBalancerVisualizer.getState();
-    }
-    return {
-      clients: [
-        { id: 'client-1', label: 'Web Client 1', dashed: false },
-        { id: 'client-2', label: 'Web Client 2', dashed: false },
-        { id: 'client-3', label: 'API Consumer', dashed: false },
-        { id: 'client-4', label: 'Edge Worker', dashed: true },
-      ],
-      servers: [
-        { id: 'srv-a', name: 'Server A', cpu: 38, connections: 14, healthy: true },
-        { id: 'srv-b', name: 'Server B', cpu: 52, connections: 18, healthy: true },
-        { id: 'srv-c', name: 'Server C', cpu: 34, connections: 12, healthy: true },
-      ],
-      algorithm: 'ROUND ROBIN',
-      targetRps: 12,
-      isPaused: false,
-      metrics: { dns: 18, lb: 24, server: 42, throughput: 12, totalRtt: 84 },
-    };
-  });
+  const storeServers = useSimulationStore((state) => state.servers);
+  const storeClients = useSimulationStore((state) => state.clients);
+  const storeAlgorithm = useSimulationStore((state) => state.algorithm);
+  const targetRps = useSimulationStore((state) => state.targetRps);
+  const isRunning = useSimulationStore((state) => state.isRunning);
+  const setTargetRps = useSimulationStore((state) => state.setTargetRps);
+  const setAlgorithm = useSimulationStore((state) => state.setAlgorithm);
+  const toggleSimulation = useSimulationStore((state) => state.toggleSimulation);
+  const toggleServerStatus = useSimulationStore((state) => state.toggleServerStatus);
+  const addServer = useSimulationStore((state) => state.addServer);
+  const removeServer = useSimulationStore((state) => state.removeServer);
 
-  // Sync listener with Visualizer state events
-  useEffect(() => {
-    const handleStateUpdate = (e) => {
-      if (e.detail) {
-        setVisState(e.detail);
-      }
-    };
+  const ALGO_MAP_TO_UI = {
+    ROUND_ROBIN: 'ROUND ROBIN',
+    LEAST_CONNECTIONS: 'LEAST CONN',
+    IP_HASH: 'IP HASH',
+    RANDOM: 'ROUND ROBIN',
+    WEIGHTED_ROUND_ROBIN: 'ROUND ROBIN',
+  };
 
-    window.addEventListener('lb-visualizer-state', handleStateUpdate);
+  const ALGO_MAP_TO_STORE = {
+    'ROUND ROBIN': 'ROUND_ROBIN',
+    'LEAST CONN': 'LEAST_CONNECTIONS',
+    'IP HASH': 'IP_HASH',
+  };
 
-    if (window.LoadBalancerVisualizer?.getState) {
-      setVisState(window.LoadBalancerVisualizer.getState());
-    }
+  const servers = storeServers.map((s, idx) => ({
+    ...s,
+    name: s.name || `Azure VM ${idx + 1}`,
+    ip: s.ip || s.url || `10.0.1.1${idx}:5001`,
+    cpu: Math.round(s.cpuUsage ?? s.cpu ?? 25),
+    connections: s.activeConnections ?? s.connections ?? 0,
+    healthy: s.status === 'healthy' || s.healthy === true,
+  }));
 
-    const poll = setInterval(() => {
-      if (window.LoadBalancerVisualizer?.getState) {
-        setVisState(window.LoadBalancerVisualizer.getState());
-      }
-    }, 600);
+  const clients = storeClients.map((c, idx) => ({
+    ...c,
+    label: c.name || `Client ${idx + 1}`,
+  }));
 
-    return () => {
-      window.removeEventListener('lb-visualizer-state', handleStateUpdate);
-      clearInterval(poll);
-    };
-  }, []);
-
-  const servers = visState.servers || [];
-  const clients = visState.clients || [];
   const healthyCount = servers.filter((s) => s.healthy).length;
-  const currentAlgo = visState.algorithm || 'ROUND ROBIN';
-  const targetRps = visState.targetRps || 12;
-  const isPaused = visState.isPaused || false;
+  const currentAlgo = ALGO_MAP_TO_UI[storeAlgorithm] || 'ROUND ROBIN';
+  const isPaused = !isRunning;
 
-  // Control action handlers
-  const handleToggleServer = (idx) => {
-    if (window.LoadBalancerVisualizer?.toggleServer) {
-      window.LoadBalancerVisualizer.toggleServer(idx);
+  const handleToggleServer = (idxOrId) => {
+    const target = typeof idxOrId === 'number' ? servers[idxOrId] : servers.find((s) => s.id === idxOrId);
+    if (target?.id) {
+      toggleServerStatus(target.id);
     }
   };
 
-  const handleAddServer = () => {
-    if (window.LoadBalancerVisualizer?.addServer) {
-      window.LoadBalancerVisualizer.addServer();
-    }
-  };
-
+  const handleAddServer = () => addServer();
   const handleRemoveServer = () => {
-    if (window.LoadBalancerVisualizer?.removeServer) {
-      window.LoadBalancerVisualizer.removeServer();
-    }
+    if (servers.length > 1) removeServer(servers[servers.length - 1].id);
   };
 
   const handleAddClient = () => {
-    if (window.LoadBalancerVisualizer?.addClient) {
-      window.LoadBalancerVisualizer.addClient();
-    }
+    const nextIdx = storeClients.length + 1;
+    useSimulationStore.setState({
+      clients: [
+        ...storeClients,
+        { id: `client-${Date.now()}`, name: `Client ${nextIdx}`, ip: `198.51.100.${10 + nextIdx}`, region: 'Global' },
+      ],
+    });
   };
 
   const handleRemoveClient = () => {
-    if (window.LoadBalancerVisualizer?.removeClient) {
-      window.LoadBalancerVisualizer.removeClient();
+    if (storeClients.length > 1) {
+      useSimulationStore.setState({ clients: storeClients.slice(0, -1) });
     }
   };
 
-  const handleSetRps = (rps) => {
-    if (window.LoadBalancerVisualizer?.setRequestRate) {
-      window.LoadBalancerVisualizer.setRequestRate(rps);
-    }
-  };
-
-  const handleSetAlgorithm = (algo) => {
-    if (window.LoadBalancerVisualizer?.setAlgorithm) {
-      window.LoadBalancerVisualizer.setAlgorithm(algo);
-    }
-  };
-
-  const handleTogglePause = () => {
-    if (window.LoadBalancerVisualizer?.togglePause) {
-      window.LoadBalancerVisualizer.togglePause();
-    }
-  };
+  const handleSetRps = (rps) => setTargetRps(rps);
+  const handleSetAlgorithm = (algo) => setAlgorithm(ALGO_MAP_TO_STORE[algo] || algo);
+  const handleTogglePause = () => toggleSimulation();
 
   const handleBurst = () => {
-    if (window.LoadBalancerVisualizer?.triggerBurstWave) {
-      window.LoadBalancerVisualizer.triggerBurstWave();
+    if (!isRunning) toggleSimulation();
+    for (let i = 0; i < 20; i++) {
+      setTimeout(() => simulationEngine.dispatchRealRequest(), i * 25);
     }
   };
 
   const handleSendRequest = () => {
-    if (window.LoadBalancerVisualizer?.triggerRequest) {
-      window.LoadBalancerVisualizer.triggerRequest(0);
-    }
+    simulationEngine.dispatchRealRequest();
   };
 
   const activeAlgoMeta = ALGORITHMS.find((a) => a.id === currentAlgo) || ALGORITHMS[0];
@@ -194,6 +167,7 @@ export default function StudioRightPanel() {
         </div>
 
         {/* Apple HIG Footer Stepper & Action */}
+        {!IS_LIVE_BACKEND && (
         <div className="flex items-center justify-between pt-2.5 border-t border-black/[0.06] dark:border-white/[0.08]">
           <span className="text-neutral-500 dark:text-neutral-400 text-[11px] font-normal">
             Cluster Pool: <strong className="text-neutral-900 dark:text-white font-medium">{servers.length}/5</strong>
@@ -234,6 +208,7 @@ export default function StudioRightPanel() {
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* ================================================================
@@ -395,3 +370,5 @@ export default function StudioRightPanel() {
     </aside>
   );
 }
+
+
