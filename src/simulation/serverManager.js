@@ -1,9 +1,9 @@
-export const DEFAULT_SERVERS = [
+﻿export const DEFAULT_SERVERS = [
   {
     id: 'srv-1',
     name: 'Server A',
     host: 'node-us-east-1.internal',
-    ip: '10.0.1.14',
+    ip: '52.172.229.225',
     status: 'healthy', // healthy | degraded | failed | disabled
     weight: 3,
     cpu: 28,
@@ -14,7 +14,7 @@ export const DEFAULT_SERVERS = [
     failedRequests: 0,
     avgLatency: 22,
     color: '#3B82F6', // Blue accent
-    port: 8081,
+    port: 5001,
     region: 'US-East',
     specs: { cores: 8, ram: '16 GB', disk: '256 GB SSD' }
   },
@@ -22,7 +22,7 @@ export const DEFAULT_SERVERS = [
     id: 'srv-2',
     name: 'Server B',
     host: 'node-us-east-2.internal',
-    ip: '10.0.1.27',
+    ip: '20.193.245.71',
     status: 'healthy',
     weight: 2,
     cpu: 34,
@@ -33,7 +33,7 @@ export const DEFAULT_SERVERS = [
     failedRequests: 0,
     avgLatency: 26,
     color: '#10B981', // Green accent
-    port: 8082,
+    port: 5001,
     region: 'US-East',
     specs: { cores: 4, ram: '8 GB', disk: '128 GB SSD' }
   },
@@ -41,7 +41,7 @@ export const DEFAULT_SERVERS = [
     id: 'srv-3',
     name: 'Server C',
     host: 'node-us-east-3.internal',
-    ip: '10.0.1.88',
+    ip: '52.172.255.132',
     status: 'healthy',
     weight: 1,
     cpu: 22,
@@ -52,7 +52,7 @@ export const DEFAULT_SERVERS = [
     failedRequests: 0,
     avgLatency: 19,
     color: '#8B5CF6', // Purple accent
-    port: 8083,
+    port: 5001,
     region: 'US-East',
     specs: { cores: 2, ram: '4 GB', disk: '64 GB SSD' }
   }
@@ -91,3 +91,4 @@ export function createNewServer(index, customProps = {}) {
     ...customProps
   };
 }
+

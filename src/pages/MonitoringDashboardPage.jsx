@@ -75,7 +75,7 @@ export default function MonitoringDashboardPage() {
 
       return {
         key: s.id,
-        label: `${s.name} (${s.ip || `10.0.1.1${idx}`}) ${isHealthy ? '' : 'ðŸš¨ CRASHED'}`,
+        label: `${s.name} (${s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001")}) ${isHealthy ? '' : 'ðŸš¨ CRASHED'}`,
         value: baseShare,
         color: isHealthy ? colors[idx % colors.length] : '#EF4444',
       };
@@ -104,7 +104,7 @@ export default function MonitoringDashboardPage() {
       const isOnline = s.status === 'healthy' || s.healthy;
       return {
         id: s.id,
-        label: `${s.name} (${s.ip || `10.0.1.1${i}`})`,
+        label: `${s.name} (${s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001")})`,
         mean: isOnline ? s.latency || 20 + i * 3 : 90,
         std: isOnline ? 3.5 + i * 0.8 : 12,
         color: isOnline ? baseColors[i % baseColors.length] : '#EF4444',
@@ -349,7 +349,7 @@ export default function MonitoringDashboardPage() {
 
             <StatusBars
               label="Backend Node 1 Â· vm-backend-01"
-              sublabel="Azure East US Â· 10.0.1.10:8081"
+              sublabel="Azure Central India Â· 52.172.229.225:5001"
               uptime={99.99}
               maxDays={60}
               incidents={[
@@ -359,7 +359,7 @@ export default function MonitoringDashboardPage() {
 
             <StatusBars
               label="Backend Node 2 Â· vm-backend-02"
-              sublabel="Azure East US Â· 10.0.1.11:8082"
+              sublabel="Azure Central India Â· 20.193.245.71:5001"
               uptime={99.96}
               maxDays={60}
               incidents={[
@@ -369,7 +369,7 @@ export default function MonitoringDashboardPage() {
 
             <StatusBars
               label="Backend Node 3 Â· vm-backend-03"
-              sublabel="Azure East US Â· 10.0.1.12:8083"
+              sublabel="Azure Central India Â· 52.172.255.132:5001"
               uptime={99.98}
               maxDays={60}
               incidents={[
@@ -379,7 +379,7 @@ export default function MonitoringDashboardPage() {
 
             <StatusBars
               label="Azure VM 1 Â· Load Balancer Gateway"
-              sublabel="Managed L7 Reverse Proxy Â· 10.0.1.4:80"
+              sublabel="Managed L7 Reverse Proxy Â· 127.0.0.1:5000"
               uptime={100.0}
               maxDays={60}
               incidents={[]}
@@ -478,4 +478,5 @@ export default function MonitoringDashboardPage() {
     </div>
   );
 }
+
 

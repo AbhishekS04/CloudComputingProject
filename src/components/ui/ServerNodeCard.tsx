@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,6 +21,8 @@ interface ServerNodeCardProps {
   server: {
     id: string;
     name: string;
+    ip?: string;
+    url?: string;
     healthy: boolean;
     cpu?: number;
     connections?: number;
@@ -44,8 +46,8 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
   const cpu = isHealthy ? (server.cpu ?? (35 + ((index * 13) % 35))) : 0;
   const connections = isHealthy ? (server.connections ?? (10 + index * 3)) : 0;
   const latency = isHealthy ? (server.avgLatency ?? (20 + index * 4)) : 0;
-  const ip = `10.0.1.${10 + index}:80`;
-  const letter = server.name.replace('Server ', '') || String.fromCharCode(65 + index);
+  const ip = server.ip || (server.url ? server.url.replace(/^https?:\/\//, "") : ["52.172.229.225:5001", "20.193.245.71:5001", "52.172.255.132:5001"][index] || `52.172.229.225:5001`);
+  const letter = server.name.replace(/^server-/i, '').replace(/^Server\s*/i, '').slice(0, 2) || String(index + 1);
   const isHighLoad = cpu > 50;
 
   return (
@@ -161,7 +163,7 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
           <div>
             <span className="text-neutral-400 dark:text-neutral-500">Latency: </span>
             <strong className="text-neutral-800 dark:text-neutral-200 font-medium">
-              {isHealthy ? `${latency} ms` : '—'}
+              {isHealthy ? `${latency} ms` : 'â€”'}
             </strong>
           </div>
           <div className="font-medium text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
@@ -247,7 +249,7 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
               {/* Response Latency */}
               <DataRow icon={<Clock size={13} />} label="Measured Latency">
                 <span className="text-[11px] font-mono font-medium text-neutral-800 dark:text-neutral-200">
-                  {isHealthy ? `${latency} ms` : '—'}
+                  {isHealthy ? `${latency} ms` : 'â€”'}
                 </span>
               </DataRow>
 
@@ -318,3 +320,4 @@ const DataRow = ({
 );
 
 export default ServerNodeCard;
+

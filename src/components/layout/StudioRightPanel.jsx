@@ -74,7 +74,7 @@ export default function StudioRightPanel() {
   const servers = storeServers.map((s, idx) => ({
     ...s,
     name: s.name || `Azure VM ${idx + 1}`,
-    ip: s.ip || s.url || `10.0.1.1${idx}:5001`,
+    ip: s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001"),
     cpu: Math.round(s.cpuUsage ?? s.cpu ?? 25),
     connections: s.activeConnections ?? s.connections ?? 0,
     healthy: s.status === 'healthy' || s.healthy === true,
@@ -370,5 +370,6 @@ export default function StudioRightPanel() {
     </aside>
   );
 }
+
 
 

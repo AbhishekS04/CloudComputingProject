@@ -1,4 +1,4 @@
-import type { SlopeItem } from "@/components/arc/slope-chart/slope-chart";
+﻿import type { SlopeItem } from "@/components/arc/slope-chart/slope-chart";
 
 export interface RegionSlopeDataset {
   region: string;
@@ -13,9 +13,9 @@ export const SLOPE_CHART_REGIONS: Record<string, RegionSlopeDataset> = {
     period: 'Raw Ingress vs Balanced Distribution',
     highlightKey: 'vm-01',
     items: [
-      { key: 'vm-01', label: 'vm-backend-01 (10.0.1.10)', start: 51.4, end: 33.3 },
-      { key: 'vm-02', label: 'vm-backend-02 (10.0.1.11)', start: 16.2, end: 33.4 },
-      { key: 'vm-03', label: 'vm-backend-03 (10.0.1.12)', start: 32.4, end: 33.3 },
+      { key: 'vm-01', label: 'vm-backend-01 (52.172.229.225)', start: 51.4, end: 33.3 },
+      { key: 'vm-02', label: 'vm-backend-02 (20.193.245.71)', start: 16.2, end: 33.4 },
+      { key: 'vm-03', label: 'vm-backend-03 (52.172.255.132)', start: 32.4, end: 33.3 },
     ]
   },
   "Least Connections": {
@@ -23,9 +23,9 @@ export const SLOPE_CHART_REGIONS: Record<string, RegionSlopeDataset> = {
     period: 'Connection Drain vs Equalized Load',
     highlightKey: 'vm-02',
     items: [
-      { key: 'vm-01', label: 'vm-backend-01 (10.0.1.10)', start: 48.0, end: 31.0 },
-      { key: 'vm-02', label: 'vm-backend-02 (10.0.1.11)', start: 14.5, end: 35.0 },
-      { key: 'vm-03', label: 'vm-backend-03 (10.0.1.12)', start: 37.5, end: 34.0 },
+      { key: 'vm-01', label: 'vm-backend-01 (52.172.229.225)', start: 48.0, end: 31.0 },
+      { key: 'vm-02', label: 'vm-backend-02 (20.193.245.71)', start: 14.5, end: 35.0 },
+      { key: 'vm-03', label: 'vm-backend-03 (52.172.255.132)', start: 37.5, end: 34.0 },
     ]
   },
   "Weighted RR": {
@@ -39,3 +39,4 @@ export const SLOPE_CHART_REGIONS: Record<string, RegionSlopeDataset> = {
     ]
   }
 };
+

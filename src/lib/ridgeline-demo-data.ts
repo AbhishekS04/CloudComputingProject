@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Deterministic Gaussian Latency Distributions for the 3 Azure Backend VMs
  * Models real-world P95 server response times (ms) across 12 diurnal monitoring windows
  */
@@ -62,7 +62,7 @@ const VM03_PARAMS = [
 export const RIDGELINE_SERVERS_DATA: Record<string, ServerRidgelineDataset> = {
   "vm-backend-01": {
     server: 'vm-backend-01',
-    ip: '10.0.1.10:8081',
+    ip: '52.172.229.225:5001',
     period: '24-Hour Latency Density',
     series: TIME_WINDOWS.map((time, i) => ({
       id: time,
@@ -72,7 +72,7 @@ export const RIDGELINE_SERVERS_DATA: Record<string, ServerRidgelineDataset> = {
   },
   "vm-backend-02": {
     server: 'vm-backend-02',
-    ip: '10.0.1.11:8082',
+    ip: '20.193.245.71:5001',
     period: '24-Hour Latency Density',
     series: TIME_WINDOWS.map((time, i) => ({
       id: time,
@@ -82,7 +82,7 @@ export const RIDGELINE_SERVERS_DATA: Record<string, ServerRidgelineDataset> = {
   },
   "vm-backend-03": {
     server: 'vm-backend-03',
-    ip: '10.0.1.12:8083',
+    ip: '52.172.255.132:5001',
     period: '24-Hour Latency Density',
     series: TIME_WINDOWS.map((time, i) => ({
       id: time,
@@ -91,3 +91,4 @@ export const RIDGELINE_SERVERS_DATA: Record<string, ServerRidgelineDataset> = {
     }))
   }
 };
+
