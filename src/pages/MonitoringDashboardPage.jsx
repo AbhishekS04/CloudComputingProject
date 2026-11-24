@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SystemDesignNavbar from '../components/layout/SystemDesignNavbar';
 import MultiSeriesLineChart from '../components/monitoring/MultiSeriesLineChart';
 import DonutChart from '../components/monitoring/DonutChart';
@@ -348,8 +348,8 @@ export default function MonitoringDashboardPage() {
             </div>
 
             <StatusBars
-              label="Backend Node 1 Â· vm-backend-01"
-              sublabel="Azure Central India Â· 52.172.229.225:5001"
+              label="Backend Node 1 · vm-backend-01"
+              sublabel="Pub: 52.172.229.225:5001 · Priv: 10.0.1.10"
               uptime={99.99}
               maxDays={60}
               incidents={[
@@ -358,8 +358,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Backend Node 2 Â· vm-backend-02"
-              sublabel="Azure Central India Â· 20.193.245.71:5001"
+              label="Backend Node 2 · vm-backend-02"
+              sublabel="Pub: 20.193.245.71:5001 · Priv: 10.0.1.11"
               uptime={99.96}
               maxDays={60}
               incidents={[
@@ -368,8 +368,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Backend Node 3 Â· vm-backend-03"
-              sublabel="Azure Central India Â· 52.172.255.132:5001"
+              label="Backend Node 3 · vm-backend-03"
+              sublabel="Pub: 52.172.255.132:5001 · Priv: 10.0.1.12"
               uptime={99.98}
               maxDays={60}
               incidents={[
@@ -378,8 +378,8 @@ export default function MonitoringDashboardPage() {
             />
 
             <StatusBars
-              label="Azure VM 1 Â· Load Balancer Gateway"
-              sublabel="Managed L7 Reverse Proxy Â· 127.0.0.1:5000"
+              label="Azure VM 1 · Load Balancer Gateway"
+              sublabel="Pub: 127.0.0.1:5000 · Priv: 10.0.1.4 (VNet: 10.0.1.0/24)"
               uptime={100.0}
               maxDays={60}
               incidents={[]}

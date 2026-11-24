@@ -187,12 +187,14 @@ export default function Visualizer2D({
   const [servers, setServers] = useState(() => INITIAL_SERVERS);
 
   useEffect(() => {
-    if (!IS_LIVE_BACKEND || !storeServers || storeServers.length === 0) return;
+    if (!storeServers || storeServers.length === 0) return;
     setServers(
-      storeServers.map((s) => ({
+      storeServers.map((s, idx) => ({
         id: s.id,
         name: s.name,
-        ip: s.ip + ':' + s.port,
+        ip: s.publicIp || s.ip,
+        publicIp: s.publicIp || s.ip || '52.172.229.225:5001',
+        privateIp: s.privateIp || ['10.0.1.10', '10.0.1.11', '10.0.1.12'][idx] || `10.0.1.${10 + idx}`,
         cpu: s.cpu ?? 25,
         conn: s.activeConnections ?? 0,
         healthy: s.status === 'healthy'
@@ -819,10 +821,12 @@ export default function Visualizer2D({
   // 8. MAIN 60-120FPS ANIMATION & DUPLEX COLLISION-AVOIDANCE LOOP
   // =========================================================================
   useEffect(() => {
-    // Seed initial live traffic on mount
-    layoutRef.current.clientRoutes.forEach((cr, idx) => {
-      spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.0, idx, true);
-    });
+    // Seed initial traffic on mount only if in dummy mode
+    if (useSimulationStore.getState().clusterMode === 'dummy') {
+      layoutRef.current.clientRoutes.forEach((cr, idx) => {
+        spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.0, idx, true);
+      });
+    }
 
     let rafId;
     let lastTime = performance.now();
@@ -958,24 +962,30 @@ export default function Visualizer2D({
           el.setAttribute('opacity', ((1 - p) * 0.7).toFixed(2));
         }
 
-        // 2. Emit Client Requests
-        const visualEmitRate =
-          rps <= 12 ? 3.2 : rps <= 45 ? 7.5 : rps <= 180 ? 14 : rps <= 1000 ? 22 : 30;
-        const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
+        // 2. Emit Client Requests (Dummy mode only)
+        const currentMode = useSimulationStore.getState().clusterMode;
+        if (currentMode === 'dummy') {
+          const visualEmitRate =
+            rps <= 12 ? 3.2 : rps <= 45 ? 7.5 : rps <= 180 ? 14 : rps <= 1000 ? 22 : 30;
+          const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
 
-        eng.spawnAcc += dt * visualEmitRate;
-        let attempts = 0;
-        while (eng.spawnAcc >= 1.0 && attempts < nClients * 2 && nClients > 0) {
-          eng.spawnAcc -= 1.0;
-          attempts++;
-          const cIdx = eng.clientCursor % nClients;
-          eng.clientCursor++;
-          const cr = clientRoutes[cIdx];
-          if (cr) {
-            spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, speedMult, cIdx, false);
+          eng.spawnAcc += dt * visualEmitRate;
+          let attempts = 0;
+          while (eng.spawnAcc >= 1.0 && attempts < nClients * 2 && nClients > 0) {
+            eng.spawnAcc -= 1.0;
+            attempts++;
+            const cIdx = eng.clientCursor % nClients;
+            eng.clientCursor++;
+            const cr = clientRoutes[cIdx];
+            if (cr) {
+              spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, speedMult, cIdx, false);
+            }
           }
+          if (eng.spawnAcc > 3) eng.spawnAcc = 0;
+        } else {
+          // Live Azure Mode: zero dummy packets!
+          eng.spawnAcc = 0;
         }
-        if (eng.spawnAcc > 3) eng.spawnAcc = 0;
 
         // 3. Advance Active Packets Along LUTs
         for (let i = 0; i < MAX_PACKETS; i++) {
@@ -1145,8 +1155,33 @@ export default function Visualizer2D({
       }
     };
 
+    const onLbPacketEvent = (e) => {
+      const eng = engineRef.current;
+      if (!eng || stateRef.current.isPaused) return;
+      const { serverId, isSuccess } = e.detail || {};
+      const srvs = stateRef.current.servers;
+      if (!srvs || srvs.length === 0) return;
+      const targetIdx = srvs.findIndex((s) => s.id === serverId || s.name === serverId);
+      const sIdx = targetIdx >= 0 ? targetIdx : (eng.rrCounter % srvs.length);
+      const nC = stateRef.current.clients.length;
+      const cIdx = eng.clientCursor % (nC || 1);
+      eng.clientCursor++;
+      const pType = isSuccess ? 0 : 2;
+      spawnPacket(cIdx, pType, 1, 1.3, cIdx, false);
+      const srvRoutes = layoutRef.current?.serverRoutes;
+      if (srvRoutes && srvRoutes[sIdx]) {
+        setTimeout(() => {
+          spawnPacket(sIdx + nC, pType, 1, 1.4, cIdx, false);
+        }, 160);
+      }
+    };
+    window.addEventListener('lb-packet-event', onLbPacketEvent);
+
     rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('lb-packet-event', onLbPacketEvent);
+    };
   }, [spawnPacket, triggerNodeImpact]);
 
   const healthyCount = servers.filter((s) => s.healthy).length;
@@ -1749,7 +1784,7 @@ export default function Visualizer2D({
                 fontWeight="700"
                 fill={palette.lbSubtitle}
               >
-                VIP: {layout.LB.vip}
+                Pub: 127.0.0.1:5000 · Priv: 10.0.1.4
               </text>
 
               {/* Divider & Junction Node */}
@@ -1873,13 +1908,23 @@ export default function Visualizer2D({
                     </text>
                     <text
                       x="52"
-                      y="48"
+                      y="44"
                       fontFamily="'JetBrains Mono', monospace"
-                      fontSize="11"
+                      fontSize="9.5"
                       fontWeight="600"
-                      fill={isDark ? '#a99fc2' : '#4a5568'}
+                      fill={isDark ? '#60a5fa' : '#2563eb'}
                     >
-                      {s.ip}
+                      Pub: {s.publicIp || s.ip}
+                    </text>
+                    <text
+                      x="52"
+                      y="56"
+                      fontFamily="'JetBrains Mono', monospace"
+                      fontSize="9"
+                      fontWeight="500"
+                      fill={isDark ? '#34d399' : '#059669'}
+                    >
+                      Priv: {s.privateIp || '10.0.1.10'}
                     </text>
 
                     {/* ON / OFF Interactive Toggle Pill */}

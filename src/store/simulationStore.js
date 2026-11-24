@@ -1,5 +1,5 @@
-﻿import { create } from 'zustand';
-import { DEFAULT_SERVERS, createNewServer } from '../simulation/serverManager';
+import { create } from 'zustand';
+import { DEFAULT_SERVERS, DUMMY_SERVERS, GATEWAY_METADATA, createNewServer } from '../simulation/serverManager';
 import { MOCK_CLIENTS } from '../simulation/trafficGenerator';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
@@ -10,6 +10,7 @@ export const useSimulationStore = create((set, get) => ({
   // Core simulation state
   isRunning: true,
   lbOnline: true,
+  clusterMode: import.meta.env.VITE_CLUSTER_MODE || 'live', // 'live' | 'dummy'
   targetRps: 6, // Requests per second
   algorithm: 'ROUND_ROBIN',
   visualizerMode: '3D', // '2D' | '3D'
@@ -19,6 +20,7 @@ export const useSimulationStore = create((set, get) => ({
   // Infrastructure
   servers: DEFAULT_SERVERS,
   clients: MOCK_CLIENTS,
+  gateway: GATEWAY_METADATA,
 
   // Active in-flight visual packets (shared by 2D & 3D visualizers)
   activePackets: [],
@@ -55,12 +57,44 @@ export const useSimulationStore = create((set, get) => ({
       timestamp: Date.now() - 60000,
       type: 'info',
       title: 'Cluster Initialized',
-      description: '3 backend servers connected and ready. Load balancer online.'
+      description: '3 backend Azure VMs connected and ready. Load balancer online.'
     }
   ],
 
   // Actions
-  setIsRunning: (isRunning) => set({ isRunning }),
+  setClusterMode: (mode) => {
+    const isLive = mode === 'live';
+    const serverPool = isLive ? DEFAULT_SERVERS : DUMMY_SERVERS;
+    set({
+      clusterMode: mode,
+      servers: serverPool.map((s) => ({ ...s, totalRequests: 0, successfulRequests: 0, failedRequests: 0 })),
+      selectedNode: { type: 'lb', id: 'load-balancer' }
+    });
+    get().addEvent({
+      type: isLive ? 'success' : 'info',
+      title: isLive ? 'Real-Time Azure Mode Activated' : 'Dummy Simulation Mode Activated',
+      description: isLive
+        ? 'Connected to live 4-VM Azure cluster (VM 1 Load Balancer + 3 Backend Nodes).'
+        : 'Operating in local sandbox simulation mode with dummy IPs.'
+    });
+  },
+
+  toggleClusterMode: () => {
+    const next = get().clusterMode === 'live' ? 'dummy' : 'live';
+    get().setClusterMode(next);
+  },
+
+  setIsRunning: (isRunning) => {
+    set({ isRunning });
+    if (BASE_URL) {
+      fetch(`${BASE_URL}/api/lb/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: !isRunning })
+      }).catch(() => {});
+    }
+  },
+
   setDarkMode: (isDarkMode) => {
     set({ isDarkMode });
     if (typeof document !== 'undefined') {
@@ -71,16 +105,25 @@ export const useSimulationStore = create((set, get) => ({
       }
     }
   },
+
   toggleDarkMode: () => {
     const next = !get().isDarkMode;
     get().setDarkMode(next);
   },
+
   toggleSimulation: () => {
     const next = !get().isRunning;
     set({ isRunning: next });
+    if (BASE_URL) {
+      fetch(`${BASE_URL}/api/lb/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: !next })
+      }).catch(() => {});
+    }
     get().addEvent({
       type: next ? 'success' : 'warning',
-      title: next ? 'Simulation Resumed' : 'Simulation Paused',
+      title: next ? 'Traffic Resumed' : 'Traffic Paused',
       description: `Traffic generation is now ${next ? 'active' : 'halted'}.`
     });
   },
@@ -146,7 +189,7 @@ export const useSimulationStore = create((set, get) => ({
     get().addEvent({
       type: 'success',
       title: `Server Added: ${newServer.name}`,
-      description: `Joined cluster at ${newServer.ip}. Weight: ${newServer.weight}.`
+      description: `Joined cluster at ${newServer.publicIp || newServer.ip}. Weight: ${newServer.weight}.`
     });
   },
 
@@ -200,7 +243,7 @@ export const useSimulationStore = create((set, get) => ({
     get().addEvent({
       type: 'success',
       title: 'Cluster Fleet Restored',
-      description: 'All 3 backend Azure VMs returned to service. Traffic rebalanced.'
+      description: 'All backend Azure VMs returned to service. Traffic rebalanced.'
     });
   },
 
@@ -223,9 +266,9 @@ export const useSimulationStore = create((set, get) => ({
     set({ servers });
     const target = servers.find((s) => s.id === serverId);
     get().addEvent({
-      type: target.status === 'healthy' ? 'success' : 'warning',
-      title: `${target.name} ${target.status === 'healthy' ? 'Enabled' : 'Disabled'}`,
-      description: target.status === 'healthy'
+      type: target?.status === 'healthy' ? 'success' : 'warning',
+      title: `${target?.name || serverId} ${target?.status === 'healthy' ? 'Enabled' : 'Disabled'}`,
+      description: target?.status === 'healthy'
         ? 'Restored into rotation. Health checks passing.'
         : 'Traffic draining. No new requests will route to this node.'
     });
@@ -248,7 +291,7 @@ export const useSimulationStore = create((set, get) => ({
     const target = servers.find((s) => s.id === serverId);
     get().addEvent({
       type: 'error',
-      title: `Server Outage: ${target.name}`,
+      title: `Server Outage: ${target?.name || serverId}`,
       description: 'Host unreachable (503 Service Unavailable). Failing over active traffic.'
     });
   },
@@ -270,8 +313,8 @@ export const useSimulationStore = create((set, get) => ({
     const target = servers.find((s) => s.id === serverId);
     get().addEvent({
       type: 'success',
-      title: `Server Recovered: ${target.name}`,
-      description: 'System restarted and passed 3 consecutive health checks.'
+      title: `Server Recovered: ${target?.name || serverId}`,
+      description: 'System restarted and passed consecutive health checks.'
     });
   },
 
@@ -287,12 +330,14 @@ export const useSimulationStore = create((set, get) => ({
 
   resetSimulation: () => {
     algorithmManager.reset();
+    const isLive = get().clusterMode === 'live';
+    const serverPool = isLive ? DEFAULT_SERVERS : DUMMY_SERVERS;
     set({
       isRunning: true,
-  lbOnline: true,
+      lbOnline: true,
       targetRps: 6,
       algorithm: 'ROUND_ROBIN',
-      servers: DEFAULT_SERVERS.map((s) => ({
+      servers: serverPool.map((s) => ({
         ...s,
         status: 'healthy',
         totalRequests: 0,
@@ -340,7 +385,7 @@ export const useSimulationStore = create((set, get) => ({
 
   addPacket: (packet) => {
     set((state) => ({
-      activePackets: [...state.activePackets.slice(-30), packet]
+      activePackets: [...state.activePackets.slice(-20), packet]
     }));
   },
 
@@ -361,6 +406,3 @@ export const useSimulationStore = create((set, get) => ({
     }));
   }
 }));
-
-
-

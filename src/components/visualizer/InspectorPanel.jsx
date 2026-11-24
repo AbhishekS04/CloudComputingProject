@@ -74,7 +74,10 @@ export default function InspectorPanel({ onClose }) {
               <h3 className="text-base font-bold text-charcoal-800 dark:text-cream-100">
                 {activeServer.name}
               </h3>
-              <p className="text-xs font-mono text-charcoal-400">{activeServer.ip}</p>
+              <div className="text-[11px] font-mono space-y-0.5 mt-0.5">
+                <p className="text-blue-600 dark:text-blue-400 font-medium">Pub: {activeServer.publicIp || activeServer.ip}</p>
+                <p className="text-emerald-600 dark:text-emerald-400 font-medium">Priv: {activeServer.privateIp || '10.0.1.10'}</p>
+              </div>
             </div>
             <span
               className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wider ${
@@ -215,9 +218,12 @@ export default function InspectorPanel({ onClose }) {
         <div className="space-y-4">
           <div>
             <h3 className="text-base font-bold text-charcoal-800 dark:text-cream-100">
-              Virtual Load Balancer
+              Azure VM 1 · Load Balancer Gateway
             </h3>
-            <p className="text-xs font-mono text-charcoal-400">VIP: 10.0.0.1:443 (Active)</p>
+            <div className="text-[11px] font-mono space-y-0.5 mt-0.5">
+              <p className="text-blue-600 dark:text-blue-400 font-medium">Pub: 127.0.0.1:5000 (Proxy)</p>
+              <p className="text-emerald-600 dark:text-emerald-400 font-medium">Priv: 10.0.1.4 (VNet: 10.0.1.0/24)</p>
+            </div>
           </div>
 
           {/* Algorithm Selector */}

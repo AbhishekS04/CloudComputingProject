@@ -1,4 +1,4 @@
-﻿import { useSimulationStore } from '../store/simulationStore';
+import { useSimulationStore } from '../store/simulationStore';
 import { simulationEngine } from '../simulation/engine';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_AZURE_LB_HOST;
@@ -27,7 +27,9 @@ export function initLiveStoreBridge() {
     const mappedServers = state.servers.map((s, idx) => ({
       id: s.id,
       name: s.name || `Azure VM ${idx + 1}`,
-      ip: s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001"),
+      ip: s.publicIp || s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001"),
+      publicIp: s.publicIp || s.ip || "52.172.229.225:5001",
+      privateIp: s.privateIp || `10.0.1.${10 + idx}`,
       cpu: Math.round(s.cpuUsage ?? s.cpu ?? 25),
       connections: s.activeConnections ?? s.connections ?? 0,
       healthy: s.status === 'healthy' || s.healthy === true,
@@ -68,10 +70,17 @@ export function initLiveStoreBridge() {
       ...existing,
       getState: broadcastState,
       togglePause: () => {
+        const nextPaused = useSimulationStore.getState().isRunning;
+        fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/lb/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paused: nextPaused })
+        }).catch(() => {});
         useSimulationStore.getState().toggleSimulation();
         broadcastState();
       },
       setPaused: (paused) => {
+        fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/lb/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: Boolean(paused) }) }).catch(() => {});
         const s = useSimulationStore.getState();
         if (s.isRunning === Boolean(paused)) s.toggleSimulation();
         broadcastState();
@@ -165,4 +174,6 @@ export function initLiveStoreBridge() {
     clearInterval(interval);
   };
 }
+
+
 

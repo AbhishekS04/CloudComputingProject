@@ -87,3 +87,27 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+---
+
+## ☁️ Azure Cluster & Terminal Traffic Generator
+
+LoadFlow seamlessly connects to real Microsoft Azure Virtual Machines running in Central India.
+
+For full architecture details, stress testing commands, and failover scenarios, see:
+👉 **[AZURE_CLUSTER_DEVELOPER_GUIDE.md](AZURE_CLUSTER_DEVELOPER_GUIDE.md)**
+
+### Quick Start:
+```bash
+# 1. Start Python Load Balancer Gateway (Port 5000)
+python backend/load-balancer/app.py
+
+# 2. Start Frontend Visualizer (Port 5173)
+npm run dev
+
+# 3. Stream real terminal requests across Azure VMs
+python send_traffic.py --rate 5
+
+# 4. Run high-concurrency stress test
+python send_traffic.py --stress --count 100 --concurrency 20
+```

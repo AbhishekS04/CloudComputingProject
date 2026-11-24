@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -22,6 +22,8 @@ interface ServerNodeCardProps {
     id: string;
     name: string;
     ip?: string;
+    publicIp?: string;
+    privateIp?: string;
     url?: string;
     healthy: boolean;
     cpu?: number;
@@ -46,7 +48,9 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
   const cpu = isHealthy ? (server.cpu ?? (35 + ((index * 13) % 35))) : 0;
   const connections = isHealthy ? (server.connections ?? (10 + index * 3)) : 0;
   const latency = isHealthy ? (server.avgLatency ?? (20 + index * 4)) : 0;
-  const ip = server.ip || (server.url ? server.url.replace(/^https?:\/\//, "") : ["52.172.229.225:5001", "20.193.245.71:5001", "52.172.255.132:5001"][index] || `52.172.229.225:5001`);
+  const publicIp = server.publicIp || server.ip || (server.url ? server.url.replace(/^https?:\/\//, "") : ["52.172.229.225:5001", "20.193.245.71:5001", "52.172.255.132:5001"][index] || `52.172.229.225:5001`);
+  const privateIp = server.privateIp || ["10.0.1.10", "10.0.1.11", "10.0.1.12"][index] || `10.0.1.${10 + index}`;
+  const ip = publicIp;
   const letter = server.name.replace(/^server-/i, '').replace(/^Server\s*/i, '').slice(0, 2) || String(index + 1);
   const isHighLoad = cpu > 50;
 
@@ -90,8 +94,10 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
                   }`}
                 />
               </div>
-              <div className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 mt-1 leading-none">
-                {ip}
+              <div className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 mt-1 leading-none flex items-center gap-1.5 flex-wrap">
+                <span className="text-blue-600 dark:text-blue-400 font-medium">Pub: {publicIp}</span>
+                <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Priv: {privateIp}</span>
               </div>
             </div>
           </div>
@@ -187,7 +193,7 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
               <DataRow icon={<Globe size={13} />} label="Virtual IP & Port">
                 <div className="flex items-center gap-1.5 truncate rounded-md border border-black/[0.06] dark:border-white/[0.08] px-2 py-0.5 text-[11px] font-mono text-neutral-700 dark:text-neutral-300 bg-white dark:bg-[#2C2C2E]">
                   <LinkIcon size={10} className="shrink-0 text-neutral-400" />
-                  <span className="truncate">{ip}</span>
+                  <span className="truncate">{publicIp}</span>
                 </div>
               </DataRow>
 
@@ -237,6 +243,19 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
                     {cpu}% <RxArrowTopRight size={11} strokeWidth={0.5} />
                   </div>
                 </div>
+              </DataRow>
+
+              {/* Endpoints */}
+              <DataRow icon={<Globe size={13} />} label="Public Endpoint">
+                <span className="text-[11px] font-mono font-medium text-blue-600 dark:text-blue-400">
+                  {publicIp}
+                </span>
+              </DataRow>
+
+              <DataRow icon={<Shield size={13} />} label="Azure VNet Private IP">
+                <span className="text-[11px] font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                  {privateIp}
+                </span>
               </DataRow>
 
               {/* Active Connections */}

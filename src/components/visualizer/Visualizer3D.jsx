@@ -1236,7 +1236,7 @@ function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
     'font-size': '11px',
     'font-weight': '800',
   });
-  metricText.textContent = `${srv.cpu}% Ã¢â‚¬Â¢ ${srv.connections}c`;
+  metricText.textContent = `${srv.cpu}% • ${srv.connections}c • ${srv.privateIp || '10.0.1.10'}`;
   g.appendChild(metricText);
 
   const toggleW = 35;
@@ -1357,6 +1357,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         STATE.servers = liveSrvs.map((s) => ({
           id: s.id,
           name: s.name,
+          ip: s.publicIp || s.ip || '52.172.229.225:5001',
+          publicIp: s.publicIp || s.ip || '52.172.229.225:5001',
+          privateIp: s.privateIp || '10.0.1.10',
           cpu: s.cpu ?? 25,
           connections: s.activeConnections ?? 0,
           healthy: s.status === 'healthy',
@@ -2311,6 +2314,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           iconType: 'server',
           title1: nameParts[0],
           title2: nameParts[1] || '',
+          subtitle: srv.publicIp || srv.ip || '',
           isOffline: !srv.healthy,
           palette,
         });
@@ -2581,8 +2585,10 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     buildCompleteSVGScene();
     syncViewportSize();
-    for (let i = 0; i < STATE.clients.length; i++) {
-      spawnPacket(clientRouteIndices[i], STATE.clients[i].dashed ? 2 : 0, 1, 1.0, i, true);
+    if (useSimulationStore.getState().clusterMode === 'dummy') {
+      for (let i = 0; i < STATE.clients.length; i++) {
+        spawnPacket(clientRouteIndices[i], STATE.clients[i].dashed ? 2 : 0, 1, 1.0, i, true);
+      }
     }
 
     let lastTime = performance.now();
@@ -2592,33 +2598,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let rafId = 0;
 
     function renderLoop(now) {
-      const unsubStore = useSimulationStore.subscribe((st) => {
-      if (!IS_LIVE_BACKEND) return;
-      isPaused = !st.isRunning || !st.lbOnline;
-      targetRPS = st.targetRps;
-      if (metricRpsRef.current) {
-        const liveRps = st.isRunning ? (st.metrics?.currentRps ?? st.targetRps) : 0;
-        metricRpsRef.current.textContent = liveRps + " req/s";
-      }
-      const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : 'ROUND ROBIN';
-      if (ALGORITHMS[currentAlgoIdx] !== desiredAlgo) {
-        applyAlgorithmName(desiredAlgo);
-      }
-      if (st.servers && st.servers.length === STATE.servers.length) {
-        st.servers.forEach((s, i) => {
-          STATE.servers[i].name = s.name;
-          STATE.servers[i].cpu = s.cpu ?? 25;
-          STATE.servers[i].connections = s.activeConnections ?? 0;
-          STATE.servers[i].healthy = s.status === 'healthy';
-        });
-        refreshServerPillsUI();
-      }
-      if (!st.lbOnline) {
-        clearAllPackets();
-        STATE.servers.forEach((s, i) => { toggleServerHealth(i, false); });
-      }
-    });
-    rafId = requestAnimationFrame(renderLoop);
+      rafId = requestAnimationFrame(renderLoop);
       const dt = Math.min((now - lastTime) * 0.001, 0.05);
       lastTime = now;
 
@@ -2628,31 +2608,39 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         updateMacroAndSpringAnimations(dt);
 
         if (IS_LIVE_BACKEND && !useSimulationStore.getState().lbOnline) { clearAllPackets(); return; }
-        const visualEmitRate =
-          targetRPS <= 12
-            ? 3.2
-            : targetRPS <= 45
-            ? 7.5
-            : targetRPS <= 180
-            ? 14
-            : targetRPS <= 1000
-            ? 22
-            : 30;
 
-        const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
+        const currentMode = useSimulationStore.getState().clusterMode;
+        if (currentMode === 'dummy') {
+          const visualEmitRate =
+            targetRPS <= 12
+              ? 3.2
+              : targetRPS <= 45
+              ? 7.5
+              : targetRPS <= 180
+              ? 14
+              : targetRPS <= 1000
+              ? 22
+              : 30;
 
-        spawnAccumulator += dt * visualEmitRate;
-        let attempts = 0;
-        while (spawnAccumulator >= 1.0 && attempts < nClients * 2) {
-          spawnAccumulator -= 1.0;
-          attempts++;
-          const cIdx = clientCursor % nClients;
-          clientCursor++;
-          const client = STATE.clients[cIdx];
-          const pType = client && client.dashed ? 2 : 0;
-          spawnPacket(clientRouteIndices[cIdx], pType, 1, speedMult, cIdx, false);
+          const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
+
+          spawnAccumulator += dt * visualEmitRate;
+          let attempts = 0;
+          while (spawnAccumulator >= 1.0 && attempts < nClients * 2) {
+            spawnAccumulator -= 1.0;
+            attempts++;
+            const cIdx = clientCursor % nClients;
+            clientCursor++;
+            const client = STATE.clients[cIdx];
+            const pType = client && client.dashed ? 2 : 0;
+            spawnPacket(clientRouteIndices[cIdx], pType, 1, speedMult, cIdx, false);
+          }
+          if (spawnAccumulator > 3) spawnAccumulator = 0;
+        } else {
+          // Live Azure Mode: zero synthetic dummy packets!
+          // Packets animate strictly in response to live 'lb-packet-event' from real terminal requests.
+          spawnAccumulator = 0;
         }
-        if (spawnAccumulator > 3) spawnAccumulator = 0;
 
         for (let i = 0; i < MAX_PACKETS; i++) {
           if (pktActive[i] === 0) continue;
@@ -2796,11 +2784,34 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         STATE.servers.forEach((s, i) => { toggleServerHealth(i, false); });
       }
     });
+    
+    const onLbPacketEvent = (e) => {
+      if (isPaused) return;
+      const { serverId, isSuccess } = e.detail || {};
+      const nServers = STATE.servers.length;
+      if (nServers === 0) return;
+      const targetSrvIdx = STATE.servers.findIndex((s) => s.id === serverId || s.name === serverId);
+      const sIdx = targetSrvIdx >= 0 ? targetSrvIdx : (rrCounter % nServers);
+      const nClients = STATE.clients.length;
+      const cIdx = clientCursor % (nClients || 1);
+      clientCursor++;
+      const pType = isSuccess ? 0 : 2;
+      spawnPacket(clientRouteIndices[cIdx], pType, 1, 1.25, cIdx, false);
+      const srvRouteIdx = serverRouteIndices[sIdx];
+      if (srvRouteIdx !== undefined) {
+        setTimeout(() => {
+          spawnPacket(srvRouteIdx, pType, 1, 1.35, cIdx, false);
+        }, 160);
+      }
+    };
+    window.addEventListener('lb-packet-event', onLbPacketEvent);
+
     rafId = requestAnimationFrame(renderLoop);
 
     return () => {
       cancelAnimationFrame(rafId);
       unsubStore();
+      window.removeEventListener('lb-packet-event', onLbPacketEvent);
       addClientEl?.removeEventListener('click', onAddClient);
       removeClientEl?.removeEventListener('click', onRemoveClient);
       addServerEl?.removeEventListener('click', onAddServer);

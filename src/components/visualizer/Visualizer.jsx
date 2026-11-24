@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useSimulationStore } from '../../store/simulationStore';
 import Visualizer2D from './Visualizer2D';
 import Visualizer3D from './Visualizer3D';
@@ -7,7 +7,9 @@ import {
   Layers,
   Maximize2,
   Minimize2,
-  Activity
+  Activity,
+  Zap,
+  FlaskConical
 } from 'lucide-react';
 
 const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
@@ -19,9 +21,11 @@ const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
 export default function Visualizer() {
   const visualizerMode = useSimulationStore((state) => state.visualizerMode);
   const setVisualizerMode = useSimulationStore((state) => state.setVisualizerMode);
+  const clusterMode = useSimulationStore((state) => state.clusterMode);
+  const setClusterMode = useSimulationStore((state) => state.setClusterMode);
   const selectedNode = useSimulationStore((state) => state.selectedNode);
   const setSelectedNode = useSimulationStore((state) => state.setSelectedNode);
-  const activePackets = useSimulationStore((state) => state.activePackets);
+  const activePacketsCount = useSimulationStore((state) => state.activePackets.length);
   const isRunning = useSimulationStore((state) => state.isRunning);
   const lbOnline = useSimulationStore((state) => state.lbOnline);
   const isDarkMode = useSimulationStore((state) => state.isDarkMode);
@@ -35,8 +39,8 @@ export default function Visualizer() {
         isFullscreen ? 'fixed inset-0 z-50 bg-[#F5F2EA] dark:bg-charcoal-950 p-6' : 'w-full'
       }`}
     >
-      {/* System Crash Overlay when Python Flask Load Balancer stops */}
-      {IS_LIVE_BACKEND && !lbOnline && (
+      {/* System Crash Overlay when Python Flask Load Balancer stops (Live Mode only) */}
+      {clusterMode === 'live' && IS_LIVE_BACKEND && !lbOnline && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-950/85 backdrop-blur-sm p-4">
           <div className="max-w-md w-full rounded-2xl bg-charcoal-900 border-2 border-red-500 p-6 text-center shadow-2xl space-y-4">
             <div className="w-14 h-14 mx-auto rounded-full bg-red-500/20 border border-red-500 flex items-center justify-center text-red-400 font-black text-2xl animate-pulse">
@@ -49,13 +53,13 @@ export default function Visualizer() {
               Connection to the Python Flask Load Balancer (<span className="font-mono text-red-300">Port 5000</span>) was lost (<span className="font-mono">502 Connection Refused</span>). All client-to-Azure VM routing has halted.
             </p>
             <div className="p-3 rounded-xl bg-charcoal-950 border border-charcoal-800 text-[11px] font-mono text-cream-400">
-              Restart <span className="text-emerald-400">python backend\load-balancer\app.py</span> to restore cluster routing.
+              Run <span className="text-emerald-400 font-bold">python backend\load-balancer\app.py</span> to restore cluster routing, or switch to <button onClick={() => setClusterMode('dummy')} className="text-purple-400 underline font-bold">Dummy Sim</button>.
             </div>
           </div>
         </div>
       )}
 
-      {/* 1. Unified Master Studio Command Toolbar (Friend's Exact Layout) */}
+      {/* 1. Unified Master Studio Command Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#FAF8F2] dark:bg-charcoal-900 p-2 px-3.5 rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 shadow-subtle text-xs select-none">
         {/* Left: 3D / 2D View Switcher */}
         <div className="flex items-center gap-1 bg-[#EBE6DA]/70 dark:bg-charcoal-800 p-0.5 rounded-xl border border-[#DDD6C6] dark:border-charcoal-700">
@@ -84,16 +88,49 @@ export default function Visualizer() {
           </button>
         </div>
 
+        {/* Center: Live Azure VMs vs Dummy Simulation Toggle */}
+        <div className="flex items-center gap-1 bg-[#EBE6DA]/70 dark:bg-charcoal-800 p-0.5 rounded-xl border border-[#DDD6C6] dark:border-charcoal-700">
+          <button
+            onClick={() => setClusterMode('live')}
+            title="Route live traffic to real 4-VM Azure cluster"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              clusterMode === 'live'
+                ? 'bg-white dark:bg-charcoal-700 text-blue-600 dark:text-blue-400 shadow-xs border border-[#DDD6C6] dark:border-charcoal-600 font-bold'
+                : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
+            }`}
+          >
+            <Zap className={`w-3.5 h-3.5 ${clusterMode === 'live' ? 'text-amber-500 fill-amber-500' : 'text-charcoal-400'}`} />
+            <span>Real-Time Azure</span>
+          </button>
+
+          <button
+            onClick={() => setClusterMode('dummy')}
+            title="Switch to internal simulated dummy cluster"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              clusterMode === 'dummy'
+                ? 'bg-white dark:bg-charcoal-700 text-purple-600 dark:text-purple-400 shadow-xs border border-[#DDD6C6] dark:border-charcoal-600 font-bold'
+                : 'text-charcoal-600 dark:text-cream-300 hover:text-charcoal-900'
+            }`}
+          >
+            <FlaskConical className={`w-3.5 h-3.5 ${clusterMode === 'dummy' ? 'text-purple-500' : 'text-charcoal-400'}`} />
+            <span>Dummy Sim</span>
+          </button>
+        </div>
+
         {/* Right: In-Flight Telemetry Badge & Fullscreen */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 font-mono text-[11px] text-charcoal-600 dark:text-cream-300 shadow-2xs">
             <span
               className={`w-2 h-2 rounded-full ${
-                !lbOnline ? 'bg-red-500' : isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                clusterMode === 'live'
+                  ? (!lbOnline ? 'bg-red-500' : isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500')
+                  : (isRunning ? 'bg-purple-500 animate-pulse' : 'bg-amber-500')
               }`}
             />
             <Activity className="w-3 h-3 text-blue-500" />
-            <span className="font-bold">{activePackets.length} in-flight</span>
+            <span className="font-bold">
+              {clusterMode === 'live' ? 'Azure Live' : 'Dummy Sim'}
+            </span>
           </div>
 
           <button

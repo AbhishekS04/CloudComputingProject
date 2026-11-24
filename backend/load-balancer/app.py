@@ -1,8 +1,10 @@
-﻿import time
+import time
 import threading
+import json
+import queue
 from datetime import datetime, timezone
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 
 import config
@@ -25,10 +27,23 @@ def create_app(start_health_checker=True):
     balancers = {
         "round_robin": RoundRobinBalancer(),
         "least_connections": LeastConnectionsBalancer(),
+        "ip_hash": IPHashBalancer(),
     }
     state_lock = threading.Lock()
     current_algorithm = ["round_robin"]
     lb_paused = [False]
+
+    # SSE Event Streaming Subscribers
+    event_subscribers = []
+    subscribers_lock = threading.Lock()
+
+    def broadcast_event(data):
+        with subscribers_lock:
+            for q in list(event_subscribers):
+                try:
+                    q.put_nowait(data)
+                except Exception:
+                    pass
 
     def get_algorithm():
         with state_lock:
@@ -45,14 +60,49 @@ def create_app(start_health_checker=True):
     @app.route("/health", methods=["GET"])
     def health():
         stats = tracker.get_stats(get_algorithm())
+        with state_lock:
+            paused = lb_paused[0]
         return jsonify({
-            "status": "healthy",
+            "status": "paused" if paused else "healthy",
             "role": "load_balancer",
             "algorithm": stats["algorithm"],
             "healthy_servers": stats["healthy_servers"],
             "total_servers": stats["total_servers"],
+            "gateway_public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
+            "gateway_private_ip": "10.0.1.4",
+            "vnet": "10.0.1.0/24",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }), 200
+
+    @app.route("/api/stream", methods=["GET"])
+    def sse_stream():
+        """Server-Sent Events stream for real-time visualizer packet sync."""
+        def event_generator():
+            q = queue.Queue(maxsize=200)
+            with subscribers_lock:
+                event_subscribers.append(q)
+            try:
+                yield "data: {\"type\":\"connected\"}\n\n"
+                while True:
+                    try:
+                        event = q.get(timeout=15.0)
+                        yield f"data: {json.dumps(event)}\n\n"
+                    except queue.Empty:
+                        yield "data: {\"type\":\"ping\"}\n\n"
+            finally:
+                with subscribers_lock:
+                    if q in event_subscribers:
+                        event_subscribers.remove(q)
+
+        return Response(
+            event_generator(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Access-Control-Allow-Origin": "*",
+            }
+        )
 
     @app.route("/api/algorithm", methods=["GET", "POST"])
     def algorithm():
@@ -71,6 +121,7 @@ def create_app(start_health_checker=True):
                 "message": f"Unsupported algorithm '{algo_name}'. Supported: {list(balancers.keys())}",
             }), 400
 
+        broadcast_event({"type": "algorithm", "algorithm": updated})
         return jsonify({
             "status": "success",
             "algorithm": updated,
@@ -86,6 +137,7 @@ def create_app(start_health_checker=True):
                     "status": "error",
                     "message": f"Unsupported algorithm '{payload['algorithm']}'",
                 }), 400
+            broadcast_event({"type": "algorithm", "algorithm": updated})
         return jsonify({
             "success": True,
             "algorithm": get_algorithm(),
@@ -96,6 +148,11 @@ def create_app(start_health_checker=True):
         if request.method == "GET":
             return jsonify({
                 "servers": tracker.get_all_servers(),
+                "gateway": {
+                    "public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
+                    "private_ip": "10.0.1.4",
+                    "vnet": "10.0.1.0/24"
+                }
             }), 200
 
         payload = request.get_json(silent=True) or {}
@@ -103,7 +160,14 @@ def create_app(start_health_checker=True):
         url = payload.get("url")
         if not server_id or not url:
             return jsonify({"status": "error", "message": "'id' and 'url' are required"}), 400
-        created = tracker.add_server(server_id, url, name=payload.get("name"))
+        created = tracker.add_server(
+            server_id,
+            url,
+            name=payload.get("name"),
+            public_ip=payload.get("public_ip"),
+            private_ip=payload.get("private_ip")
+        )
+        broadcast_event({"type": "server_update", "action": "add", "server": created})
         return jsonify({"status": "success", "server": created}), 201
 
     @app.route("/api/servers/<server_id>", methods=["DELETE"])
@@ -111,6 +175,7 @@ def create_app(start_health_checker=True):
         removed = tracker.remove_server(server_id)
         if not removed:
             return jsonify({"status": "error", "message": "Server not found"}), 404
+        broadcast_event({"type": "server_update", "action": "delete", "server_id": server_id})
         return jsonify({"status": "success", "deleted": server_id}), 200
 
     @app.route("/api/servers/<server_id>/toggle", methods=["POST"])
@@ -118,6 +183,7 @@ def create_app(start_health_checker=True):
         updated = tracker.toggle_server(server_id)
         if not updated:
             return jsonify({"status": "error", "message": "Server not found"}), 404
+        broadcast_event({"type": "server_update", "action": "toggle", "server": updated})
         return jsonify({"status": "success", "server": updated}), 200
 
     @app.route("/api/lb/toggle", methods=["POST"])
@@ -129,6 +195,9 @@ def create_app(start_health_checker=True):
             else:
                 lb_paused[0] = not lb_paused[0]
             paused_now = lb_paused[0]
+        if hasattr(health_checker, 'paused'):
+            health_checker.paused = paused_now
+        broadcast_event({"type": "lb_toggle", "paused": paused_now})
         return jsonify({"status": "success", "paused": paused_now}), 200
 
     @app.route("/api/stats", methods=["GET"])
@@ -137,6 +206,11 @@ def create_app(start_health_checker=True):
         data = tracker.get_stats(get_algorithm())
         with state_lock:
             data["lb_paused"] = lb_paused[0]
+        data["gateway"] = {
+            "public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
+            "private_ip": "10.0.1.4",
+            "vnet": "10.0.1.0/24"
+        }
         return jsonify(data), 200
 
     @app.route("/api/logs", methods=["GET"])
@@ -149,10 +223,36 @@ def create_app(start_health_checker=True):
 
     @app.route("/api/request", methods=["GET", "POST"])
     def route_request():
+        with state_lock:
+            if lb_paused[0]:
+                return jsonify({
+                    "status": "error",
+                    "message": "Load Balancer is paused/offline",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }), 503
+
         algo = get_algorithm()
         healthy_servers = tracker.get_healthy_servers()
+        payload = request.get_json(silent=True) or {}
+        client_ip = payload.get("clientIp") or payload.get("client_ip") or request.headers.get("X-Forwarded-For") or request.remote_addr or "198.51.100.4"
 
         if not healthy_servers:
+            err_id = f"err-{int(time.time() * 1000)}"
+            broadcast_event({
+                "type": "request",
+                "request_id": err_id,
+                "algorithm": algo,
+                "selected_server": None,
+                "server_url": None,
+                "public_ip": "127.0.0.1:5000",
+                "private_ip": "10.0.1.4",
+                "client_ip": client_ip,
+                "status": "error",
+                "status_code": 503,
+                "response_time_ms": 2.0,
+                "message": "All backend servers offline (503 Service Unavailable)",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
             return jsonify({
                 "status": "error",
                 "algorithm": algo,
@@ -160,16 +260,14 @@ def create_app(start_health_checker=True):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }), 503
 
-        payload = request.get_json(silent=True) or {}
-        client_ip = payload.get("clientIp") or payload.get("client_ip") or request.headers.get("X-Forwarded-For") or request.remote_addr
         try:
             selected = balancers[algo].select_server(healthy_servers, client_ip=client_ip)
         except TypeError:
             selected = balancers[algo].select_server(healthy_servers)
+
         server_id = selected["id"]
         target_url = f"{selected['url']}/api/process"
 
-        payload = request.get_json(silent=True) or {}
         if "delay" not in payload and "delay" in request.args:
             payload["delay"] = request.args.get("delay")
 
@@ -191,10 +289,29 @@ def create_app(start_health_checker=True):
                 status_code=resp.status_code,
             )
 
+            srv_info = tracker.get_server(server_id) or {}
+            event_payload = {
+                "type": "request",
+                "request_id": req_id,
+                "algorithm": algo,
+                "selected_server": server_id,
+                "server_url": selected["url"],
+                "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+                "private_ip": srv_info.get("private_ip") or "10.0.1.10",
+                "client_ip": client_ip,
+                "status": "success" if success else "error",
+                "status_code": resp.status_code,
+                "response_time_ms": round(elapsed_ms, 2),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            broadcast_event(event_payload)
+
             return jsonify({
                 "request_id": req_id,
                 "algorithm": algo,
                 "selected_server": server_id,
+                "public_ip": event_payload["public_ip"],
+                "private_ip": event_payload["private_ip"],
                 "status": "success" if success else "error",
                 "response_time_ms": round(elapsed_ms, 2),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -213,6 +330,25 @@ def create_app(start_health_checker=True):
                 status_code=502,
                 error=str(exc),
             )
+
+            srv_info = tracker.get_server(server_id) or {}
+            event_payload = {
+                "type": "request",
+                "request_id": req_id,
+                "algorithm": algo,
+                "selected_server": server_id,
+                "server_url": selected["url"],
+                "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+                "private_ip": srv_info.get("private_ip") or "10.0.1.10",
+                "client_ip": client_ip,
+                "status": "error",
+                "status_code": 502,
+                "response_time_ms": round(elapsed_ms, 2),
+                "error": str(exc),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            broadcast_event(event_payload)
+
             return jsonify({
                 "request_id": req_id,
                 "algorithm": algo,
@@ -237,13 +373,21 @@ def create_app(start_health_checker=True):
             paused_now = lb_paused[0]
         return jsonify({
             "status": "paused" if paused_now else "healthy",
-            "gateway": "python-flask-lb-5000",
-            "paused": paused_now
+            "gateway": "azure-vm-lb-01",
+            "gateway_public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
+            "gateway_private_ip": "10.0.1.4",
+            "vnet": "10.0.1.0/24",
+            "algorithm": get_algorithm(),
+            "paused": paused_now,
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }), 200
 
     @app.route("/cluster-status", methods=["GET"])
     def cluster_status():
-        return get_servers()
+        return jsonify({
+            "servers": tracker.get_all_servers(),
+            "stats": tracker.get_stats(get_algorithm())
+        }), 200
 
     @app.route("/api/data", methods=["GET", "POST"])
     def api_data_alias():
@@ -255,6 +399,3 @@ def create_app(start_health_checker=True):
 if __name__ == "__main__":
     application = create_app(start_health_checker=True)
     application.run(host=config.HOST, port=config.PORT, threaded=True)
-
-
-

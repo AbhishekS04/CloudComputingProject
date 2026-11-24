@@ -1,10 +1,19 @@
-﻿import { useSimulationStore } from '../store/simulationStore';
+import { useSimulationStore } from '../store/simulationStore';
 import { generateMockRequest } from './trafficGenerator';
 import { algorithmManager } from './loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
 const SERVER_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4'];
+
+const KNOWN_PRIVATE_IPS = {
+  'server-1': '10.0.1.10',
+  'server-2': '10.0.1.11',
+  'server-3': '10.0.1.12',
+  'srv-1': '10.0.1.10',
+  'srv-2': '10.0.1.11',
+  'srv-3': '10.0.1.12',
+};
 
 function mapBackendServer(srv, index, existing = {}) {
   let host = srv.url || '';
@@ -28,12 +37,16 @@ function mapBackendServer(srv, index, existing = {}) {
 
   const activeConns = srv.active_connections || 0;
   const targetCpu = uiStatus === 'healthy' ? Math.min(92, 18 + activeConns * 8 + ((srv.total_requests || 0) % 7)) : 0;
+  const publicIp = srv.public_ip || (ip.includes(':') ? ip : `${ip}:${port}`);
+  const privateIp = srv.private_ip || KNOWN_PRIVATE_IPS[srv.id] || `10.0.1.${10 + index}`;
 
   return {
     id: srv.id,
-    name: srv.name || srv.id,
+    name: srv.name || `Server ${String.fromCharCode(65 + index)}`,
     host,
-    ip,
+    ip: publicIp,
+    publicIp,
+    privateIp,
     status: uiStatus,
     weight: existing.weight || 1,
     cpu: existing.cpu !== undefined ? Math.round(existing.cpu * 0.6 + targetCpu * 0.4) : targetCpu,
@@ -45,7 +58,7 @@ function mapBackendServer(srv, index, existing = {}) {
     avgLatency: Math.round(srv.avg_response_time_ms || 0),
     color: existing.color || SERVER_COLORS[index % SERVER_COLORS.length],
     port,
-    region: 'Azure-CentralIndia',
+    region: 'Azure Central India',
     specs: existing.specs || { cores: 2, ram: '4 GB', disk: '30 GB SSD' }
   };
 }
@@ -54,20 +67,25 @@ class SimulationEngine {
   constructor() {
     this.intervalId = null;
     this.syncIntervalId = null;
+    this.eventSource = null;
     this.tickRate = 120; // 120ms per engine tick
     this.accumulator = 0;
     this.requestsThisSecond = 0;
     this.latencySamplesThisSecond = [];
     this.lastSecondTime = Date.now();
+    this.pendingLogs = [];
   }
 
   start() {
     if (this.intervalId) return;
     this.lastSecondTime = Date.now();
+
     if (BASE_URL) {
       this.syncFromBackend();
       this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
+      this.initEventStream();
     }
+
     this.intervalId = setInterval(() => this.tick(), this.tickRate);
   }
 
@@ -80,10 +98,118 @@ class SimulationEngine {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
     }
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
+  initEventStream() {
+    if (typeof window === 'undefined' || !BASE_URL) return;
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    try {
+      this.eventSource = new EventSource(`${BASE_URL}/api/stream`);
+
+      this.eventSource.onopen = () => {
+        useSimulationStore.setState({ lbOnline: true });
+      };
+
+      this.eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'request') {
+            this.handleLiveRequestEvent(data);
+          } else if (data.type === 'server_update') {
+            this.syncFromBackend();
+          } else if (data.type === 'algorithm' && data.algorithm) {
+            useSimulationStore.setState({ algorithm: data.algorithm.toUpperCase() });
+          } else if (data.type === 'lb_toggle' && typeof data.paused === 'boolean') {
+            useSimulationStore.setState({ isRunning: !data.paused });
+          }
+        } catch {
+          // ignore parsing error
+        }
+      };
+
+      this.eventSource.onerror = () => {
+        // SSE error - wait and retry
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+        setTimeout(() => {
+          if (!this.eventSource && BASE_URL) {
+            this.initEventStream();
+          }
+        }, 3000);
+      };
+    } catch {
+      // EventSource not supported
+    }
+  }
+
+  handleLiveRequestEvent(data) {
+    const store = useSimulationStore.getState();
+    const isSuccess = data.status === 'success';
+    const latency = Math.round(data.response_time_ms || 25);
+    const serverId = data.selected_server;
+
+    this.requestsThisSecond++;
+    if (isSuccess) {
+      this.latencySamplesThisSecond.push(latency);
+    }
+
+    // 1. Dispatch lightweight visual event for 2D & 3D visualizers (0 React re-renders, 60 FPS)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('lb-packet-event', {
+          detail: {
+            serverId,
+            clientIp: data.client_ip || '198.51.100.4',
+            isSuccess,
+            latency,
+            publicIp: data.public_ip,
+            privateIp: data.private_ip,
+            timestamp: Date.now()
+          }
+        })
+      );
+    }
+
+    // 2. Buffer log for non-blocking periodic flush
+    const targetServer = store.servers.find((s) => s.id === serverId) || {
+      id: serverId,
+      name: serverId,
+      ip: data.public_ip || serverId
+    };
+
+    const newLog = {
+      id: data.request_id || `req-${Date.now()}`,
+      timestamp: Date.now(),
+      client: { id: 'term-client', name: 'Terminal Client', ip: data.client_ip || '198.51.100.4' },
+      server: targetServer,
+      serverName: `${targetServer.name || serverId} (${data.public_ip || targetServer.ip || 'Azure VM'})`,
+      endpoint: '/api/process',
+      method: 'POST',
+      latency,
+      status: data.status_code || (isSuccess ? 200 : 502),
+      statusText: isSuccess ? 'OK' : 'Error'
+    };
+
+    this.pendingLogs.push(newLog);
+    if (this.pendingLogs.length > 200) {
+      this.pendingLogs.shift();
+    }
   }
 
   async syncFromBackend() {
-    if (!BASE_URL) return;
+    const store = useSimulationStore.getState();
+    if (store.clusterMode !== 'live' || !BASE_URL) return;
+
     try {
       const [serversRes, statsRes] = await Promise.all([
         fetch(`${BASE_URL}/api/servers`),
@@ -102,10 +228,12 @@ class SimulationEngine {
       const rawServers = Array.isArray(serversData) ? serversData : (serversData.servers || []);
 
       useSimulationStore.setState((state) => {
+        if (state.clusterMode !== 'live') return state;
         const existingMap = Object.fromEntries(state.servers.map((s) => [s.id, s]));
         const mappedServers = rawServers.map((srv, idx) => mapBackendServer(srv, idx, existingMap[srv.id]));
 
         return {
+          lbOnline: true,
           servers: mappedServers,
           metrics: {
             ...state.metrics,
@@ -117,8 +245,14 @@ class SimulationEngine {
           }
         };
       });
-    } catch {
-      // Ignore transient network errors during polling
+    } catch (err) {
+      useSimulationStore.setState((state) => ({
+        lbOnline: false,
+        metrics: {
+          ...state.metrics,
+          currentRps: 0
+        }
+      }));
     }
   }
 
@@ -128,20 +262,20 @@ class SimulationEngine {
 
     const now = Date.now();
     const dt = this.tickRate / 1000;
-    // Cap live HTTP dispatch rate to max 8 req/sec so browser doesn't flood Azure VMs
-    const effectiveRps = BASE_URL ? Math.min(store.targetRps, 40) : store.targetRps;
-    const expectedRequestsThisTick = effectiveRps * dt;
-    this.accumulator += expectedRequestsThisTick;
 
-    const requestsToEmit = Math.floor(this.accumulator);
-    this.accumulator -= requestsToEmit;
+    if (store.clusterMode === 'dummy') {
+      const expectedRequestsThisTick = store.targetRps * dt;
+      this.accumulator += expectedRequestsThisTick;
+      const requestsToEmit = Math.floor(this.accumulator);
+      this.accumulator -= requestsToEmit;
 
-    for (let i = 0; i < requestsToEmit; i++) {
-      if (BASE_URL) {
-        this.dispatchRealRequest();
-      } else {
+      for (let i = 0; i < requestsToEmit; i++) {
         this.dispatchSingleRequest();
       }
+    } else {
+      // Live Azure Mode: All traffic is purely driven by the user's terminal/CLI or external clients.
+      // Packets animate in real-time purely from the live SSE stream (/api/stream).
+      // Zero synthetic requests are auto-dispatched from the browser.
     }
 
     if (now - this.lastSecondTime >= 1000) {
@@ -152,82 +286,31 @@ class SimulationEngine {
 
   async dispatchRealRequest() {
     const store = useSimulationStore.getState();
-    const mockReq = generateMockRequest();
-    const packetId = `pkt-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    if (!store.isRunning || store.clusterMode !== 'live' || !BASE_URL) return;
 
     try {
-      const res = await fetch(`${BASE_URL}/api/request`, {
+      await fetch(`${BASE_URL}/api/request`, {
         signal: AbortSignal.timeout(3000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
-      const data = await res.json();
-      const isSuccess = res.ok && data.status === 'success';
-      const latency = Math.round(data.response_time_ms || 0);
-      const latestStore = useSimulationStore.getState();
-      const targetServer =
-        latestStore.servers.find((s) => s.id === data.selected_server) ||
-        latestStore.servers[0] ||
-        null;
-
-      this.requestsThisSecond++;
-      if (isSuccess) {
-        this.latencySamplesThisSecond.push(latency);
-      }
-
-      if (targetServer) {
-        latestStore.addPacket({
-          id: packetId,
-          requestId: data.request_id || mockReq.id,
-          client: mockReq.client,
-          targetServer,
-          isSuccess,
-          latency,
-          statusCode: res.status,
-          createdTime: Date.now(),
-          totalDuration: 1000
-        });
-
-        setTimeout(() => {
-          useSimulationStore.setState((state) => ({
-            activePackets: state.activePackets.filter((p) => p.id !== packetId)
-          }));
-        }, 1000);
-      }
-
-      useSimulationStore.setState((state) => ({
-        requestLogs: [
-          {
-            id: data.request_id || mockReq.id,
-            timestamp: Date.now(),
-            client: mockReq.client,
-            server: targetServer,
-            serverName: targetServer ? `${targetServer.name} (${targetServer.ip})` : (data.selected_server || 'None (503)'),
-            endpoint: '/api/process',
-            method: 'POST',
-            latency,
-            status: res.status,
-            statusText: isSuccess ? 'OK' : (data.message || 'Error')
-          },
-          ...state.requestLogs.slice(0, 199)
-        ]
-      }));
+      // Note: The SSE stream automatically receives the result and dispatches the visual event!
     } catch (err) {
       this.requestsThisSecond++;
       useSimulationStore.setState((state) => ({
         requestLogs: [
           {
-            id: mockReq.id,
+            id: `err-${Date.now()}`,
             timestamp: Date.now(),
-            client: mockReq.client,
+            client: { id: 'browser', name: 'Browser Client', ip: '127.0.0.1' },
             server: null,
-            serverName: 'Load Balancer Unreachable',
+            serverName: 'Load Balancer Gateway',
             endpoint: '/api/request',
             method: 'POST',
             latency: 0,
             status: 502,
-            statusText: err.message || 'Network Error'
+            statusText: err.message || 'Connection Error'
           },
           ...state.requestLogs.slice(0, 199)
         ]
@@ -278,6 +361,27 @@ class SimulationEngine {
     const statusCode = isSuccess ? 200 : 502;
     const statusText = isSuccess ? 'OK' : 'Bad Gateway';
 
+    // Dispatch visual event for 2D & 3D canvas (zero React lag)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('lb-packet-event', {
+          detail: {
+            serverId: selectedServer.id,
+            clientIp: mockReq.clientIp,
+            isSuccess,
+            latency,
+            publicIp: selectedServer.publicIp || selectedServer.ip,
+            privateIp: selectedServer.privateIp,
+            timestamp: Date.now()
+          }
+        })
+      );
+    }
+
+    this.requestsThisSecond++;
+    this.latencySamplesThisSecond.push(latency);
+
+    // Update server counters in state
     useSimulationStore.setState((state) => ({
       servers: state.servers.map((s) => {
         if (s.id === selectedServer.id) {
@@ -294,25 +398,29 @@ class SimulationEngine {
           };
         }
         return s;
-      })
+      }),
+      metrics: {
+        ...state.metrics,
+        totalRequests: state.metrics.totalRequests + 1,
+        successfulRequests: state.metrics.successfulRequests + (isSuccess ? 1 : 0),
+        failedRequests: state.metrics.failedRequests + (isSuccess ? 0 : 1)
+      },
+      requestLogs: [
+        {
+          id: mockReq.id,
+          timestamp: mockReq.timestamp,
+          client: mockReq.client,
+          server: selectedServer,
+          serverName: selectedServer.name,
+          endpoint: mockReq.endpoint,
+          method: mockReq.method,
+          latency,
+          status: statusCode,
+          statusText
+        },
+        ...state.requestLogs.slice(0, 199)
+      ]
     }));
-
-    const newPacket = {
-      id: packetId,
-      requestId: mockReq.id,
-      client: mockReq.client,
-      targetServer: selectedServer,
-      isSuccess,
-      latency,
-      statusCode,
-      createdTime: Date.now(),
-      totalDuration: 1200
-    };
-
-    store.addPacket(newPacket);
-
-    this.requestsThisSecond++;
-    this.latencySamplesThisSecond.push(latency);
 
     setTimeout(() => {
       useSimulationStore.setState((state) => ({
@@ -325,29 +433,7 @@ class SimulationEngine {
             };
           }
           return s;
-        }),
-        activePackets: state.activePackets.filter((p) => p.id !== packetId),
-        metrics: {
-          ...state.metrics,
-          totalRequests: state.metrics.totalRequests + 1,
-          successfulRequests: state.metrics.successfulRequests + (isSuccess ? 1 : 0),
-          failedRequests: state.metrics.failedRequests + (isSuccess ? 0 : 1)
-        },
-        requestLogs: [
-          {
-            id: mockReq.id,
-            timestamp: mockReq.timestamp,
-            client: mockReq.client,
-            server: selectedServer,
-            serverName: selectedServer.name,
-            endpoint: mockReq.endpoint,
-            method: mockReq.method,
-            latency,
-            status: statusCode,
-            statusText
-          },
-          ...state.requestLogs.slice(0, 199)
-        ]
+        })
       }));
     }, 1200);
   }
@@ -364,7 +450,7 @@ class SimulationEngine {
       this.latencySamplesThisSecond = [];
     }
 
-    const updatedServers = BASE_URL
+    const updatedServers = store.clusterMode === 'live' && BASE_URL
       ? store.servers
       : store.servers.map((s) => {
           if (s.status === 'healthy') {
@@ -394,21 +480,28 @@ class SimulationEngine {
 
     const newHistory = [...store.trafficHistory.slice(-29), historyPoint];
 
+    // Merge buffered pending logs into state at once
+    let newLogs = store.requestLogs;
+    if (this.pendingLogs.length > 0) {
+      newLogs = [...this.pendingLogs, ...store.requestLogs].slice(0, 200);
+      this.pendingLogs = [];
+    }
+
     useSimulationStore.setState((state) => ({
       servers: updatedServers,
       trafficHistory: newHistory,
+      requestLogs: newLogs,
       metrics: {
         ...state.metrics,
         currentRps: rps,
-        avgLatency: BASE_URL ? state.metrics.avgLatency : Math.round(state.metrics.avgLatency * 0.7 + avgSecLatency * 0.3),
+        avgLatency: state.clusterMode === 'live' && BASE_URL
+          ? state.metrics.avgLatency
+          : Math.round(state.metrics.avgLatency * 0.7 + avgSecLatency * 0.3),
         peakRps: Math.max(state.metrics.peakRps, rps),
-        activeConnectionsTotal: updatedServers.reduce((sum, s) => sum + s.activeConnections, 0)
+        activeConnectionsTotal: updatedServers.reduce((sum, s) => sum + (s.activeConnections || 0), 0)
       }
     }));
   }
 }
 
 export const simulationEngine = new SimulationEngine();
-
-
-

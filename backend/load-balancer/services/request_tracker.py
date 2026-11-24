@@ -1,4 +1,4 @@
-﻿import threading
+import threading
 from collections import deque
 from datetime import datetime, timezone
 
@@ -8,10 +8,22 @@ class RequestTracker:
         self._lock = threading.Lock()
         self._servers = {}
         for srv in initial_servers:
-            self._servers[srv["id"]] = {
-                "id": srv["id"],
-                "name": srv.get("name", srv["id"]),
-                "url": srv["url"],
+            srv_id = srv["id"]
+            url = srv["url"]
+            # Extract public host:port from url
+            public_ip = srv.get("public_ip") or url.replace("http://", "").replace("https://", "").rstrip("/")
+            private_ip = srv.get("private_ip") or {
+                "server-1": "10.0.1.10",
+                "server-2": "10.0.1.11",
+                "server-3": "10.0.1.12",
+            }.get(srv_id, f"10.0.1.{10 + len(self._servers)}")
+
+            self._servers[srv_id] = {
+                "id": srv_id,
+                "name": srv.get("name", srv_id),
+                "url": url,
+                "public_ip": public_ip,
+                "private_ip": private_ip,
                 "status": "healthy",
                 "enabled": True,
                 "active_connections": 0,
@@ -45,12 +57,16 @@ class RequestTracker:
             srv = self._servers.get(server_id)
             return self._serialize_server(srv) if srv else None
 
-    def add_server(self, server_id, url, name=None):
+    def add_server(self, server_id, url, name=None, public_ip=None, private_ip=None):
         with self._lock:
+            pub = public_ip or url.replace("http://", "").replace("https://", "").rstrip("/")
+            priv = private_ip or f"10.0.1.{10 + len(self._servers)}"
             self._servers[server_id] = {
                 "id": server_id,
                 "name": name or server_id,
                 "url": url.rstrip("/"),
+                "public_ip": pub,
+                "private_ip": priv,
                 "status": "healthy",
                 "enabled": True,
                 "active_connections": 0,
@@ -166,6 +182,8 @@ class RequestTracker:
             "id": srv["id"],
             "name": srv["name"],
             "url": srv["url"],
+            "public_ip": srv.get("public_ip") or srv["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+            "private_ip": srv.get("private_ip") or "10.0.1.10",
             "status": srv["status"],
             "enabled": srv["enabled"],
             "active_connections": srv["active_connections"],

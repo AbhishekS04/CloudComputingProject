@@ -1,4 +1,4 @@
-import { useSimulationStore } from '../store/simulationStore';
+﻿import { useSimulationStore } from '../store/simulationStore';
 
 /**
  * API Service Layer for future backend integration.
@@ -29,7 +29,7 @@ export const apiService = {
       useSimulationStore.getState().setIsRunning(true);
       return Promise.resolve({ status: 'running' });
     }
-    const res = await fetch(`${BASE_URL}/api/simulation/start`, { method: 'POST' });
+    const res = await fetch(`${BASE_URL}/api/lb/toggle`, { method: 'POST' });
     return res.json();
   },
 
@@ -38,7 +38,7 @@ export const apiService = {
       useSimulationStore.getState().setIsRunning(false);
       return Promise.resolve({ status: 'paused' });
     }
-    const res = await fetch(`${BASE_URL}/api/simulation/stop`, { method: 'POST' });
+    const res = await fetch(`${BASE_URL}/api/lb/toggle`, { method: 'POST' });
     return res.json();
   },
 
@@ -95,3 +95,5 @@ export const apiService = {
     return res.json();
   }
 };
+
+
