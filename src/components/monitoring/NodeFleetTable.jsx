@@ -28,15 +28,17 @@ export default function NodeFleetTable({
     return {
       id: srv.id || `srv-${idx + 1}`,
       name: srv.name || `Server ${letter}`,
-      vmName: `vm-eastus-prod-0${idx + 1}`,
-      sku: 'Standard_D4s_v5 (4 vCPU, 16 GiB)',
-      region: idx === 3 ? 'Azure West Europe' : 'Azure East US',
+      vmName: srv.host || `azure-vm-backend-0${idx + 1}`,
+      sku: 'Standard_B2s (2 vCPU, 4 GiB)',
+      region: srv.region || 'Azure Central India',
       zone: `Zone ${(idx % 3) + 1}`,
-      ip: srv.ip || `10.0.1.1${idx}:80`,
+      ip: srv.privateIp || `10.0.1.1${idx}`,
+      publicIp: srv.publicIp || srv.ip || '52.172.229.225:5001',
       cpu: isHealthy ? srv.cpu || 28 + (idx * 12) : 0,
       memory: isHealthy ? 42 + (idx * 8) : 0,
-      connections: isHealthy ? srv.connections || 15 + (idx * 4) : 0,
-      latency: isHealthy ? srv.latency || 20 + (idx * 3) : 999,
+      connections: isHealthy ? srv.activeConnections || srv.connections || 15 + (idx * 4) : 0,
+      totalRequests: srv.totalRequests || 0,
+      latency: isHealthy ? srv.avgLatency || srv.latency || 20 + (idx * 3) : 999,
       status: isHealthy ? 'ACTIVE' : 'OFFLINE',
       uptime: isHealthy ? '99.98%' : 'FAILOVER',
     };
@@ -107,6 +109,7 @@ export default function NodeFleetTable({
               <th className="py-2.5 px-3">Node / Azure VM</th>
               <th className="py-2.5 px-3">Location & SKU</th>
               <th className="py-2.5 px-3">Private IP</th>
+              <th className="py-2.5 px-3">Routed Reqs</th>
               <th className="py-2.5 px-3">CPU Load</th>
               <th className="py-2.5 px-3">RAM Usage</th>
               <th className="py-2.5 px-3">Active TCP</th>
@@ -157,6 +160,12 @@ export default function NodeFleetTable({
                   {/* IP */}
                   <td className="py-2.5 px-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400">
                     {node.ip}
+                  </td>
+
+                  {/* Routed Reqs */}
+                  <td className="py-2.5 px-3 whitespace-nowrap font-bold text-neutral-900 dark:text-white">
+                    {node.totalRequests.toLocaleString()}{' '}
+                    <span className="text-[10px] font-normal text-neutral-400">reqs</span>
                   </td>
 
                   {/* CPU Meter */}

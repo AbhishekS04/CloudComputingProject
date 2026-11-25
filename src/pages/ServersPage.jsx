@@ -17,7 +17,7 @@ import {
 } from 'reicon-react';
 import { formatPercent, formatMs, formatNumber } from '../utils/formatters';
 
-const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
+const IS_LIVE_BACKEND = true;
 
 export default function ServersPage() {
   const {
@@ -135,9 +135,9 @@ export default function ServersPage() {
                 {/* Specs Pill */}
                 <div className="flex items-center gap-2 text-[10px] text-charcoal-500 bg-cream-100 dark:bg-charcoal-900 px-3 py-1.5 rounded-lg mb-4 font-mono">
                   <span>{server.specs?.cores || 4} Cores</span>
-                  <span>â€¢</span>
+                  <span>•</span>
                   <span>{server.specs?.ram || '8 GB'} RAM</span>
-                  <span>â€¢</span>
+                  <span>•</span>
                   <span>{server.region}</span>
                 </div>
 
@@ -333,9 +333,9 @@ export default function ServersPage() {
                 <span className="font-semibold text-charcoal-700 dark:text-cream-200 block mb-1">
                   Auto-allocated Specifications:
                 </span>
-                <p>â€¢ Internal IP: 10.0.1.X</p>
-                <p>â€¢ Target Pool: default-backend-svc</p>
-                <p>â€¢ Health Check Path: /healthz (every 5s)</p>
+                <p>• Internal IP: 10.0.1.X</p>
+                <p>• Target Pool: default-backend-svc</p>
+                <p>• Health Check Path: /healthz (every 5s)</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

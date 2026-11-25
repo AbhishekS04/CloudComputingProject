@@ -4,7 +4,7 @@ import { MOCK_CLIENTS } from '../simulation/trafficGenerator';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 export const useSimulationStore = create((set, get) => ({
   // Core simulation state

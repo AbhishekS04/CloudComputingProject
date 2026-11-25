@@ -2,7 +2,7 @@
 import { THEMES } from './Visualizer3D';
 import { useSimulationStore } from '../../store/simulationStore';
 
-const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
+const IS_LIVE_BACKEND = true;
 
 // =========================================================================
 // 1. CONSTANTS & PRESET DATA
@@ -269,6 +269,7 @@ export default function Visualizer2D({
       spawnAcc: 0,
       metricAcc: 0,
       nodeBounces: new Map(),
+      pendingLivePicks: new Map(),
       activeRipples: [],
       activeToasts: [],
       activeWaves: [],
@@ -629,7 +630,7 @@ export default function Visualizer2D({
     spawnToast(
       targetSrv.x,
       targetSrv.y - targetSrv.h / 2 - 22,
-      willBeHealthy ? `${targetSrv.name.toUpperCase()} ONLINE` : 'FAILOVER â€¢ REROUTING',
+      willBeHealthy ? `${targetSrv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
       willBeHealthy ? paletteRef.current.toastOkBg : paletteRef.current.toastFailBg,
       willBeHealthy ? paletteRef.current.toastOkText : paletteRef.current.toastFailText
     );
@@ -670,7 +671,7 @@ export default function Visualizer2D({
     clientRoutes.forEach((cr, idx) => {
       spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.15, idx, true);
     });
-    spawnToast(LB.x, LB.y - LB.h / 2 - 24, 'âš¡ BURST WAVE', paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
+    spawnToast(LB.x, LB.y - LB.h / 2 - 24, '⚡ BURST WAVE', paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
   };
 
   // =========================================================================
@@ -964,10 +965,11 @@ export default function Visualizer2D({
 
         // 2. Emit Client Requests (Dummy mode only)
         const currentMode = useSimulationStore.getState().clusterMode;
+        const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
+
         if (currentMode === 'dummy') {
           const visualEmitRate =
             rps <= 12 ? 3.2 : rps <= 45 ? 7.5 : rps <= 180 ? 14 : rps <= 1000 ? 22 : 30;
-          const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
 
           eng.spawnAcc += dt * visualEmitRate;
           let attempts = 0;
@@ -1004,7 +1006,13 @@ export default function Visualizer2D({
             // A) Client -> LB Input Port
             if (dir === 1 && rIdx < nClients) {
               triggerNodeImpact('lb', route ? route.endPt : null, paletteRef.current.rippleReq);
-              const targetSrvIdx = pickHealthyServerIdx(originC);
+              let targetSrvIdx = -1;
+              if (eng.pendingLivePicks?.has(originC) && positionedServers[eng.pendingLivePicks.get(originC)]?.healthy) {
+                targetSrvIdx = eng.pendingLivePicks.get(originC);
+                eng.pendingLivePicks.delete(originC);
+              } else {
+                targetSrvIdx = pickHealthyServerIdx(originC);
+              }
               if (targetSrvIdx !== -1 && serverRoutes[targetSrvIdx]) {
                 const sRouteObj = serverRoutes[targetSrvIdx];
                 if (route && lbArcRef.current) {
@@ -1017,7 +1025,7 @@ export default function Visualizer2D({
                   lbArcRef.current.setAttribute('opacity', '0.92');
                   eng.switchingArcFade = 0.28;
                 }
-                spawnPacket(sRouteObj.routeIdx, 0, 1, speedMult, originC, false);
+                spawnPacket(sRouteObj.routeIdx, 0, 1, speedMult, originC, true);
               }
             }
             // B) LB -> Backend Server Input Port
@@ -1026,7 +1034,8 @@ export default function Visualizer2D({
               const srv = positionedServers[srvIdx];
               if (srv && srv.healthy) {
                 triggerNodeImpact(srv.id, route ? route.endPt : null, paletteRef.current.rippleReq, '200 OK');
-                spawnPacket(rIdx, 1, -1, speedMult, originC, false);
+                // Return response packet traveling Server -> LB (green type 1, ignoreHeadway = true)
+                spawnPacket(rIdx, 1, -1, speedMult, originC, true);
               }
             }
             // C) Backend Server -> LB Output Port
@@ -1034,7 +1043,8 @@ export default function Visualizer2D({
               triggerNodeImpact('lb', route ? route.startPt : null, paletteRef.current.rippleRes);
               const validClientIdx = originC < nClients ? originC : 0;
               if (clientRoutes[validClientIdx]) {
-                spawnPacket(clientRoutes[validClientIdx].routeIdx, 1, -1, speedMult, validClientIdx, false);
+                // Return response packet traveling LB -> Client (green type 1, ignoreHeadway = true)
+                spawnPacket(clientRoutes[validClientIdx].routeIdx, 1, -1, speedMult, validClientIdx, true);
               }
             }
             // D) LB -> Originating Client Port
@@ -1157,23 +1167,26 @@ export default function Visualizer2D({
 
     const onLbPacketEvent = (e) => {
       const eng = engineRef.current;
-      if (!eng || stateRef.current.isPaused) return;
+      if (!eng) return;
       const { serverId, isSuccess } = e.detail || {};
       const srvs = stateRef.current.servers;
       if (!srvs || srvs.length === 0) return;
-      const targetIdx = srvs.findIndex((s) => s.id === serverId || s.name === serverId);
+      let targetIdx = srvs.findIndex((s, idx) =>
+        s.id === serverId ||
+        s.name === serverId ||
+        s.host === serverId ||
+        serverId === `server-${idx + 1}` ||
+        serverId === `srv-${idx + 1}` ||
+        (typeof serverId === 'string' && serverId.toLowerCase().includes(String.fromCharCode(97 + idx))) ||
+        (typeof serverId === 'string' && serverId.endsWith(String(idx + 1)))
+      );
       const sIdx = targetIdx >= 0 ? targetIdx : (eng.rrCounter % srvs.length);
       const nC = stateRef.current.clients.length;
       const cIdx = eng.clientCursor % (nC || 1);
       eng.clientCursor++;
       const pType = isSuccess ? 0 : 2;
-      spawnPacket(cIdx, pType, 1, 1.3, cIdx, false);
-      const srvRoutes = layoutRef.current?.serverRoutes;
-      if (srvRoutes && srvRoutes[sIdx]) {
-        setTimeout(() => {
-          spawnPacket(sIdx + nC, pType, 1, 1.4, cIdx, false);
-        }, 160);
-      }
+      eng.pendingLivePicks?.set(cIdx, sIdx);
+      spawnPacket(cIdx, pType, 1, 1.3, cIdx, true);
     };
     window.addEventListener('lb-packet-event', onLbPacketEvent);
 
@@ -1336,7 +1349,7 @@ export default function Visualizer2D({
               className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
               title="Remove Client Device"
             >
-              Ã¢Ë†â€™
+              −
             </button>
             <button
               onClick={handleAddClient}
@@ -1363,7 +1376,7 @@ export default function Visualizer2D({
               className="px-2.5 py-1 text-[13px] font-extrabold bg-[#fdfbf7] border-r-[1.5px] border-[#23211e] hover:bg-[#f3ce75] disabled:opacity-35 cursor-pointer"
               title="Remove Backend Server"
             >
-              Ã¢Ë†â€™
+              −
             </button>
             <button
               onClick={handleAddServer}
@@ -1693,7 +1706,7 @@ export default function Visualizer2D({
                     fontWeight="600"
                     fill={isDark ? '#a99fc2' : '#6b6356'}
                   >
-                    {c.ip} Ã‚Â· {c.region}
+                    {c.ip} · {c.region}
                   </text>
                 </g>
               </g>
@@ -2003,7 +2016,7 @@ export default function Visualizer2D({
                       fontWeight="800"
                       fill={s.healthy ? '#23211e' : '#94291b'}
                     >
-                      {s.healthy ? `CPU ${s.cpu}% Ã¢â‚¬Â¢ ${s.conn}c` : 'OFFLINE Ã¢â‚¬Â¢ FAILOVER ACTIVE'}
+                      {s.healthy ? `CPU ${s.cpu}% • ${s.conn}c` : 'OFFLINE • FAILOVER ACTIVE'}
                     </text>
                   </g>
                 </g>
@@ -2080,7 +2093,7 @@ export default function Visualizer2D({
           handshake
         </span>
         <span className="hidden md:inline-block text-[11px] text-[#7c7365] dark:text-[#c4b5fd] bg-[#fdfbf7]/85 dark:bg-[#262230]/85 px-2.5 py-0.5 rounded-md border border-[#d6cebe] dark:border-[#463f57]">
-          Click Client to fire â€¢ Click LB Core to switch strategy â€¢ Click Server for failover
+          Click Client to fire • Click LB Core to switch strategy • Click Server for failover
         </span>
       </div>
 
@@ -2094,7 +2107,7 @@ export default function Visualizer2D({
             className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
             title="Zoom Out"
           >
-            Ã¢Ë†â€™
+            −
           </button>
           <div
             onClick={resetCamera}

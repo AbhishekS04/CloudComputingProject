@@ -35,6 +35,9 @@ def info():
 
 
 @app.route("/api/process", methods=["GET", "POST"])
+@app.route("/api/request", methods=["GET", "POST"])
+@app.route("/request", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 def process_request():
     global request_count
     start = time.time()

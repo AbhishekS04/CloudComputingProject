@@ -467,24 +467,26 @@ export function HeatmapTooltip({ className = "" }: HeatmapTooltipProps) {
       })
     : "Unknown date";
 
-  // Prevent overflowing viewport width
+  // Prevent overflowing viewport width & wrap breakdown
+  const tooltipWidth = 240;
   const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
-  const clampedX = Math.max(80, Math.min(screenWidth - 80, hovered.x));
+  const halfWidth = tooltipWidth / 2;
+  const clampedX = Math.max(halfWidth + 16, Math.min(screenWidth - halfWidth - 16, hovered.x));
 
   const tooltipElement = (
     <div
-      className={`pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full mb-2 px-3 py-2 rounded-xl bg-neutral-900/95 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-sans shadow-2xl backdrop-blur-md border border-white/15 dark:border-black/10 transition-all duration-75 select-none ${className}`}
+      className={`pointer-events-none fixed z-[99999] -translate-x-1/2 -translate-y-full mb-3 px-3.5 py-2.5 rounded-xl bg-neutral-900/95 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-sans shadow-2xl backdrop-blur-md border border-white/15 dark:border-black/10 select-none whitespace-nowrap min-w-max transition-all duration-75 ${className}`}
       style={{
         left: clampedX,
-        top: hovered.y - 8,
+        top: Math.max(16, hovered.y - 12),
       }}
     >
-      <div className="font-semibold text-[12px] tracking-tight flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+      <div className="font-semibold text-[12px] tracking-tight flex items-center gap-2 whitespace-nowrap">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <span>{hovered.count} {hovered.count === 1 ? "request spike" : "activity units"}</span>
       </div>
-      <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-        {dateStr} · East US Cluster
+      <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 whitespace-nowrap">
+        {dateStr} · Central India Azure Fleet
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import {
   FlaskConical
 } from 'lucide-react';
 
-const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
+const IS_LIVE_BACKEND = true;
 
 /**
  * Visualizer
@@ -53,7 +53,7 @@ export default function Visualizer() {
               Connection to the Python Flask Load Balancer (<span className="font-mono text-red-300">Port 5000</span>) was lost (<span className="font-mono">502 Connection Refused</span>). All client-to-Azure VM routing has halted.
             </p>
             <div className="p-3 rounded-xl bg-charcoal-950 border border-charcoal-800 text-[11px] font-mono text-cream-400">
-              Run <span className="text-emerald-400 font-bold">python backend\load-balancer\app.py</span> to restore cluster routing, or switch to <button onClick={() => setClusterMode('dummy')} className="text-purple-400 underline font-bold">Dummy Sim</button>.
+              Run <span className="text-emerald-400 font-bold">python backend/load-balancer/app.py</span> to restore cluster routing, or switch to <button onClick={() => setClusterMode('dummy')} className="text-purple-400 underline font-bold">Dummy Sim</button>.
             </div>
           </div>
         </div>

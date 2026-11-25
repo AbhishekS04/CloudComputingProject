@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSimulationStore } from '../../store/simulationStore';
 
-const IS_LIVE_BACKEND = Boolean(import.meta.env.VITE_API_BASE_URL);
+const IS_LIVE_BACKEND = true;
 
 // ============================================================================
 // 1. TRUE 2:1 ISOMETRIC PROJECTION MATH
@@ -1794,7 +1794,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           fillRect.setAttribute('width', w.toFixed(1));
           const barColor = srv.cpu > 78 ? '#e36652' : srv.cpu > 58 ? '#eba444' : '#6ec472';
           fillRect.setAttribute('fill', barColor);
-          metricText.textContent = `${srv.cpu}% â€¢ ${srv.connections}c`;
+          metricText.textContent = `${srv.cpu}% • ${srv.connections}c`;
           metricText.setAttribute('fill', palette.pillText);
           gearPath.classList.remove('svg-gear-paused');
           toggleBg.setAttribute('fill', palette.pillToggleOn);
@@ -1888,7 +1888,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         spawnMacroToast(
           refs.block.centerTop.x,
           refs.block.centerTop.y - 42,
-          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER â€¢ REROUTING',
+          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
           srv.healthy ? palette.toastOkBg : palette.toastFailBg,
           srv.healthy ? palette.toastOkText : palette.toastFailText
         );
@@ -1971,7 +1971,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         spawnMacroToast(
           lbNodeRef.centerTop.x,
           lbNodeRef.centerTop.y - 46,
-          'âš¡ BURST WAVE',
+          '⚡ BURST WAVE',
           palette.toastModeBg,
           palette.toastModeText
         );
@@ -2597,6 +2597,8 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let clientCursor = 0;
     let rafId = 0;
 
+    const pendingLiveServerPicks = new Map();
+
     function renderLoop(now) {
       rafId = requestAnimationFrame(renderLoop);
       const dt = Math.min((now - lastTime) * 0.001, 0.05);
@@ -2610,6 +2612,8 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         if (IS_LIVE_BACKEND && !useSimulationStore.getState().lbOnline) { clearAllPackets(); return; }
 
         const currentMode = useSimulationStore.getState().clusterMode;
+        const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
+
         if (currentMode === 'dummy') {
           const visualEmitRate =
             targetRPS <= 12
@@ -2621,8 +2625,6 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
               : targetRPS <= 1000
               ? 22
               : 30;
-
-          const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
 
           spawnAccumulator += dt * visualEmitRate;
           let attempts = 0;
@@ -2657,26 +2659,34 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
             if (dir === 1 && rIdx < nClients) {
               triggerNodeImpact('lb', route ? route.endPt : null, palette.rippleReq);
-              const targetSrv = pickHealthyServerIdx(originC);
+              let targetSrv = -1;
+              if (pendingLiveServerPicks.has(originC) && STATE.servers[pendingLiveServerPicks.get(originC)]?.healthy) {
+                targetSrv = pendingLiveServerPicks.get(originC);
+                pendingLiveServerPicks.delete(originC);
+              } else {
+                targetSrv = pickHealthyServerIdx(originC);
+              }
               if (targetSrv !== -1) {
                 const sRouteIdx = serverRouteIndices[targetSrv];
                 const sRoute = ROUTE_TABLES[sRouteIdx];
                 if (route && sRoute) {
                   triggerLBSwitchingArc(route.endPt, sRoute.startPt);
                 }
-                spawnPacket(sRouteIdx, 0, 1, speedMult, originC, false);
+                spawnPacket(sRouteIdx, 0, 1, speedMult, originC, true);
               }
             } else if (dir === 1 && rIdx >= nClients) {
               const srvIdx = rIdx - nClients;
               const srv = STATE.servers[srvIdx];
               if (srv && srv.healthy) {
                 triggerNodeImpact(srv.id, route ? route.endPt : null, palette.rippleReq, '200 OK');
-                spawnPacket(rIdx, 1, -1, speedMult, originC, false);
+                // Return response packet traveling Server -> LB (green type 1, ignoreHeadway = true)
+                spawnPacket(rIdx, 1, -1, speedMult, originC, true);
               }
             } else if (dir === -1 && rIdx >= nClients) {
               triggerNodeImpact('lb', route ? route.startPt : null, palette.rippleRes);
               const validClientIdx = originC < nClients ? originC : (Math.random() * nClients) | 0;
-              spawnPacket(clientRouteIndices[validClientIdx], 1, -1, speedMult, validClientIdx, false);
+              // Return response packet traveling LB -> Client (green type 1, ignoreHeadway = true)
+              spawnPacket(clientRouteIndices[validClientIdx], 1, -1, speedMult, validClientIdx, true);
             } else if (dir === -1 && rIdx < nClients) {
               const client = STATE.clients[rIdx];
               if (client && route) {
@@ -2786,23 +2796,29 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     });
     
     const onLbPacketEvent = (e) => {
-      if (isPaused) return;
       const { serverId, isSuccess } = e.detail || {};
       const nServers = STATE.servers.length;
       if (nServers === 0) return;
-      const targetSrvIdx = STATE.servers.findIndex((s) => s.id === serverId || s.name === serverId);
-      const sIdx = targetSrvIdx >= 0 ? targetSrvIdx : (rrCounter % nServers);
+      isPaused = false;
+
+      let sIdx = STATE.servers.findIndex((s, idx) =>
+        s.id === serverId ||
+        s.name === serverId ||
+        s.host === serverId ||
+        serverId === `server-${idx + 1}` ||
+        serverId === `srv-${idx + 1}` ||
+        (typeof serverId === 'string' && serverId.toLowerCase().includes(String.fromCharCode(97 + idx))) ||
+        (typeof serverId === 'string' && serverId.endsWith(String(idx + 1)))
+      );
+      if (sIdx === -1) sIdx = rrCounter % nServers;
+
       const nClients = STATE.clients.length;
       const cIdx = clientCursor % (nClients || 1);
       clientCursor++;
       const pType = isSuccess ? 0 : 2;
-      spawnPacket(clientRouteIndices[cIdx], pType, 1, 1.25, cIdx, false);
-      const srvRouteIdx = serverRouteIndices[sIdx];
-      if (srvRouteIdx !== undefined) {
-        setTimeout(() => {
-          spawnPacket(srvRouteIdx, pType, 1, 1.35, cIdx, false);
-        }, 160);
-      }
+      pendingLiveServerPicks.set(cIdx, sIdx);
+      const rIdx = clientRouteIndices[cIdx] !== undefined ? clientRouteIndices[cIdx] : 0;
+      spawnPacket(rIdx, pType, 1, 1.25, cIdx, true);
     };
     window.addEventListener('lb-packet-event', onLbPacketEvent);
 
@@ -3445,7 +3461,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         <div className="hud-zoom-controls">
           <div className="zoom-pill">
             <button type="button" className="zoom-btn" ref={btnZoomOutRef} title="Zoom Out">
-              Ã¢Ë†â€™
+              −
             </button>
             <div className="zoom-readout" ref={zoomReadoutRef} title="Click to Reset 100% Fit">
               100%

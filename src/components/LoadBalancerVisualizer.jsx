@@ -1338,7 +1338,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
                 disabled={deviceCount <= 1}
                 className="w-5 h-5 rounded border-[1.5px] border-[#232323] bg-[#efe9dc] hover:bg-[#f2cb78] disabled:opacity-35 flex items-center justify-center font-extrabold"
               >
-                âˆ’
+                −
               </button>
               <span className="px-1">{deviceCount} Devices</span>
               <button
@@ -1359,7 +1359,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
                 disabled={servers.length <= 1}
                 className="w-5 h-5 rounded border-[1.5px] border-[#232323] bg-[#efe9dc] hover:bg-[#f2cb78] disabled:opacity-35 flex items-center justify-center font-extrabold"
               >
-                âˆ’
+                −
               </button>
               <span className="px-1">{servers.length} Servers</span>
               <button
@@ -1403,7 +1403,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
               onClick={triggerBurst}
               className="bg-[#fcfaf5] hover:bg-[#fdf2d0] border-2 border-[#232323] rounded-lg px-3 py-1.5 text-xs font-bold shadow-[0_2px_0_#232323] active:translate-y-0.5 transition-transform"
             >
-              âš¡ Burst Wave
+              ⚡ Burst Wave
             </button>
 
             {/* Pause / Resume Button */}
@@ -1414,7 +1414,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
                 paused ? 'bg-[#f2cb78]' : 'bg-[#fcfaf5] hover:bg-white'
               }`}
             >
-              {paused ? 'â–¶ Resume' : 'â¸ Pause'}
+              {paused ? '▶ Resume' : '⏸ Pause'}
             </button>
           </div>
         </div>
@@ -1930,7 +1930,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
                     fontWeight="800"
                     fill="#232323"
                   >
-                    {s.online ? `${s.cpu}% â€¢ ${s.connections}c` : 'OFFLINE'}
+                    {s.online ? `${s.cpu}% • ${s.connections}c` : 'OFFLINE'}
                   </text>
 
                   {/* ON / OFF Pill Button */}
@@ -1994,7 +1994,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
           }
           className="bg-[#fcfaf5] hover:bg-white border-2 border-[#232323] rounded-lg px-2.5 py-1 text-xs font-bold shadow-[0_2px_0_#232323]"
         >
-          âˆ’
+          −
         </button>
         <span className="text-xs font-extrabold min-w-[46px] text-center">
           {Math.round(camera.scale * 100)}%

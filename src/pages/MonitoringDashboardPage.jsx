@@ -66,16 +66,19 @@ export default function MonitoringDashboardPage() {
     const activeList = servers.filter((s) => s.status === 'healthy' || s.healthy);
     const totalActive = activeList.length;
     const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B'];
+    const totalServerRequests = servers.reduce((acc, s) => acc + (s.totalRequests || 0), 0);
 
     const vmSlices = servers.map((s, idx) => {
       const isHealthy = s.status === 'healthy' || s.healthy;
       const baseShare = isHealthy
-        ? Math.round(((targetRps * 45) / Math.max(1, totalActive)) * (s.weight || 1))
+        ? totalServerRequests > 0
+          ? Math.max(1, s.totalRequests || 0)
+          : Math.round(((targetRps * 45) / Math.max(1, totalActive)) * (s.weight || 1))
         : 0;
 
       return {
         key: s.id,
-        label: `${s.name} (${s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001")}) ${isHealthy ? '' : 'ðŸš¨ CRASHED'}`,
+        label: `${s.name} (${s.ip || (s.url ? s.url.replace(/^https?:\/\//, "") : "52.172.229.225:5001")}) ${isHealthy ? '' : '[FAILOVER CRASH]'}`,
         value: baseShare,
         color: isHealthy ? colors[idx % colors.length] : '#EF4444',
       };
@@ -83,7 +86,12 @@ export default function MonitoringDashboardPage() {
 
     return [
       ...vmSlices,
-      { key: 'lb-probes', label: 'Azure LB Health Probes', value: 24, color: '#64748B' }
+      {
+        key: 'lb-probes',
+        label: 'Azure LB Health Probes',
+        value: totalServerRequests > 0 ? Math.max(2, Math.round(totalServerRequests * 0.05)) : 24,
+        color: '#64748B',
+      },
     ];
   }, [servers, targetRps]);
 
@@ -146,11 +154,11 @@ export default function MonitoringDashboardPage() {
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
-                Azure VM Fleet Â· Cluster Telemetry
+                Azure VM Fleet · Cluster Telemetry
               </h1>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) Â· VNet: <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> Â· Synced {liveClock}
+              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) · VNet: <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> · Synced {liveClock}
             </p>
           </div>
 
@@ -213,7 +221,7 @@ export default function MonitoringDashboardPage() {
             trend={trafficHistory.map((h) => (h.rps || targetRps) * 45)}
             trendLabels={trafficHistory.map((h) => h.time)}
             format={(n) => `${Math.round(n).toLocaleString()} req/s`}
-            period={`Peak: ${(targetRps * 68).toLocaleString()} req/s Â· 99.99% Delivered`}
+            period={`Peak: ${(targetRps * 68).toLocaleString()} req/s · Total: ${(metrics?.totalRequests || 0).toLocaleString()} reqs`}
             color="#3B82F6"
             goodWhen="up"
           />
@@ -225,7 +233,7 @@ export default function MonitoringDashboardPage() {
             trend={trafficHistory.map((h) => h.latency || 22)}
             trendLabels={trafficHistory.map((h) => h.time)}
             format={(n) => `${n.toFixed(1)} ms`}
-            period="SLA Target: <50ms Â· Healthy Margin"
+            period="SLA Target: <50ms · Healthy Margin"
             color="#10B981"
             goodWhen="down"
           />
@@ -237,7 +245,7 @@ export default function MonitoringDashboardPage() {
             trend={[34, 38, 41, 45, 42, 48, 52]}
             trendLabels={["14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30"]}
             format={(n) => `${Math.round(n)} connections`}
-            period={`Fleet: ${activeServers}/${totalServers} Nodes Active Â· Balanced`}
+            period={`Fleet: ${activeServers}/${totalServers} Nodes Active · Balanced`}
             color="#8B5CF6"
             goodWhen="up"
           />
@@ -249,7 +257,7 @@ export default function MonitoringDashboardPage() {
             trend={[99.91, 99.93, 99.94, 99.96, 99.97, 99.98]}
             trendLabels={["Aug", "Sep", "Oct", "Nov", "Dec", "Jan"]}
             format={(n) => `${n.toFixed(2)}%`}
-            period="Automatic Failovers: 2 Â· MTTR: 1.2s"
+            period="Automatic Failovers: 2 · MTTR: 1.2s"
             color="#06B6D4"
             goodWhen="up"
           />

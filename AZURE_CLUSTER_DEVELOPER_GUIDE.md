@@ -214,3 +214,115 @@ Switch between **Round Robin**, **Least Connections**, and **IP Hash** at any ti
    ```bash
    python send_traffic.py --rate 5
    ```
+
+---
+
+## 7. Environment Variables (`.env`) & Backend Developer Checklist
+
+This section provides the exact configuration backend developers need to deploy the Flask applications onto the 4 Microsoft Azure Virtual Machines.
+
+### A. Environment Variables Directory
+
+#### 1. Frontend Web App (`.env` in project root)
+```env
+# URL where the Load Balancer gateway is accessible from the browser
+VITE_API_BASE_URL=http://localhost:5000
+
+# Default cluster mode ('live' for real Azure VMs, 'dummy' for browser sandbox)
+VITE_CLUSTER_MODE=live
+```
+*(If hosting the Load Balancer on Azure VM 1, change `VITE_API_BASE_URL` to `http://<VM1_PUBLIC_IP>:5000`)*
+
+#### 2. Load Balancer Gateway (`backend/load-balancer/.env` or system env on VM 1)
+```env
+# Network binding
+LB_HOST=0.0.0.0
+LB_PORT=5000
+
+# Comma-separated list of backend VM endpoints
+BACKEND_SERVERS=server-1=http://52.172.229.225:5001,server-2=http://20.193.245.71:5001,server-3=http://52.172.255.132:5001
+
+# Health check probe interval (seconds)
+HEALTH_CHECK_INTERVAL=3.0
+REQUEST_TIMEOUT=5.0
+```
+
+#### 3. Backend Worker Servers (`backend/backend-server/.env` on VM 2, 3, 4)
+
+- **On VM 2 (`azure-vm-backend-01` · 52.172.229.225):**
+  ```env
+  SERVER_ID=server-1
+  HOST=0.0.0.0
+  PORT=5001
+  ```
+
+- **On VM 3 (`azure-vm-backend-02` · 20.193.245.71):**
+  ```env
+  SERVER_ID=server-2
+  HOST=0.0.0.0
+  PORT=5001
+  ```
+
+- **On VM 4 (`azure-vm-backend-03` · 52.172.255.132):**
+  ```env
+  SERVER_ID=server-3
+  HOST=0.0.0.0
+  PORT=5001
+  ```
+
+---
+
+### B. Azure Network Security Group (NSG) Configuration
+
+To allow traffic between the Load Balancer and the backend VMs:
+1. Open the **Azure Portal** -> **Virtual Machines** -> select VM 2, 3, and 4.
+2. Navigate to **Networking** -> **Network Security Group (NSG)** -> **Inbound security rules**.
+3. Add Inbound Rule:
+   - **Source**: `Any` (or restrict to VM 1 Load Balancer IP `10.0.1.4`)
+   - **Source port ranges**: `*`
+   - **Destination**: `Any`
+   - **Destination port ranges**: `5001`
+   - **Protocol**: `TCP`
+   - **Action**: `Allow`
+   - **Priority**: `310`
+   - **Name**: `Allow_Flask_Worker_5001`
+
+*(Similarly, for VM 1 Load Balancer, ensure port `5000` is allowed for incoming browser and terminal traffic).*
+
+---
+
+### C. Deploying & Running Worker Code on Azure VMs
+
+1. SSH into the Azure VM:
+   ```bash
+   ssh azureuser@52.172.229.225
+   ```
+2. Clone or copy the `backend/backend-server/` directory:
+   ```bash
+   cd ~/backend-server
+   pip install flask flask-cors requests
+   ```
+3. Run with systemd or persistent background process:
+   ```bash
+   export SERVER_ID="server-1"
+   export HOST="0.0.0.0"
+   export PORT=5001
+   nohup python3 app.py > server.log 2>&1 &
+   ```
+4. Verify local health check:
+   ```bash
+   curl http://localhost:5001/health
+   # Returns: {"server_id":"server-1","status":"healthy",...}
+   ```
+
+---
+
+### D. Server Crash / Failover Simulation (Dummy & Live)
+
+To demonstrate fault tolerance and high availability:
+- **From UI**: On the **Monitoring Dashboard** -> **Azure Backend Node Fleet**, click **`Simulate Crash`** on any VM.
+  - The VM turns red (`OFFLINE`).
+  - Active TCP connections drain immediately.
+  - The Load Balancer and visualizer automatically divert 100% of packets to the surviving healthy VMs with zero packet drops.
+  - Click **`Restore VM`** to bring the VM back into the rotation.
+- **From CLI**: Run `python send_traffic.py --toggle server-2` to crash or restore VM 2 directly from your terminal.

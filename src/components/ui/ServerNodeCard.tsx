@@ -169,7 +169,7 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
           <div>
             <span className="text-neutral-400 dark:text-neutral-500">Latency: </span>
             <strong className="text-neutral-800 dark:text-neutral-200 font-medium">
-              {isHealthy ? `${latency} ms` : 'â€”'}
+              {isHealthy ? `${latency} ms` : '—'}
             </strong>
           </div>
           <div className="font-medium text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
@@ -268,7 +268,7 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
               {/* Response Latency */}
               <DataRow icon={<Clock size={13} />} label="Measured Latency">
                 <span className="text-[11px] font-mono font-medium text-neutral-800 dark:text-neutral-200">
-                  {isHealthy ? `${latency} ms` : 'â€”'}
+                  {isHealthy ? `${latency} ms` : '—'}
                 </span>
               </DataRow>
 

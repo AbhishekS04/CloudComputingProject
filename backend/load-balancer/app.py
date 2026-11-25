@@ -5,7 +5,10 @@ import queue
 from datetime import datetime, timezone
 import requests
 from flask import Flask, jsonify, request, Response
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    CORS = None
 
 import config
 from algorithms.round_robin import RoundRobinBalancer
@@ -19,7 +22,16 @@ from services.health_check import HealthChecker
 
 def create_app(start_health_checker=True):
     app = Flask(__name__)
-    CORS(app, expose_headers=["X-Backend-Server", "X-Response-Time", "X-Load-Balancer-Algo"])
+    if CORS:
+        CORS(app, expose_headers=["X-Backend-Server", "X-Response-Time", "X-Load-Balancer-Algo"])
+    else:
+        @app.after_request
+        def add_cors_headers(response):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Expose-Headers"] = "X-Backend-Server, X-Response-Time, X-Load-Balancer-Algo"
+            return response
 
     tracker = RequestTracker(config.get_initial_servers())
     health_checker = HealthChecker(tracker, interval=config.HEALTH_CHECK_INTERVAL)
@@ -186,6 +198,18 @@ def create_app(start_health_checker=True):
         broadcast_event({"type": "server_update", "action": "toggle", "server": updated})
         return jsonify({"status": "success", "server": updated}), 200
 
+    @app.route("/api/servers/recover", methods=["GET", "POST"])
+    def recover_all_servers():
+        recovered = []
+        for srv in tracker.get_all_servers():
+            srv_id = srv["id"]
+            if not srv["enabled"]:
+                tracker.toggle_server(srv_id)
+            tracker.update_health(srv_id, True)
+            recovered.append(srv_id)
+        broadcast_event({"type": "server_update", "action": "recover", "servers": tracker.get_all_servers()})
+        return jsonify({"status": "success", "recovered": recovered, "message": "All Azure backend nodes restored"}), 200
+
     @app.route("/api/lb/toggle", methods=["POST"])
     def toggle_lb():
         payload = request.get_json(silent=True) or {}
@@ -222,6 +246,9 @@ def create_app(start_health_checker=True):
         }), 200
 
     @app.route("/api/request", methods=["GET", "POST"])
+    @app.route("/api/process", methods=["GET", "POST"])
+    @app.route("/request", methods=["GET", "POST"])
+    @app.route("/", methods=["GET", "POST"])
     def route_request():
         with state_lock:
             if lb_paused[0]:

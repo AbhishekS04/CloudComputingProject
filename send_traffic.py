@@ -62,23 +62,36 @@ def send_one(url, req_idx, client_ip=None, delay=0.0):
     if delay > 0:
         payload["delay"] = delay
 
-    try:
-        resp = requests.post(f"{url}/api/request", json=payload, headers=headers, timeout=12.0)
-        elapsed_ms = (time.perf_counter() - start) * 1000.0
-        data = resp.json()
+    # Intelligently route to /api/process (direct Azure VM) or /api/request (Load Balancer gateway)
+    is_direct_vm = ":5001" in url or any(vm["pub"] in url for vm in KNOWN_VMS.values())
+    primary_endpoint = "/api/process" if is_direct_vm else "/api/request"
+    fallback_endpoint = "/api/request" if is_direct_vm else "/api/process"
 
-        server_id = data.get("selected_server", "unknown")
+    try:
+        req_url = f"{url.rstrip('/')}{primary_endpoint}"
+        resp = requests.post(req_url, json=payload, headers=headers, timeout=12.0)
+
+        # Automatic fallback on 404 if primary route did not match server role
+        if resp.status_code == 404:
+            req_url = f"{url.rstrip('/')}{fallback_endpoint}"
+            resp = requests.post(req_url, json=payload, headers=headers, timeout=12.0)
+
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+
+        # Handle both Load Balancer routed responses and direct Azure VM worker responses
+        server_id = data.get("selected_server") or data.get("server_id", "unknown")
         vm_meta = KNOWN_VMS.get(server_id, {
-            "name": server_id or "Load Balancer",
-            "pub": data.get("public_ip", "127.0.0.1:5000"),
-            "priv": data.get("private_ip", "10.0.1.4"),
+            "name": server_id if server_id != "unknown" else ("Server Direct" if is_direct_vm else "Load Balancer"),
+            "pub": data.get("public_ip", url.replace("http://", "").replace("https://", "")),
+            "priv": data.get("private_ip", "10.0.1.10" if is_direct_vm else "10.0.1.4"),
             "color": C_BLUE
         })
 
-        algo = data.get("algorithm", "RR").upper()
+        algo = data.get("algorithm", "DIRECT" if is_direct_vm else "RR").upper()
         status_code = resp.status_code
 
-        if resp.ok and data.get("status") == "success":
+        if resp.ok and (data.get("status") == "success" or "message" in data or status_code == 200):
             status_badge = f"{C_GREEN}[{status_code} OK]{C_RESET}"
         else:
             status_badge = f"{C_RED}[{status_code} ERR]{C_RESET}"
@@ -210,12 +223,56 @@ def run_stress_test(url, count=100, concurrency=20, delay=0.0):
     print(f"{C_BOLD}{C_CYAN}====================================================={C_RESET}\n")
 
 
+def restore_all_cli(url):
+    endpoint = f"{url}/api/servers/recover"
+    try:
+        r = requests.post(endpoint, timeout=4.0)
+        print(f"\n{C_BOLD}{C_GREEN}[CLUSTER FLEET RESTORED]{C_RESET} All Azure backend nodes recovered and marked HEALTHY.")
+        print(f"Visualizer and Load Balancer updated in real time.\n")
+    except Exception as exc:
+        print(f"{C_RED}Failed to restore cluster: {exc}{C_RESET}")
+
+
+def run_overload_crash_test(url):
+    print(f"\n{C_BOLD}{C_RED}========================================================================{C_RESET}")
+    print(f"{C_BOLD}{C_RED}  CRITICAL OVERLOAD & CRASH TEST (Saturation Attack){C_RESET}")
+    print(f"{C_DIM}  Flooding Load Balancer with 60 concurrent threads & compute delays (up to 6.5s){C_RESET}")
+    print(f"{C_DIM}  Target Timeout Limit: 5.0 seconds -> Forces TCP Socket & Worker Crashes!{C_RESET}")
+    print(f"{C_BOLD}{C_RED}========================================================================{C_RESET}\n")
+
+    print(f"{C_YELLOW}[PHASE 1] Saturating Azure VM Connection Pools (30 concurrent requests)...{C_RESET}")
+    with ThreadPoolExecutor(max_workers=20) as ex:
+        futures = [ex.submit(send_one, url, i + 1, None, 2.0) for i in range(30)]
+        for fut in futures:
+            fut.result()
+
+    print(f"\n{C_RED}{C_BOLD}[PHASE 2] INJECTING DEADLINE OVERLOAD (6.5s delay > 5.0s timeout limit)...{C_RESET}")
+    print(f"{C_RED}Watch the terminal report Gateway Timeouts and the Visualizer mark nodes CRASHED:{C_RESET}\n")
+    with ThreadPoolExecutor(max_workers=20) as ex:
+        futures = [ex.submit(send_one, url, i + 31, None, 6.5) for i in range(30)]
+        for fut in futures:
+            fut.result()
+
+    print(f"\n{C_BOLD}{C_CYAN}[PHASE 3] Checking Cluster Survivability & Failover Status:{C_RESET}")
+    try:
+        r = requests.get(f"{url}/api/stats", timeout=3.0).json()
+        print(f"  Healthy Nodes Remaining: {C_BOLD}{r.get('healthy_servers', 0)} / {r.get('total_servers', 3)}{C_RESET}")
+        print(f"  Total Requests Handled:   {r.get('total_requests')}")
+    except Exception:
+        print(f"  {C_RED}Total Cluster Failure (503 Service Unavailable)!{C_RESET}")
+
+    print(f"\n{C_GREEN}To restore the cluster fleet:{C_RESET}")
+    print(f"  Run: {C_BOLD}python send_traffic.py --restore{C_RESET} or click 'Restore VM' in the web UI.\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="LoadFlow Azure Terminal Traffic Generator")
     parser.add_argument("--rate", "--rps", type=float, default=5.0, help="Requests per second in stream mode (default: 5.0)")
     parser.add_argument("--once", action="store_true", help="Send exactly one request and exit")
     parser.add_argument("--burst", type=int, default=0, help="Send a concurrent burst wave of N requests")
     parser.add_argument("--stress", action="store_true", help="Run high-concurrency stress test")
+    parser.add_argument("--overload", action="store_true", help="Saturate connection pools & inject timeout to crash nodes")
+    parser.add_argument("--restore", action="store_true", help="Restore all crashed or drained Azure backend nodes")
     parser.add_argument("--count", type=int, default=100, help="Number of requests for stress test (default: 100)")
     parser.add_argument("--concurrency", "--threads", type=int, default=20, help="Worker threads for stress test (default: 20)")
     parser.add_argument("--delay", type=float, default=0.0, help="Inject processing delay in seconds on Azure VMs")
@@ -225,6 +282,14 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Display live Load Balancer telemetry")
     parser.add_argument("--url", default="http://127.0.0.1:5000", help="Load Balancer URL (default: http://127.0.0.1:5000)")
     args = parser.parse_args()
+
+    if args.restore:
+        restore_all_cli(args.url)
+        return
+
+    if args.overload:
+        run_overload_crash_test(args.url)
+        return
 
     if args.direct:
         probe_direct_vms()

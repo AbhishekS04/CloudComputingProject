@@ -3,7 +3,7 @@ import { generateMockRequest } from './trafficGenerator';
 import { algorithmManager } from './loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const SERVER_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4'];
 
 const KNOWN_PRIVATE_IPS = {
@@ -80,11 +80,9 @@ class SimulationEngine {
     if (this.intervalId) return;
     this.lastSecondTime = Date.now();
 
-    if (BASE_URL) {
-      this.syncFromBackend();
-      this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
-      this.initEventStream();
-    }
+    this.syncFromBackend();
+    this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
+    this.initEventStream();
 
     this.intervalId = setInterval(() => this.tick(), this.tickRate);
   }
@@ -105,14 +103,15 @@ class SimulationEngine {
   }
 
   initEventStream() {
-    if (typeof window === 'undefined' || !BASE_URL) return;
+    if (typeof window === 'undefined') return;
+    const url = BASE_URL || '';
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
 
     try {
-      this.eventSource = new EventSource(`${BASE_URL}/api/stream`);
+      this.eventSource = new EventSource(`${url}/api/stream`);
 
       this.eventSource.onopen = () => {
         useSimulationStore.setState({ lbOnline: true });
@@ -142,7 +141,7 @@ class SimulationEngine {
           this.eventSource = null;
         }
         setTimeout(() => {
-          if (!this.eventSource && BASE_URL) {
+          if (!this.eventSource) {
             this.initEventStream();
           }
         }, 3000);
@@ -179,6 +178,37 @@ class SimulationEngine {
         })
       );
     }
+
+    // Immediately update target server live counters and cluster metrics
+    useSimulationStore.setState((state) => ({
+      servers: state.servers.map((s) => {
+        if (
+          s.id === serverId ||
+          s.name === serverId ||
+          s.host === serverId ||
+          (data.public_ip && s.publicIp && s.publicIp.includes(data.public_ip))
+        ) {
+          const newActive = (s.activeConnections || 0) + 1;
+          const cpuBump = Math.min(96, Math.max(15, (s.cpu || 25) + Math.round(Math.random() * 3 - 1)));
+          return {
+            ...s,
+            activeConnections: newActive,
+            cpu: cpuBump,
+            totalRequests: (s.totalRequests || 0) + 1,
+            successfulRequests: (s.successfulRequests || 0) + (isSuccess ? 1 : 0),
+            failedRequests: (s.failedRequests || 0) + (isSuccess ? 0 : 1),
+            avgLatency: s.avgLatency ? Math.round((s.avgLatency * 4 + latency) / 5) : latency
+          };
+        }
+        return s;
+      }),
+      metrics: {
+        ...state.metrics,
+        totalRequests: (state.metrics.totalRequests || 0) + 1,
+        successfulRequests: (state.metrics.successfulRequests || 0) + (isSuccess ? 1 : 0),
+        failedRequests: (state.metrics.failedRequests || 0) + (isSuccess ? 0 : 1)
+      }
+    }));
 
     // 2. Buffer log for non-blocking periodic flush
     const targetServer = store.servers.find((s) => s.id === serverId) || {
@@ -286,7 +316,13 @@ class SimulationEngine {
 
   async dispatchRealRequest() {
     const store = useSimulationStore.getState();
-    if (!store.isRunning || store.clusterMode !== 'live' || !BASE_URL) return;
+    if (!store.isRunning) return;
+
+    // Sandbox / Dummy mode fallback: dispatch immediately via internal engine
+    if (store.clusterMode === 'dummy' || !BASE_URL) {
+      this.dispatchSingleRequest();
+      return;
+    }
 
     try {
       await fetch(`${BASE_URL}/api/request`, {
