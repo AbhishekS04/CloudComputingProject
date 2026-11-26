@@ -132,7 +132,7 @@ export default function VenetianBlindsPageTransition({
               delay: delay,
             }}
             className={cn(
-              "pointer-events-auto bg-[#EFECE4] dark:bg-[#171717]",
+              "pointer-events-auto bg-[#DBEAFE] dark:bg-[#232D4B]",
               panelClassName,
             )}
             style={{

@@ -9,15 +9,7 @@ import { StatCard, StatGrid } from '@/components/ui/stat-card';
 import { TrafficCard } from '@/components/ui/traffic-card';
 import EdgeGatewayTelemetryCard from '../components/monitoring/EdgeGatewayTelemetryCard';
 import { useSimulationStore } from '../store/simulationStore';
-import {
-  Server,
-  Flash,
-  FileText,
-  CheckCircle,
-  AlertTriangle,
-  Radio,
-  Refresh,
-} from 'reicon-react';
+import { FileText } from 'reicon-react';
 import { DuotoneIcon } from '../components/ui/DuotoneIcon';
 
 // Code-split heavy below-the-fold visualization modules
@@ -63,36 +55,6 @@ const STATUS_NODES_DATA = [
     incidents: [],
   },
 ];
-
-// Isolated 1-second clock so the rest of the dashboard never re-renders on clock ticks
-const LiveClockLabel = memo(function LiveClockLabel() {
-  const [liveClock, setLiveClock] = useState(() => new Date().toLocaleTimeString());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setLiveClock(new Date().toLocaleTimeString());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return <span>Synced {liveClock}</span>;
-});
-
-const HeaderFleetBadge = memo(function HeaderFleetBadge() {
-  const servers = useSimulationStore((state) => state.servers);
-  const totalServers = servers.length;
-  const activeServers = servers.filter((s) => s.status === 'healthy' || s.healthy).length;
-
-  return (
-    <div className="h-8 px-3 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-      <DuotoneIcon icon={Server} size={14} className="text-blue-500" secondaryOpacity={0.25} />
-      <span className="font-semibold text-neutral-900 dark:text-white tabular-nums">
-        {activeServers}/{totalServers}
-      </span>
-      <span className="text-neutral-500 dark:text-neutral-400">VMs Active</span>
-    </div>
-  );
-});
 
 const SectionKpiGrid = memo(function SectionKpiGrid({ routeSettled, syncKey }) {
   const servers = useSimulationStore((state) => state.servers);
@@ -288,7 +250,7 @@ const StatusBarsPanel = memo(function StatusBarsPanel({ ready }) {
       className={SKELETON_FLEX_CLASS}
     >
       {(nodes) => (
-        <div className="flex-1 p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] shadow-xs space-y-3 font-sans">
+        <div className="flex-1 p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] hover:border-black/[0.1] dark:hover:border-white/[0.14] shadow-xs space-y-3 font-sans transition-colors duration-300 ease-out">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
               Azure Node Uptime History (60-Day Strips)
@@ -434,15 +396,10 @@ const AuditTrailPanel = memo(function AuditTrailPanel({ ready }) {
 export default function MonitoringDashboardPage() {
   const [timeframe, setTimeframe] = useState('24h');
   const [isTimeframeLoading, setIsTimeframeLoading] = useState(false);
-  const [syncKey, setSyncKey] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(true);
+  const syncKey = 0;
   const [routeSettled, setRouteSettled] = useState(() =>
     typeof window !== 'undefined' ? !window.__routeTransitionActive : true
   );
-
-  const triggerTrafficSpike = useSimulationStore((state) => state.triggerTrafficSpike);
-  const crashRandomServer = useSimulationStore((state) => state.crashRandomServer);
-  const recoverAllServers = useSimulationStore((state) => state.recoverAllServers);
 
   // Wait for Venetian blinds exit transition to finish before hydrating sections
   useEffect(() => {
@@ -462,17 +419,6 @@ export default function MonitoringDashboardPage() {
       clearTimeout(fallbackTimer);
     };
   }, [routeSettled]);
-
-  useEffect(() => {
-    if (!routeSettled) return;
-    setIsSyncing(true);
-    const timer = setTimeout(() => setIsSyncing(false), 1150);
-    return () => clearTimeout(timer);
-  }, [routeSettled, syncKey]);
-
-  const triggerTelemetrySync = useCallback(() => {
-    setSyncKey((prev) => prev + 1);
-  }, []);
 
   const handleTimeframeChange = useCallback((nextTimeframe) => {
     setTimeframe(nextTimeframe);
@@ -496,83 +442,8 @@ export default function MonitoringDashboardPage() {
       {/* 1. Global Navigation Bar */}
       <SystemDesignNavbar />
 
-      {/* 2. Monitoring Workspace Header Banner */}
-      <div className="border-b border-black/[0.06] dark:border-white/[0.08] bg-white/75 dark:bg-[#16171a]/85 py-3.5">
-        <div className="w-full max-w-[1380px] mx-auto px-3 sm:px-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-neutral-900 dark:text-white">
-                Azure VM Fleet · Cluster Telemetry
-              </h1>
-            </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              4 Azure VMs (1x L7 Load Balancer + 3x Backend Nodes) · VNet:{' '}
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">10.0.1.0/24</span> ·{' '}
-              <LiveClockLabel />
-            </p>
-          </div>
-
-          {/* Header Action Badges */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              data-cuelume-tap
-              onClick={triggerTrafficSpike}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Inject sudden traffic surge into the cluster"
-            >
-              <DuotoneIcon icon={Flash} size={14} className="text-amber-400" secondaryOpacity={0.45} />
-              <span>Simulate Surge</span>
-            </button>
-
-            <button
-              type="button"
-              data-cuelume-tap
-              data-cuelume-emphasis="strong"
-              onClick={crashRandomServer}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Simulate crash on a healthy Azure VM to test failover"
-            >
-              <DuotoneIcon icon={AlertTriangle} size={14} secondaryOpacity={0.3} />
-              <span>Simulate VM Crash</span>
-            </button>
-
-            <button
-              type="button"
-              data-cuelume-tap
-              onClick={recoverAllServers}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Restore all crashed Azure backend nodes"
-            >
-              <DuotoneIcon icon={CheckCircle} size={14} secondaryOpacity={0.3} />
-              <span>Restore Fleet</span>
-            </button>
-
-            <button
-              type="button"
-              data-cuelume-tap
-              onClick={triggerTelemetrySync}
-              disabled={isSyncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/[0.05] hover:bg-black/[0.09] dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-neutral-800 dark:text-neutral-100 border border-black/[0.06] dark:border-white/[0.08] transition-all active:scale-95 cursor-pointer disabled:opacity-60 whitespace-nowrap"
-              title="Re-sync Azure cluster telemetry and preview progressive sweep skeletons"
-            >
-              <Refresh size={14} className={isSyncing ? 'animate-spin text-blue-500' : ''} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Telemetry'}</span>
-            </button>
-
-            <div className="h-8 px-2.5 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-1.5 whitespace-nowrap">
-              <DuotoneIcon icon={Radio} size={14} className="text-emerald-500 animate-pulse" secondaryOpacity={0.25} />
-              <span>Probe: 1.0s</span>
-            </div>
-
-            <HeaderFleetBadge />
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Main Dashboard Body */}
-      <main className="flex-1 w-full max-w-[1380px] mx-auto px-3 sm:px-6 pt-4 sm:pt-5 pb-16 sm:pb-20 space-y-5">
+      {/* 2. Main Dashboard Body */}
+      <main className="flex-1 w-full max-w-[1380px] mx-auto px-3 sm:px-6 pt-5 sm:pt-6 pb-16 sm:pb-20 space-y-5">
         {/* SECTION A: KPI STAT CARDS (1-by-1 sweep stagger right after transition) */}
         <SectionKpiGrid routeSettled={routeSettled} syncKey={syncKey} />
 

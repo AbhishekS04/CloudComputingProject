@@ -1,10 +1,11 @@
 import React, { useState, useMemo, memo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 const DAY_MS = 86400000;
 
 /**
- * StatusBars - Clean 60-day availability strip per node (borderless subtle track rows).
+ * StatusBars - Smooth 60-day availability strip per node with soft proximity hover & gliding tooltip.
  */
 const StatusBars = memo(function StatusBars({
   label = 'Server A',
@@ -14,7 +15,7 @@ const StatusBars = memo(function StatusBars({
   uptime = 99.98,
   className = '',
 }) {
-  const [hoveredDay, setHoveredDay] = useState(null);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
 
   const days = useMemo(() => {
     const incidentMap = new Map();
@@ -48,10 +49,16 @@ const StatusBars = memo(function StatusBars({
     return list;
   }, [maxDays, incidents]);
 
+  const hoveredDay = hoveredIdx !== null ? days[hoveredIdx] : null;
+  const tooltipLeftPct =
+    hoveredIdx !== null
+      ? Math.min(86, Math.max(14, ((hoveredIdx + 0.5) / days.length) * 100))
+      : 50;
+
   return (
     <div
       className={cn(
-        'px-3.5 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.025] select-none font-sans',
+        'group/row px-3.5 py-3 rounded-xl bg-black/[0.02] hover:bg-black/[0.035] dark:bg-white/[0.025] dark:hover:bg-white/[0.045] transition-colors duration-300 ease-out select-none font-sans',
         className
       )}
     >
@@ -71,49 +78,108 @@ const StatusBars = memo(function StatusBars({
         </span>
       </div>
 
-      <div className="relative flex items-center gap-[2px] h-6 w-full py-0.5">
+      {/* Continuous gap-free hover surface + floating gliding tooltip (zero layout jump) */}
+      <div
+        className="relative flex items-center h-7 w-full"
+        onMouseLeave={() => setHoveredIdx(null)}
+      >
+        <AnimatePresence>
+          {hoveredDay && (
+            <motion.div
+              key="status-day-tooltip"
+              initial={{ opacity: 0, x: '-50%', y: 4, scale: 0.96, filter: 'blur(3px)' }}
+              animate={{
+                opacity: 1,
+                x: '-50%',
+                y: 0,
+                scale: 1,
+                filter: 'blur(0px)',
+                left: `${tooltipLeftPct}%`,
+              }}
+              exit={{ opacity: 0, x: '-50%', y: 3, scale: 0.97, filter: 'blur(2px)' }}
+              transition={{
+                left: { type: 'spring', stiffness: 320, damping: 28, mass: 0.7 },
+                opacity: { duration: 0.16, ease: 'easeOut' },
+                y: { type: 'spring', stiffness: 320, damping: 26 },
+                scale: { duration: 0.16, ease: 'easeOut' },
+                filter: { duration: 0.15 },
+              }}
+              className="pointer-events-none absolute bottom-full mb-1.5 z-30 whitespace-nowrap rounded-xl px-2.5 py-1.5 bg-white/95 dark:bg-[#1b1d24]/95 backdrop-blur-md border border-black/[0.08] dark:border-white/[0.12] shadow-lg shadow-black/10 dark:shadow-black/50 flex items-center gap-2 text-[11px]"
+            >
+              <span
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  hoveredDay.status === 'operational'
+                    ? 'bg-emerald-500'
+                    : hoveredDay.status === 'degraded'
+                    ? 'bg-amber-500'
+                    : 'bg-rose-500'
+                )}
+              />
+              <span className="font-mono text-[10.5px] text-neutral-500 dark:text-neutral-400">
+                {hoveredDay.date}
+              </span>
+              <span className="text-neutral-300 dark:text-neutral-600">·</span>
+              <span
+                className={cn(
+                  'font-medium',
+                  hoveredDay.status === 'operational'
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : hoveredDay.status === 'degraded'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-rose-600 dark:text-rose-400'
+                )}
+              >
+                {hoveredDay.title}
+                {hoveredDay.minutes ? ` (${hoveredDay.minutes}m)` : ''}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {days.map((d, idx) => {
-          let bgClass = 'bg-emerald-500/85 hover:bg-emerald-400';
+          const dist = hoveredIdx !== null ? Math.abs(idx - hoveredIdx) : null;
+
+          let colorClass = 'bg-emerald-500/85';
+          let glowClass = 'shadow-[0_0_10px_rgba(16,185,129,0.45)] bg-emerald-400';
           if (d.status === 'degraded') {
-            bgClass = 'bg-amber-500 hover:bg-amber-400';
+            colorClass = 'bg-amber-500/90';
+            glowClass = 'shadow-[0_0_10px_rgba(245,158,11,0.5)] bg-amber-400';
           } else if (d.status === 'downtime') {
-            bgClass = 'bg-rose-500 hover:bg-rose-400';
+            colorClass = 'bg-rose-500/90';
+            glowClass = 'shadow-[0_0_10px_rgba(244,63,94,0.5)] bg-rose-400';
           }
 
-          const isHovered = hoveredDay?.date === d.date;
+          let waveStyle;
+          if (dist === 0) {
+            waveStyle = { transform: 'scaleY(1.24)', opacity: 1 };
+          } else if (dist === 1) {
+            waveStyle = { transform: 'scaleY(1.13)', opacity: 0.95 };
+          } else if (dist === 2) {
+            waveStyle = { transform: 'scaleY(1.06)', opacity: 0.85 };
+          } else if (hoveredIdx !== null) {
+            waveStyle = { transform: 'scaleY(1)', opacity: 0.55 };
+          } else {
+            waveStyle = { transform: 'scaleY(1)', opacity: 0.92 };
+          }
 
           return (
             <div
               key={idx}
-              onMouseEnter={() => setHoveredDay(d)}
-              onMouseLeave={() => setHoveredDay(null)}
-              className={cn(
-                'flex-1 h-full rounded-[1.5px] transition-transform duration-150 cursor-pointer',
-                bgClass,
-                isHovered && 'scale-y-125 brightness-110 z-10 ring-1 ring-neutral-900/60 dark:ring-white/80'
-              )}
-            />
+              onMouseEnter={() => setHoveredIdx(idx)}
+              className="flex-1 h-full flex items-center px-[1px] cursor-pointer"
+            >
+              <div
+                style={waveStyle}
+                className={cn(
+                  'w-full h-5 rounded-[2.5px] transition-[transform,opacity,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] origin-center',
+                  dist === 0 ? glowClass : colorClass
+                )}
+              />
+            </div>
           );
         })}
       </div>
-
-      {hoveredDay && (
-        <div className="mt-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 flex items-center justify-between">
-          <span className="font-mono text-neutral-400">{hoveredDay.date}</span>
-          <span
-            className={cn(
-              'font-medium',
-              hoveredDay.status === 'operational'
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : hoveredDay.status === 'degraded'
-                ? 'text-amber-500'
-                : 'text-rose-500'
-            )}
-          >
-            {hoveredDay.title} {hoveredDay.minutes ? `(${hoveredDay.minutes}m)` : ''}
-          </span>
-        </div>
-      )}
     </div>
   );
 });

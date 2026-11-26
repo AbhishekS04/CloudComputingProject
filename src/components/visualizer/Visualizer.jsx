@@ -423,9 +423,9 @@ export default function Visualizer() {
             />
           </div>
 
-          {/* Center: Connected Request Count + Burst + Stream + 1 Req */}
+          {/* Center: Reqs + Stream Capsule -> Burst -> 1 Req */}
           <div className="flex flex-wrap items-center gap-1.5">
-            {/* Connected Reqs + Burst Capsule */}
+            {/* Connected Reqs + Stream Capsule */}
             <div className="inline-flex items-center h-8 rounded-xl bg-white dark:bg-[#22212B] border border-[#DDD6C6] dark:border-white/[0.1] overflow-hidden shadow-2xs focus-within:ring-2 focus-within:ring-[#007AFF]/35">
               <label className="inline-flex items-center gap-1 h-full pl-2.5 pr-2 cursor-text">
                 <input
@@ -435,7 +435,7 @@ export default function Visualizer() {
                   value={reqCount}
                   onChange={(e) => setReqCount(e.target.value)}
                   aria-label="Number of requests"
-                  className="w-11 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none"
+                  className="w-11 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span className="text-[10.5px] font-medium text-neutral-400 dark:text-neutral-500">
                   reqs
@@ -446,51 +446,51 @@ export default function Visualizer() {
 
               <button
                 type="button"
-                disabled={Boolean(activeTask)}
-                onClick={handleBurst}
-                title={`Send Burst of ${parsedCount} requests`}
-                className="inline-flex items-center gap-1.5 h-full px-3 bg-[#007AFF] hover:bg-[#0071E3] active:bg-[#0062C4] text-white text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer disabled:opacity-45 whitespace-nowrap"
+                disabled={Boolean(activeTask && activeTask !== 'stream')}
+                onClick={handleToggleStream}
+                title={clusterMode === 'live' ? `Stream @ ${parsedRate} req/s` : 'Pause / Resume stream'}
+                className={`inline-flex items-center gap-1.5 h-full px-3 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 whitespace-nowrap ${
+                  clusterMode === 'live' && activeTask === 'stream'
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold'
+                    : clusterMode === 'dummy' && !isRunning
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold'
+                    : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-charcoal-900 dark:text-cream-100'
+                }`}
               >
-                <Flash size={13} weight="Filled" />
-                <span>Burst</span>
-              </button>
-            </div>
-
-            {/* Stream / Pause Button */}
-            <button
-              type="button"
-              disabled={Boolean(activeTask && activeTask !== 'stream')}
-              onClick={handleToggleStream}
-              title={clusterMode === 'live' ? `Stream @ ${parsedRate} req/s` : 'Pause / Resume stream'}
-              className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl border text-[11px] sm:text-xs font-medium shadow-2xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-45 whitespace-nowrap ${
-                clusterMode === 'live' && activeTask === 'stream'
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500'
-                  : clusterMode === 'dummy' && !isRunning
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
-                  : 'bg-white/90 hover:bg-white dark:bg-[#22212B] dark:hover:bg-[#2B2A36] border-[#DDD6C6] dark:border-white/[0.08] text-charcoal-900 dark:text-cream-100'
-              }`}
-            >
-              {clusterMode === 'live' ? (
-                activeTask === 'stream' ? (
-                  <>
-                    <Stop size={12} weight="Filled" />
-                    <span>Stop</span>
-                  </>
+                {clusterMode === 'live' ? (
+                  activeTask === 'stream' ? (
+                    <>
+                      <Stop size={12} weight="Filled" />
+                      <span>Stop</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play size={12} />
+                      <span>Stream</span>
+                      <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500">
+                        {parsedRate}/s
+                      </span>
+                    </>
+                  )
                 ) : (
                   <>
                     <Play size={12} />
-                    <span>Stream</span>
-                    <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500">
-                      {parsedRate}/s
-                    </span>
+                    <span>{isRunning ? 'Pause' : 'Resume'}</span>
                   </>
-                )
-              ) : (
-                <>
-                  <Play size={12} />
-                  <span>{isRunning ? 'Pause' : 'Resume'}</span>
-                </>
-              )}
+                )}
+              </button>
+            </div>
+
+            {/* Standalone Burst Button (where Stream was) */}
+            <button
+              type="button"
+              disabled={Boolean(activeTask)}
+              onClick={handleBurst}
+              title={`Send Burst of ${parsedCount} requests`}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#007AFF] hover:bg-[#0071E3] active:bg-[#0062C4] text-white text-[11px] sm:text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-45 whitespace-nowrap"
+            >
+              <Flash size={13} weight="Filled" />
+              <span>Burst</span>
             </button>
 
             {/* Single Request */}
@@ -883,7 +883,7 @@ export default function Visualizer() {
                         setStreamRate(val);
                       }
                     }}
-                    className="w-11 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none"
+                    className="w-11 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </label>
 
@@ -899,7 +899,7 @@ export default function Visualizer() {
                         max={60}
                         value={concurrency}
                         onChange={(e) => setConcurrency(e.target.value)}
-                        className="w-10 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none"
+                        className="w-10 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </label>
 
@@ -914,7 +914,7 @@ export default function Visualizer() {
                         step="0.1"
                         value={delaySec}
                         onChange={(e) => setDelaySec(e.target.value)}
-                        className="w-10 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none"
+                        className="w-10 bg-transparent font-mono text-xs font-semibold text-neutral-900 dark:text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </label>
 
