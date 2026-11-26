@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSimulationStore } from '../../store/simulationStore';
 import { simulationEngine } from '../../simulation/engine';
@@ -112,6 +112,8 @@ export default function Visualizer() {
   const setTargetRps = useSimulationStore((state) => state.setTargetRps);
   const toggleSimulation = useSimulationStore((state) => state.toggleSimulation);
   const lbOnline = useSimulationStore((state) => state.lbOnline);
+  const lbPaused = useSimulationStore((state) => state.lbPaused);
+  const setRemoteLbPaused = useSimulationStore((state) => state.setRemoteLbPaused);
   const isDarkMode = useSimulationStore((state) => state.isDarkMode);
   const setDarkMode = useSimulationStore((state) => state.setDarkMode);
 
@@ -138,6 +140,9 @@ export default function Visualizer() {
   const abortCtrlRef = useRef(null);
   const logBoxRef = useRef(null);
   const scenariosRef = useRef(null);
+  const pendingLogsRef = useRef([]);
+  const pendingProgressRef = useRef(null);
+  const flushRafRef = useRef(null);
 
   useEffect(() => {
     return subscribeGatewayChange((nextUrl) => {
@@ -149,6 +154,10 @@ export default function Visualizer() {
   useEffect(() => {
     return () => {
       abortCtrlRef.current?.abort();
+      if (flushRafRef.current !== null) {
+        cancelAnimationFrame(flushRafRef.current);
+        flushRafRef.current = null;
+      }
     };
   }, []);
 
@@ -180,21 +189,71 @@ export default function Visualizer() {
   }, [scenariosOpen]);
 
   useEffect(() => {
-    if (logBoxRef.current) {
-      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
-    }
-  }, [dispatchLogs]);
+    if (!showLogs) return undefined;
+    const el = logBoxRef.current;
+    if (!el) return undefined;
+    const rafId = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [dispatchLogs, showLogs]);
 
   const parsedCount = Math.max(1, Math.min(2000, Number(reqCount) || 1));
   const parsedRate = Math.max(1, Math.min(50, Number(streamRate) || 1));
   const parsedConcurrency = Math.max(1, Math.min(60, Number(concurrency) || 10));
   const parsedDelay = Math.max(0, Math.min(5, Number(delaySec) || 0));
 
-  const appendLog = (entry) => {
-    setDispatchLogs((prev) => [...prev.slice(-79), entry]);
-  };
+  const flushUiUpdates = useCallback(() => {
+    if (flushRafRef.current !== null) {
+      cancelAnimationFrame(flushRafRef.current);
+      flushRafRef.current = null;
+    }
+    if (pendingLogsRef.current.length > 0) {
+      const queued = pendingLogsRef.current;
+      pendingLogsRef.current = [];
+      setDispatchLogs((prev) => [...prev, ...queued].slice(-80));
+    }
+    if (pendingProgressRef.current !== null) {
+      const nextProg = pendingProgressRef.current;
+      pendingProgressRef.current = null;
+      setProgress(nextProg);
+    }
+  }, []);
+
+  const scheduleUiFlush = useCallback(() => {
+    if (flushRafRef.current !== null) return;
+    flushRafRef.current = requestAnimationFrame(() => {
+      flushRafRef.current = null;
+      flushUiUpdates();
+    });
+  }, [flushUiUpdates]);
+
+  const appendLog = useCallback(
+    (entry) => {
+      pendingLogsRef.current.push(entry);
+      if (pendingLogsRef.current.length > 80) {
+        pendingLogsRef.current = pendingLogsRef.current.slice(-80);
+      }
+      scheduleUiFlush();
+    },
+    [scheduleUiFlush]
+  );
+
+  const queueProgress = useCallback(
+    (next) => {
+      pendingProgressRef.current = next;
+      scheduleUiFlush();
+    },
+    [scheduleUiFlush]
+  );
 
   const clearConsole = () => {
+    pendingLogsRef.current = [];
+    pendingProgressRef.current = null;
+    if (flushRafRef.current !== null) {
+      cancelAnimationFrame(flushRafRef.current);
+      flushRafRef.current = null;
+    }
     setDispatchLogs([]);
     if (!activeTask) {
       setProgress({ completed: 0, total: 0, ok: 0, fail: 0 });
@@ -209,6 +268,8 @@ export default function Visualizer() {
 
   const startTask = (taskName, runner, { openConsole = false } = {}) => {
     stopActiveTask();
+    pendingLogsRef.current = [];
+    pendingProgressRef.current = null;
     const ctrl = new AbortController();
     abortCtrlRef.current = ctrl;
     setActiveTask(taskName);
@@ -227,12 +288,18 @@ export default function Visualizer() {
         }
       })
       .finally(() => {
+        flushUiUpdates();
         if (abortCtrlRef.current === ctrl) {
           abortCtrlRef.current = null;
           setActiveTask(null);
         }
       });
   };
+
+  const handleThemeChange = useCallback(
+    (nextTheme) => setDarkMode(nextTheme === 'dark'),
+    [setDarkMode]
+  );
 
   const toggleViewMode = () => {
     setVisualizerMode(visualizerMode === '3D' ? '2D' : '3D');
@@ -285,7 +352,7 @@ export default function Visualizer() {
         label: 'BURST WAVE',
         signal,
         onLog: appendLog,
-        onProgress: setProgress,
+        onProgress: queueProgress,
       })
     );
   };
@@ -330,11 +397,12 @@ export default function Visualizer() {
     startTask('stream', (signal) =>
       runContinuousStream({
         url: gatewayUrlState,
+        count: parsedCount,
         rate: parsedRate,
         delay: parsedDelay,
         signal,
         onLog: appendLog,
-        onProgress: setProgress,
+        onProgress: queueProgress,
       })
     );
   };
@@ -388,6 +456,37 @@ export default function Visualizer() {
             </div>
           </motion.div>
         )}
+        {clusterMode === 'live' && IS_LIVE_BACKEND && lbOnline && lbPaused && (
+          <motion.div
+            key="lb-paused-banner"
+            initial={{ height: 0, opacity: 0, y: -4 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: -4 }}
+            transition={{
+              height: { type: 'spring', stiffness: 300, damping: 28 },
+              opacity: { duration: 0.18 },
+            }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 dark:bg-amber-950/50 border border-amber-500/40 text-xs">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold">
+                <span>Remote Azure LB-VM is Paused (returning 503)</span>
+                <span className="hidden sm:inline font-normal text-amber-700/80 dark:text-amber-300/80">
+                  — Health is 200 OK, but traffic endpoints are paused on {getGatewayHost(gatewayUrlState)}.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setRemoteLbPaused(false)}
+                  className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-100 font-sans font-semibold transition-colors cursor-pointer"
+                >
+                  Resume LB-VM
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* 1. Unobstructed Canvas Viewport */}
@@ -396,7 +495,7 @@ export default function Visualizer() {
           {visualizerMode === '3D' && (
             <Visualizer3D
               theme={isDarkMode ? 'dark' : 'light'}
-              onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
+              onThemeChange={handleThemeChange}
               onSelectNode={setSelectedNode}
               selectedNode={selectedNode}
             />
@@ -405,7 +504,7 @@ export default function Visualizer() {
           {visualizerMode === '2D' && (
             <Visualizer2D
               theme={isDarkMode ? 'dark' : 'light'}
-              onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
+              onThemeChange={handleThemeChange}
               onSelectNode={setSelectedNode}
               selectedNode={selectedNode}
             />
@@ -414,7 +513,7 @@ export default function Visualizer() {
       </div>
 
       {/* 2. Minimal Docked Dispatcher & Telemetry Bar Under Visualizer */}
-      <div className="relative z-30 w-full rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 bg-[#FAF8F2]/95 dark:bg-[#191820]/95 backdrop-blur-xl shadow-subtle text-xs select-none">
+      <div className="relative z-30 w-full rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 bg-[#FAF8F2]/95 dark:bg-[#191820]/95 shadow-subtle text-xs select-none">
         {/* Primary Single-Row Toolbar */}
         <div className="flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 p-2 sm:px-3">
           {/* Left: View (3D/2D), Mode (Azure/Dummy), Algorithm Dropdown */}
@@ -506,7 +605,7 @@ export default function Visualizer() {
                 type="button"
                 disabled={Boolean(activeTask && activeTask !== 'stream')}
                 onClick={handleToggleStream}
-                title={clusterMode === 'live' ? `Stream @ ${parsedRate} req/s` : 'Pause / Resume stream'}
+                title={clusterMode === 'live' ? `Stream ${parsedCount} requests @ ${parsedRate} req/s` : 'Pause / Resume stream'}
                 className={`inline-flex items-center gap-1.5 h-full px-3 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 whitespace-nowrap ${
                   clusterMode === 'live' && activeTask === 'stream'
                     ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold'
@@ -677,7 +776,7 @@ export default function Visualizer() {
                                     delay: Math.max(parsedDelay, 1.5),
                                     signal,
                                     onLog: appendLog,
-                                    onProgress: setProgress,
+                                    onProgress: queueProgress,
                                   })
                                 ),
                             },
@@ -695,7 +794,7 @@ export default function Visualizer() {
                                     concurrency: Math.max(parsedConcurrency, 20),
                                     signal,
                                     onLog: appendLog,
-                                    onProgress: setProgress,
+                                    onProgress: queueProgress,
                                   })
                                 ),
                             },
@@ -713,7 +812,7 @@ export default function Visualizer() {
                                     concurrency: Math.max(parsedConcurrency, 20),
                                     signal,
                                     onLog: appendLog,
-                                    onProgress: setProgress,
+                                    onProgress: queueProgress,
                                   })
                                 ),
                             },
@@ -733,7 +832,7 @@ export default function Visualizer() {
                                     label: 'STRESS TEST',
                                     signal,
                                     onLog: appendLog,
-                                    onProgress: setProgress,
+                                    onProgress: queueProgress,
                                   })
                                 ),
                             },
@@ -751,7 +850,7 @@ export default function Visualizer() {
                                       url: gatewayUrlState,
                                       signal,
                                       onLog: appendLog,
-                                      onProgress: setProgress,
+                                      onProgress: queueProgress,
                                     }),
                                   { openConsole: true }
                                 ),

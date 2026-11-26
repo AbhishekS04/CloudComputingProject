@@ -1,4 +1,7 @@
-node_modules
+node_modules/
+
+# Build output
+dist/
 
 # Python
 venv/
@@ -6,3 +9,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .env
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

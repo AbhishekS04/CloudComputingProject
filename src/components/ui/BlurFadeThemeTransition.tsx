@@ -5,7 +5,8 @@ import { flushSync } from "react-dom";
 
 interface DocumentWithViewTransition {
   startViewTransition?: (callback: () => void) => {
-    ready: Promise<void>;
+    ready?: Promise<void>;
+    updateCallbackDone?: Promise<void>;
     finished?: Promise<void>;
   };
 }
@@ -189,11 +190,18 @@ export default function BlurFadeThemeTransition({
       }
     `;
 
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = undefined;
+      }
       const el = document.getElementById(animStyleId);
       if (el) el.remove();
       setIsAnimating(false);
     };
+
+    fallbackTimer = setTimeout(cleanup, activeDuration + 400);
 
     try {
       const transition = doc.startViewTransition(() => {
@@ -203,6 +211,8 @@ export default function BlurFadeThemeTransition({
         });
       });
 
+      transition?.updateCallbackDone?.catch(() => {});
+      transition?.ready?.catch(() => {});
       if (transition && transition.finished) {
         transition.finished.then(cleanup).catch(cleanup);
       } else {

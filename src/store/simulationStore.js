@@ -9,6 +9,7 @@ export const useSimulationStore = create((set, get) => ({
   // Core simulation state
   isRunning: true,
   lbOnline: true,
+  lbPaused: false,
   clusterMode: import.meta.env.VITE_CLUSTER_MODE || 'live', // 'live' | 'dummy'
   targetRps: 6, // Requests per second
   algorithm: 'ROUND_ROBIN',
@@ -83,15 +84,36 @@ export const useSimulationStore = create((set, get) => ({
     get().setClusterMode(next);
   },
 
-  setIsRunning: (isRunning) => {
-    set({ isRunning });
+  setRemoteLbPaused: async (paused) => {
+    const nextPaused = Boolean(paused);
+    const prevPaused = get().lbPaused;
+    set({ lbPaused: nextPaused });
     const baseUrl = getGatewayUrl();
-    if (baseUrl) {
-      fetch(`${baseUrl}/api/lb/toggle`, {
+    if (!baseUrl) return false;
+    try {
+      const res = await fetch(`${baseUrl}/api/lb/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paused: !isRunning })
-      }).catch(() => {});
+        body: JSON.stringify({ paused: nextPaused })
+      });
+      if (!res.ok) {
+        set({ lbPaused: prevPaused });
+        return false;
+      }
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.paused === 'boolean') {
+        set({ lbPaused: data.paused });
+      }
+      return true;
+    } catch {
+      set({ lbPaused: prevPaused });
+      return false;
+    }
+  },
+  setIsRunning: (isRunning) => {
+    set({ isRunning });
+    if (get().clusterMode === 'live') {
+      get().setRemoteLbPaused(!isRunning);
     }
   },
 
@@ -114,13 +136,8 @@ export const useSimulationStore = create((set, get) => ({
   toggleSimulation: () => {
     const next = !get().isRunning;
     set({ isRunning: next });
-    const baseUrl = getGatewayUrl();
-    if (baseUrl) {
-      fetch(`${baseUrl}/api/lb/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paused: !next })
-      }).catch(() => {});
+    if (get().clusterMode === 'live') {
+      get().setRemoteLbPaused(!next);
     }
     get().addEvent({
       type: next ? 'success' : 'warning',
@@ -342,6 +359,7 @@ export const useSimulationStore = create((set, get) => ({
     set({
       isRunning: true,
       lbOnline: true,
+      lbPaused: false,
       targetRps: 6,
       algorithm: 'ROUND_ROBIN',
       servers: serverPool.map((s) => ({

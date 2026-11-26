@@ -219,7 +219,10 @@ class SimulationEngine {
           } else if (data.type === 'algorithm' && data.algorithm) {
             useSimulationStore.setState({ algorithm: data.algorithm.toUpperCase() });
           } else if (data.type === 'lb_toggle' && typeof data.paused === 'boolean') {
-            useSimulationStore.setState({ isRunning: !data.paused });
+            useSimulationStore.setState((state) => ({
+              lbPaused: data.paused,
+              ...(state.clusterMode === 'live' ? { isRunning: !data.paused } : {}),
+            }));
           }
         } catch {
           // ignore parsing error
@@ -414,7 +417,7 @@ class SimulationEngine {
 
     this.isSyncing = true;
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 4500);
+    const timeoutId = setTimeout(() => ctrl.abort(), 8000);
 
     try {
       const [serversRes, statsRes] = await Promise.all([
@@ -457,6 +460,7 @@ class SimulationEngine {
 
         return {
           lbOnline: true,
+          lbPaused: Boolean(statsData?.lb_paused),
           servers: mappedServers,
           metrics: {
             ...state.metrics,
@@ -519,6 +523,19 @@ class SimulationEngine {
     }
   }
 
+  /** Update remote LB pause state when live LB traffic responses explicitly report 503 paused or resume with 2xx. */
+  syncRemoteLbPausedFromResponse(status, payload, viaLb = true) {
+    if (!viaLb) return;
+    if (status === 503) {
+      const msg = String(payload?.error || payload?.message || payload?.status || '').toLowerCase();
+      if (msg.includes('paused')) {
+        useSimulationStore.setState({ lbPaused: true });
+      }
+    } else if (status >= 200 && status < 300 && useSimulationStore.getState().lbPaused) {
+      useSimulationStore.setState({ lbPaused: false });
+    }
+  }
+
   async dispatchRealRequest() {
     const store = useSimulationStore.getState();
     if (!store.isRunning) return;
@@ -541,9 +558,13 @@ class SimulationEngine {
       });
       if (resp.ok) {
         const data = await resp.json().catch(() => ({}));
+        this.syncRemoteLbPausedFromResponse(resp.status, data, true);
         if (data?.selected_server) {
           this.handleLiveRequestEvent({ type: 'request', ...data });
         }
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        this.syncRemoteLbPausedFromResponse(resp.status, errData, true);
       }
     } catch (err) {
       this.requestsThisSecond++;

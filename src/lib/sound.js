@@ -95,25 +95,24 @@ export function initSoundSystem() {
 
   const handleFirstGesture = () => {
     if (!soundEnabled || audioUnlocked) return;
-    safeUnlock().then((ok) => {
-      if (ok) audioUnlocked = true;
-    });
+    // Defer synchronous Web Audio AudioContext creation off the pointerdown event handler
+    setTimeout(() => {
+      if (!soundEnabled || audioUnlocked) return;
+      safeUnlock().then((ok) => {
+        if (ok) audioUnlocked = true;
+      });
+    }, 0);
   };
 
   // Fallback click cue for any standard <button> that does not carry an explicit data-cuelume-* attribute
   const handleUnmarkedButtonClick = (e) => {
-    if (!soundEnabled) return;
+    if (!soundEnabled || !audioUnlocked) return;
     const target = e.target;
     if (!(target instanceof Element)) return;
     const button = target.closest("button");
     if (!button || button.disabled) return;
     if (button.closest(MARKED_SELECTOR)) return;
 
-    if (!audioUnlocked) {
-      safeUnlock().then((ok) => {
-        if (ok) audioUnlocked = true;
-      });
-    }
     safePlay("tap", { emphasis: "strong", volume: 1 });
   };
 

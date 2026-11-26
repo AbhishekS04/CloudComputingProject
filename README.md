@@ -95,7 +95,7 @@ npm run preview
 LoadFlow seamlessly connects to real Microsoft Azure Virtual Machines running in Central India.
 
 For full architecture details, stress testing commands, and failover scenarios, see:
-👉 **[AZURE_CLUSTER_DEVELOPER_GUIDE.md](AZURE_CLUSTER_DEVELOPER_GUIDE.md)**
+👉 **[docs/azure-cluster-guide.md](docs/azure-cluster-guide.md)**
 
 ### Quick Start:
 ```bash

@@ -35,7 +35,16 @@ export function CustomScrollbar() {
     const ratio = Math.min(1, Math.max(0, scrollTop / maxScroll));
     const thumbTop = ratio * Math.max(0, trackHeight - thumbHeight);
 
-    setMetrics({ scrollable: true, thumbHeight, thumbTop });
+    setMetrics((prev) => {
+      if (
+        prev.scrollable &&
+        Math.abs(prev.thumbHeight - thumbHeight) < 0.5 &&
+        Math.abs(prev.thumbTop - thumbTop) < 0.5
+      ) {
+        return prev;
+      }
+      return { scrollable: true, thumbHeight, thumbTop };
+    });
   }, []);
 
   useEffect(() => {

@@ -127,9 +127,12 @@ export default function StudioRightPanel() {
   }, []);
 
   useEffect(() => {
-    if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
+    const el = logContainerRef.current;
+    if (!el) return undefined;
+    const rafId = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [dispatchLogs]);
 
   const appendLog = (entry) => {
@@ -293,6 +296,7 @@ export default function StudioRightPanel() {
     startTask('stream', (signal) =>
       runContinuousStream({
         url: gatewayUrlState,
+        count: parsedCount,
         rate: parsedRate,
         delay: parsedDelay,
         signal,
@@ -652,7 +656,7 @@ export default function StudioRightPanel() {
                   ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500'
                   : 'bg-white dark:bg-[#2C2C2E] hover:bg-neutral-50 dark:hover:bg-[#343436] text-neutral-800 dark:text-neutral-100 border-black/[0.08] dark:border-white/[0.1]'
               }`}
-              title={`Stream continuous HTTP requests @ ${parsedRate}/s`}
+              title={`Stream ${parsedCount} HTTP requests @ ${parsedRate}/s`}
             >
               {activeTask === 'stream' ? <Stop size={13} weight="Filled" /> : <Play size={13} />}
               <span>{activeTask === 'stream' ? 'Stop' : `Stream ${parsedRate}/s`}</span>

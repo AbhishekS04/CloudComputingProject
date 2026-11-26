@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
+﻿import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { useSimulationStore } from '../../store/simulationStore';
 import { playDotIn, playDotOut } from '../../lib/sound';
 
@@ -1270,10 +1270,563 @@ function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
   return { group: g, bgRect, fillRect, metricText, gearPath, trackW, toggleBg, toggleText };
 }
 
+const VISUALIZER_3D_STYLES = `
+        .lb-iso-visualizer * {
+          box-sizing: border-box;
+          user-select: none;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+
+        .lb-iso-visualizer {
+          position: relative;
+          width: 100%;
+          min-height: 440px;
+          height: 470px;
+          overflow: hidden;
+          background: radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 70%, #ebe2d0 100%);
+          font-family: 'JetBrains Mono', monospace;
+          color: #23211e;
+        }
+
+        @media (min-width: 640px) {
+          .lb-iso-visualizer {
+            height: 580px;
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .lb-iso-visualizer {
+            height: 690px;
+          }
+        }
+
+        .lb-iso-visualizer .paper-grain {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 2;
+          opacity: 0.25;
+          background-image: radial-gradient(rgba(115, 100, 78, 0.15) 0.75px, transparent 0.75px);
+          background-size: 14px 14px;
+        }
+
+        .lb-iso-visualizer .stage-container {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          cursor: grab;
+          touch-action: none;
+          z-index: 5;
+        }
+
+        .lb-iso-visualizer .stage-container:active {
+          cursor: grabbing;
+        }
+
+        .lb-iso-visualizer .scene-svg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          display: block;
+          overflow: visible;
+        }
+
+        .lb-iso-visualizer .hud-top-bar {
+          position: absolute;
+          top: 14px;
+          left: 16px;
+          right: 16px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          pointer-events: none;
+          z-index: 30;
+          flex-wrap: wrap;
+        }
+
+        .lb-iso-visualizer .hud-metrics-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          pointer-events: auto;
+        }
+
+        .lb-iso-visualizer .metric-card {
+          background: rgba(253, 251, 247, 0.96);
+          border: 1.5px solid #c8c0af;
+          border-radius: 10px;
+          padding: 6px 13px;
+          min-width: 112px;
+          box-shadow: 0 2px 5px rgba(35, 33, 30, 0.05);
+        }
+
+        .lb-iso-visualizer .metric-card__header {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 9.5px;
+          font-weight: 700;
+          color: #7a7367;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          margin-bottom: 1px;
+        }
+
+        .lb-iso-visualizer .metric-card__value {
+          font-size: 15.5px;
+          font-weight: 800;
+          color: #23211e;
+          letter-spacing: -0.02em;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .lb-iso-visualizer .metric-card__value--green {
+          color: #217238;
+        }
+
+        .lb-iso-visualizer .hud-actions-row {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          pointer-events: auto;
+          flex-wrap: wrap;
+        }
+
+        .lb-iso-visualizer .neo-btn {
+          background: #fdfbf7;
+          color: #23211e;
+          border: 2px solid #23211e;
+          border-radius: 10px;
+          padding: 6px 11px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11.5px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          cursor: pointer;
+          box-shadow: 0 2.5px 0 #23211e, 0 4px 8px rgba(35, 33, 30, 0.08);
+          transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.12s ease;
+        }
+
+        .lb-iso-visualizer .neo-btn:hover {
+          background: #fff7e4;
+          transform: translateY(-1px);
+          box-shadow: 0 3.5px 0 #23211e, 0 6px 12px rgba(35, 33, 30, 0.12);
+        }
+
+        .lb-iso-visualizer .neo-btn:active {
+          transform: translateY(1.5px);
+          box-shadow: 0 1px 0 #23211e;
+        }
+
+        .lb-iso-visualizer .neo-btn--active {
+          background: #f3ce75;
+        }
+
+        .lb-iso-visualizer .neo-btn--accent {
+          background: #fde5d9;
+        }
+
+        .lb-iso-visualizer .neo-btn--accent:hover {
+          background: #fbd5c2;
+        }
+
+        .lb-iso-visualizer .stepper-group {
+          display: inline-flex;
+          align-items: center;
+          background: #fdfbf7;
+          border: 2px solid #23211e;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 2.5px 0 #23211e;
+        }
+
+        .lb-iso-visualizer .stepper-label {
+          padding: 5px 9px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #23211e;
+          background: #f4eee1;
+          border-right: 1.5px solid #23211e;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .lb-iso-visualizer .stepper-btn {
+          padding: 5px 9px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12.5px;
+          font-weight: 800;
+          color: #23211e;
+          background: #fdfbf7;
+          border: none;
+          border-right: 1.5px solid #23211e;
+          cursor: pointer;
+          transition: background-color 0.12s ease;
+        }
+
+        .lb-iso-visualizer .stepper-btn:last-child {
+          border-right: none;
+        }
+
+        .lb-iso-visualizer .stepper-btn:hover:not(:disabled) {
+          background: #f3ce75;
+        }
+
+        .lb-iso-visualizer .stepper-btn:disabled {
+          opacity: 0.38;
+          cursor: not-allowed;
+        }
+
+        .lb-iso-visualizer .rps-group {
+          display: inline-flex;
+          background: #efe9dc;
+          border: 2px solid #23211e;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 2.5px 0 #23211e;
+        }
+
+        .lb-iso-visualizer .rps-btn {
+          padding: 5.5px 9px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 700;
+          color: #4d473e;
+          background: transparent;
+          border: none;
+          border-right: 1.5px solid #23211e;
+          cursor: pointer;
+          transition: background-color 0.12s ease, color 0.12s ease;
+        }
+
+        .lb-iso-visualizer .rps-btn:last-child {
+          border-right: none;
+        }
+
+        .lb-iso-visualizer .rps-btn:hover {
+          background: #f9f3e3;
+          color: #23211e;
+        }
+
+        .lb-iso-visualizer .rps-btn.active {
+          background: #f3ce75;
+          color: #23211e;
+          font-weight: 800;
+        }
+
+        .lb-iso-visualizer .hud-bottom-legend {
+          position: absolute;
+          left: 18px;
+          bottom: 14px;
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #665f54;
+          z-index: 25;
+          pointer-events: none;
+        }
+
+        .lb-iso-visualizer .legend-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .lb-iso-visualizer .legend-dot {
+          width: 11px;
+          height: 11px;
+          border-radius: 50%;
+          border: 2px solid #23211e;
+          display: inline-block;
+        }
+
+        .lb-iso-visualizer .legend-dot--req {
+          background: #f08c65;
+        }
+
+        .lb-iso-visualizer .legend-dot--res {
+          background: #78c67a;
+        }
+
+        .lb-iso-visualizer .legend-dot--hand {
+          background: #f6f1e6;
+          border-color: #4f9d52;
+        }
+
+        .lb-iso-visualizer .hud-zoom-controls {
+          position: absolute;
+          right: 18px;
+          bottom: 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          z-index: 25;
+          pointer-events: auto;
+        }
+
+        .lb-iso-visualizer .zoom-pill {
+          display: inline-flex;
+          align-items: center;
+          background: #fdfbf7;
+          border: 2px solid #23211e;
+          border-radius: 10px;
+          box-shadow: 0 2.5px 0 #23211e;
+          overflow: hidden;
+        }
+
+        .lb-iso-visualizer .zoom-btn {
+          padding: 5px 10px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          font-weight: 800;
+          color: #23211e;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: background-color 0.12s ease;
+        }
+
+        .lb-iso-visualizer .zoom-btn:hover:not(:disabled) {
+          background: #f5ecd7;
+        }
+
+        .lb-iso-visualizer .zoom-btn:disabled {
+          opacity: 0.32;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 639px) {
+          .lb-iso-visualizer .hud-top-bar {
+            top: 8px;
+            left: 8px;
+            right: 8px;
+          }
+          .lb-iso-visualizer .hud-metrics-row {
+            gap: 5px;
+          }
+          .lb-iso-visualizer .metric-card {
+            padding: 4px 8px;
+            min-width: 82px;
+            border-radius: 8px;
+          }
+          .lb-iso-visualizer .metric-card__header {
+            font-size: 8px;
+          }
+          .lb-iso-visualizer .metric-card__value {
+            font-size: 12px;
+          }
+          .lb-iso-visualizer .hud-bottom-legend {
+            left: 10px;
+            bottom: 10px;
+            gap: 10px;
+            font-size: 9.5px;
+          }
+          .lb-iso-visualizer .hud-zoom-controls {
+            right: 10px;
+            bottom: 10px;
+          }
+        }
+
+        .lb-iso-visualizer .zoom-readout {
+          padding: 5px 9px;
+          font-size: 11px;
+          font-weight: 700;
+          border-left: 1.5px solid #23211e;
+          border-right: 1.5px solid #23211e;
+          min-width: 54px;
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+          cursor: pointer;
+        }
+
+        .lb-iso-visualizer .iso-interactive-node {
+          cursor: pointer;
+        }
+
+        /* Dark Mode Colorful Theme Overrides */
+        .lb-iso-visualizer.lb-theme-dark {
+          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .paper-grain {
+          opacity: 0.42;
+          background-image: radial-gradient(rgba(196, 181, 253, 0.11) 0.75px, transparent 0.75px);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card {
+          background: rgba(34, 30, 44, 0.96);
+          border-color: #463f57;
+          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
+          color: #a99fc2;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-dns {
+          color: #ffd166;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-connect {
+          color: #7cc0ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-server {
+          color: #c4b5fd;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark #metric-rps {
+          color: #ff9472;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value--green {
+          color: #4ade80;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn {
+          background: #262230;
+          color: #f6f2ff;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
+          background: #332d40;
+          border-color: #a78bfa;
+          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:active {
+          box-shadow: 0 1px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--active {
+          background: #fbbf24;
+          color: #141218;
+          border-color: #fde68a;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--active:hover {
+          background: #fcd34d;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent {
+          background: #472522;
+          color: #ffbaa8;
+          border-color: #e06c58;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent:hover {
+          background: #5c2e2a;
+          color: #ffd6cc;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-group {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-label {
+          color: #f6f2ff;
+          background: #1d1a26;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
+          color: #f6f2ff;
+          background: #262230;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
+          background: #a78bfa;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-group {
+          background: #1d1a26;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn {
+          color: #b4a9cc;
+          border-right-color: #766b8c;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
+          background: #2e293b;
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
+          background: #fbbf24;
+          color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .hud-bottom-legend {
+          color: #b4a9cc;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot {
+          border-color: #141218;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--req {
+          background: #ff7b54;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--res {
+          background: #4ade80;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .legend-dot--hand {
+          background: #1e1b24;
+          border-color: #38bdf8;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-pill {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-btn {
+          color: #f6f2ff;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-btn:hover {
+          background: #332d40;
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .zoom-readout {
+          color: #f6f2ff;
+          border-left-color: #766b8c;
+          border-right-color: #766b8c;
+        }
+`;
+
 // ============================================================================
 // PLAIN REACT 18 COMPONENT
 // ============================================================================
-export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
+export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
   const isControlledTheme = theme === 'light' || theme === 'dark';
   const [internalTheme, setInternalTheme] = useState(() => {
     if (theme === 'dark' || theme === 'light') return theme;
@@ -1356,6 +1909,55 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let currentAlgoIdx = 0;
     let targetRPS = 12;
     let isPaused = false;
+    const lastHud = { reqs: '', disp: '', srv: '', rps: '', rtt: '', rttOk: null };
+    const syncHudMetrics = (st) => {
+      const inLive = st.clusterMode === 'live';
+      const online = inLive ? Boolean(st.lbOnline) : true;
+      const healthyCnt = (st.servers || []).filter((s) => s.status === 'healthy').length;
+      const totalReqs = st.metrics?.totalRequests ?? 0;
+      const failedReqs = st.metrics?.failedRequests ?? 0;
+      const activeConns = st.metrics?.activeConnectionsTotal ?? 0;
+      const rpsVal = (st.isRunning && online) ? (st.metrics?.currentRps ?? (inLive ? 0 : st.targetRps)) : 0;
+      const avgRtt = Math.round(st.metrics?.avgLatency || 0);
+      const srvExec = Math.round(st.metrics?.serverExec ?? (inLive ? 4 : 42));
+      const lbDisp = Math.round(st.metrics?.lbDispatch ?? (inLive ? 2 : 24));
+
+      const reqsStr = failedReqs > 0
+        ? `${totalReqs.toLocaleString()} (${failedReqs} err)`
+        : `${totalReqs.toLocaleString()} reqs`;
+      const dispStr = online ? `${lbDisp} ms · ${activeConns}c` : 'OFFLINE';
+      const srvStr = !online ? 'PAUSED' : (healthyCnt > 0 ? `${srvExec} ms` : 'ERR 503');
+      const rpsStr = `${rpsVal} req/s`;
+      const rttStr = !online ? 'LB OFFLINE' : (healthyCnt > 0 ? `${avgRtt} ms` : 'NO NODES');
+      const rttOk = online && healthyCnt > 0;
+
+      if (metricTotalReqsRef.current && lastHud.reqs !== reqsStr) {
+        lastHud.reqs = reqsStr;
+        metricTotalReqsRef.current.textContent = reqsStr;
+      }
+      if (metricDispatchRef.current && lastHud.disp !== dispStr) {
+        lastHud.disp = dispStr;
+        metricDispatchRef.current.textContent = dispStr;
+      }
+      if (metricServerExecRef.current && lastHud.srv !== srvStr) {
+        lastHud.srv = srvStr;
+        metricServerExecRef.current.textContent = srvStr;
+      }
+      if (metricRpsRef.current && lastHud.rps !== rpsStr) {
+        lastHud.rps = rpsStr;
+        metricRpsRef.current.textContent = rpsStr;
+      }
+      if (metricTotalRttRef.current) {
+        if (lastHud.rtt !== rttStr) {
+          lastHud.rtt = rttStr;
+          metricTotalRttRef.current.textContent = rttStr;
+        }
+        if (lastHud.rttOk !== rttOk) {
+          lastHud.rttOk = rttOk;
+          metricTotalRttRef.current.classList.toggle('metric-card__value--green', rttOk);
+        }
+      }
+    };
     if (IS_LIVE_BACKEND) {
       const liveSrvs = useSimulationStore.getState().servers;
       if (liveSrvs && liveSrvs.length > 0) {
@@ -1381,37 +1983,6 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       isPaused = !useSimulationStore.getState().isRunning;
       targetRPS = useSimulationStore.getState().targetRps;
       currentAlgoIdx = useSimulationStore.getState().algorithm === 'LEAST_CONNECTIONS' ? 1 : 0;
-      const syncHudMetrics = (st) => {
-        const inLive = st.clusterMode === 'live';
-        const online = inLive ? Boolean(st.lbOnline) : true;
-        const healthyCnt = (st.servers || []).filter((s) => s.status === 'healthy').length;
-        const totalReqs = st.metrics?.totalRequests ?? 0;
-        const failedReqs = st.metrics?.failedRequests ?? 0;
-        const activeConns = st.metrics?.activeConnectionsTotal ?? 0;
-        const rpsVal = (st.isRunning && online) ? (st.metrics?.currentRps ?? (inLive ? 0 : st.targetRps)) : 0;
-        const avgRtt = Math.round(st.metrics?.avgLatency || 0);
-        const srvExec = Math.round(st.metrics?.serverExec ?? (inLive ? 4 : 42));
-        const lbDisp = Math.round(st.metrics?.lbDispatch ?? (inLive ? 2 : 24));
-
-        if (metricTotalReqsRef.current) {
-          metricTotalReqsRef.current.textContent = failedReqs > 0
-            ? `${totalReqs.toLocaleString()} (${failedReqs} err)`
-            : `${totalReqs.toLocaleString()} reqs`;
-        }
-        if (metricDispatchRef.current) {
-          metricDispatchRef.current.textContent = online ? `${lbDisp} ms · ${activeConns}c` : 'OFFLINE';
-        }
-        if (metricServerExecRef.current) {
-          metricServerExecRef.current.textContent = !online ? 'PAUSED' : (healthyCnt > 0 ? `${srvExec} ms` : 'ERR 503');
-        }
-        if (metricRpsRef.current) {
-          metricRpsRef.current.textContent = `${rpsVal} req/s`;
-        }
-        if (metricTotalRttRef.current) {
-          metricTotalRttRef.current.textContent = !online ? 'LB OFFLINE' : (healthyCnt > 0 ? `${avgRtt} ms` : 'NO NODES');
-          metricTotalRttRef.current.classList.toggle('metric-card__value--green', online && healthyCnt > 0);
-        }
-      };
       syncHudMetrics(useSimulationStore.getState());
     }
     let rrCounter = 0;
@@ -1429,6 +2000,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     const SVG_PACKET_POOL_SIZE = 280;
     const svgPacketNodes = [];
+    const svgPacketMeta = [];
 
     const SVG_RIPPLE_POOL_SIZE = 48;
     const svgRippleNodes = [];
@@ -1443,6 +2015,8 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     const MAX_PACKETS = 2048;
     const pktActive = new Uint8Array(MAX_PACKETS);
+    const activeSlots = [];
+    const pktSlotPos = new Int16Array(MAX_PACKETS).fill(-1);
     const pktRoute = new Uint16Array(MAX_PACKETS);
     const pktType = new Uint8Array(MAX_PACKETS); // 0 = coral request, 1 = green response, 2 = handshake, 3 = crimson error
     const pktDir = new Int8Array(MAX_PACKETS); // +1 forward, -1 reverse
@@ -1452,6 +2026,25 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     const pktTargetSrv = new Int16Array(MAX_PACKETS);
     const pktFlags = new Uint8Array(MAX_PACKETS); // bit 1: directNoLb, bit 2: isErr
     const pktLatencyMs = new Float32Array(MAX_PACKETS);
+
+    function activateSlot(slot) {
+      if (pktActive[slot]) return;
+      pktActive[slot] = 1;
+      pktSlotPos[slot] = activeSlots.length;
+      activeSlots.push(slot);
+    }
+
+    function deactivateSlot(slot) {
+      if (!pktActive[slot]) return;
+      pktActive[slot] = 0;
+      const pos = pktSlotPos[slot];
+      const last = activeSlots.pop();
+      if (last !== undefined && last !== slot && pos >= 0) {
+        activeSlots[pos] = last;
+        pktSlotPos[last] = pos;
+      }
+      pktSlotPos[slot] = -1;
+    }
 
     const livePacketQueue = [];
     const clientCooldowns = new Float32Array(8);
@@ -1720,8 +2313,8 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     }
 
     function canSpawnOnRoute(routeIdx, dir) {
-      for (let i = 0; i < MAX_PACKETS; i++) {
-        if (pktActive[i] === 0) continue;
+      for (let k = 0; k < activeSlots.length; k++) {
+        const i = activeSlots[k];
         if (pktRoute[i] === routeIdx && pktDir[i] === dir) {
           if (dir === 1 && pktU[i] < MIN_SAME_LANE_HEADWAY) return false;
           if (dir === -1 && pktU[i] > 1.0 - MIN_SAME_LANE_HEADWAY) return false;
@@ -1756,7 +2349,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       }
       if (slot === -1) return false;
 
-      pktActive[slot] = 1;
+      activateSlot(slot);
       pktRoute[slot] = routeIdx;
       pktType[slot] = type;
       pktDir[slot] = dir;
@@ -1797,8 +2390,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       let maxAvoid = 0;
       const PASS_WINDOW = 0.16;
 
-      for (let j = 0; j < MAX_PACKETS; j++) {
-        if (pktActive[j] === 0 || j === slotIdx) continue;
+      for (let k = 0; k < activeSlots.length; k++) {
+        const j = activeSlots[k];
+        if (j === slotIdx) continue;
         if (pktRoute[j] === routeIdx && pktDir[j] !== dir) {
           const dist = Math.abs(u - pktU[j]);
           if (dist < PASS_WINDOW) {
@@ -1837,9 +2431,14 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     function clearAllPackets() {
       pktActive.fill(0);
+      pktSlotPos.fill(-1);
+      activeSlots.length = 0;
       livePacketQueue.length = 0;
       for (let i = 0; i < svgPacketNodes.length; i++) {
-        svgPacketNodes[i].setAttribute('display', 'none');
+        if (svgPacketMeta[i]?.disp) {
+          svgPacketNodes[i].setAttribute('display', 'none');
+          svgPacketMeta[i].disp = false;
+        }
       }
     }
 
@@ -1847,6 +2446,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       STATE.servers.forEach((srv) => {
         const refs = serverNodeRefs.get(srv.id);
         if (!refs) return;
+        const pillKey = srv.healthy
+          ? `1:${srv.cpu}:${srv.totalRequests || 0}`
+          : `0:${srv.status || 'offline'}`;
+        if (srv._lastPillKey === pillKey) return;
+        srv._lastPillKey = pillKey;
         const { bgRect, fillRect, metricText, gearPath, trackW, toggleBg, toggleText } = refs.pill;
 
         if (!srv.healthy) {
@@ -1968,9 +2572,10 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         srv.cpu = 0;
         srv.connections = 0;
         const deadRouteIdx = serverRouteIndices[srvIdx];
-        for (let i = 0; i < MAX_PACKETS; i++) {
-          if (pktActive[i] && pktRoute[i] === deadRouteIdx) {
-            pktActive[i] = 0;
+        for (let k = activeSlots.length - 1; k >= 0; k--) {
+          const i = activeSlots[k];
+          if (pktRoute[i] === deadRouteIdx) {
+            deactivateSlot(i);
           }
         }
       } else {
@@ -2099,6 +2704,10 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       clientNodeRefs.clear();
       serverNodeRefs.clear();
       svgPacketNodes.length = 0;
+      svgPacketMeta.length = 0;
+      STATE.servers.forEach((s) => {
+        s._lastPillKey = '';
+      });
       svgRippleNodes.length = 0;
       activeRipples.length = 0;
       svgToastNodes.length = 0;
@@ -2340,6 +2949,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         });
         packetsG.appendChild(el);
         svgPacketNodes.push(el);
+        svgPacketMeta.push({ disp: false, type: 0, r: '6.4' });
       }
 
       const clientsSorted = STATE.clients.map((c, idx) => ({ client: c, idx, depth: c.u + c.v }));
@@ -2725,6 +3335,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let lastTime = performance.now();
     let spawnAccumulator = 0;
     let metricTimer = 0;
+    let gearAngle = 0;
     let clientCursor = 0;
     let rafId = 0;
 
@@ -2800,8 +3411,8 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           }
         }
 
-        for (let i = 0; i < MAX_PACKETS; i++) {
-          if (pktActive[i] === 0) continue;
+        for (let k = activeSlots.length - 1; k >= 0; k--) {
+          const i = activeSlots[k];
 
           const dir = pktDir[i];
           const uNext = pktU[i] + dir * pktSpeed[i] * dt;
@@ -2816,7 +3427,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
             const latMs = pktLatencyMs[i];
             const isDirect = (flags & 1) !== 0;
             const isErr = (flags & 2) !== 0 || pktType[i] === 3;
-            pktActive[i] = 0;
+            deactivateSlot(i);
 
             if (dir === 1 && rIdx < nClients) {
               if (isDirect && tSrv >= 0 && serverRouteIndices[tSrv] !== undefined) {
@@ -2906,9 +3517,19 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         }
       }
 
+      if (activeSlots.length > 0 || activeRipples.length > 0) {
+        gearAngle = (gearAngle + dt * 52) % 360;
+        const rotStr = `rotate(${gearAngle.toFixed(1)})`;
+        STATE.servers.forEach((srv) => {
+          if (!srv.healthy) return;
+          const refs = serverNodeRefs.get(srv.id);
+          refs?.pill?.gearPath?.setAttribute('transform', rotStr);
+        });
+      }
+
       let renderedCount = 0;
-      for (let i = 0; i < MAX_PACKETS && renderedCount < SVG_PACKET_POOL_SIZE; i++) {
-        if (pktActive[i] === 0) continue;
+      for (let k = 0; k < activeSlots.length && renderedCount < SVG_PACKET_POOL_SIZE; k++) {
+        const i = activeSlots[k];
 
         const rIdx = pktRoute[i];
         const route = ROUTE_TABLES[rIdx];
@@ -2931,30 +3552,44 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           scale = 0.25 + 0.75 * (1 - Math.pow(1 - t, 2));
         }
 
-        const circleEl = svgPacketNodes[renderedCount++];
-        circleEl.setAttribute('cx', px.toFixed(2));
-        circleEl.setAttribute('cy', py.toFixed(2));
-        circleEl.setAttribute('r', (6.4 * scale).toFixed(2));
+        const idxPool = renderedCount++;
+        const circleEl = svgPacketNodes[idxPool];
+        const meta = svgPacketMeta[idxPool];
+        circleEl.setAttribute('cx', px.toFixed(1));
+        circleEl.setAttribute('cy', py.toFixed(1));
+
+        const rStr = scale === 1.0 ? '6.4' : (6.4 * scale).toFixed(1);
+        if (meta.r !== rStr) {
+          meta.r = rStr;
+          circleEl.setAttribute('r', rStr);
+        }
 
         const pType = pktType[i];
-        if (pType === 0) {
-          circleEl.setAttribute('fill', palette.pktReqFill);
-          circleEl.setAttribute('stroke', palette.pktReqStroke);
-        } else if (pType === 1) {
-          circleEl.setAttribute('fill', palette.pktResFill);
-          circleEl.setAttribute('stroke', palette.pktResStroke);
-        } else if (pType === 3) {
-          circleEl.setAttribute('fill', '#ef4444');
-          circleEl.setAttribute('stroke', '#7f1d1d');
-        } else {
-          circleEl.setAttribute('fill', palette.pktHandFill);
-          circleEl.setAttribute('stroke', palette.pktHandStroke);
+        if (meta.type !== pType) {
+          meta.type = pType;
+          if (pType === 0) {
+            circleEl.setAttribute('fill', palette.pktReqFill);
+            circleEl.setAttribute('stroke', palette.pktReqStroke);
+          } else if (pType === 1) {
+            circleEl.setAttribute('fill', palette.pktResFill);
+            circleEl.setAttribute('stroke', palette.pktResStroke);
+          } else if (pType === 3) {
+            circleEl.setAttribute('fill', '#ef4444');
+            circleEl.setAttribute('stroke', '#7f1d1d');
+          } else {
+            circleEl.setAttribute('fill', palette.pktHandFill);
+            circleEl.setAttribute('stroke', palette.pktHandStroke);
+          }
         }
-        circleEl.setAttribute('display', 'inline');
+        if (!meta.disp) {
+          meta.disp = true;
+          circleEl.setAttribute('display', 'inline');
+        }
       }
 
       for (let i = renderedCount; i < SVG_PACKET_POOL_SIZE; i++) {
-        if (svgPacketNodes[i].getAttribute('display') !== 'none') {
+        if (svgPacketMeta[i].disp) {
+          svgPacketMeta[i].disp = false;
           svgPacketNodes[i].setAttribute('display', 'none');
         }
       }
@@ -2967,33 +3602,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       isPaused = !st.isRunning;
       targetRPS = st.targetRps;
 
-      const healthyCnt = (st.servers || []).filter((s) => s.status === 'healthy').length;
-      const totalReqs = st.metrics?.totalRequests ?? 0;
-      const failedReqs = st.metrics?.failedRequests ?? 0;
-      const activeConns = st.metrics?.activeConnectionsTotal ?? 0;
-      const liveRps = (st.isRunning && nextLbOnline) ? (st.metrics?.currentRps ?? (inLiveMode ? 0 : st.targetRps)) : 0;
-      const avgRtt = Math.round(st.metrics?.avgLatency || 0);
-      const srvExec = Math.round(st.metrics?.serverExec ?? (inLiveMode ? 4 : 42));
-      const lbDisp = Math.round(st.metrics?.lbDispatch ?? (inLiveMode ? 2 : 24));
-
-      if (metricTotalReqsRef.current) {
-        metricTotalReqsRef.current.textContent = failedReqs > 0
-          ? `${totalReqs.toLocaleString()} (${failedReqs} err)`
-          : `${totalReqs.toLocaleString()} reqs`;
-      }
-      if (metricDispatchRef.current) {
-        metricDispatchRef.current.textContent = nextLbOnline ? `${lbDisp} ms · ${activeConns}c` : 'OFFLINE';
-      }
-      if (metricServerExecRef.current) {
-        metricServerExecRef.current.textContent = !nextLbOnline ? 'PAUSED' : (healthyCnt > 0 ? `${srvExec} ms` : 'ERR 503');
-      }
-      if (metricRpsRef.current) {
-        metricRpsRef.current.textContent = `${liveRps} req/s`;
-      }
-      if (metricTotalRttRef.current) {
-        metricTotalRttRef.current.textContent = !nextLbOnline ? 'LB OFFLINE' : (healthyCnt > 0 ? `${avgRtt} ms` : 'NO NODES');
-        metricTotalRttRef.current.classList.toggle('metric-card__value--green', nextLbOnline && healthyCnt > 0);
-      }
+      syncHudMetrics(st);
 
       const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : st.algorithm === 'IP_HASH' ? 'IP HASH' : 'ROUND ROBIN';
       if (ALGORITHMS[currentAlgoIdx] !== desiredAlgo) {
@@ -3085,576 +3694,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
   return (
     <>
-      <style>{`
-        .lb-iso-visualizer * {
-          box-sizing: border-box;
-          user-select: none;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-        }
-
-        .lb-iso-visualizer {
-          position: relative;
-          width: 100%;
-          min-height: 440px;
-          height: 470px;
-          overflow: hidden;
-          background: radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 70%, #ebe2d0 100%);
-          font-family: 'JetBrains Mono', monospace;
-          color: #23211e;
-        }
-
-        @media (min-width: 640px) {
-          .lb-iso-visualizer {
-            height: 580px;
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .lb-iso-visualizer {
-            height: 690px;
-          }
-        }
-
-        .lb-iso-visualizer .paper-grain {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          z-index: 2;
-          opacity: 0.25;
-          background-image: radial-gradient(rgba(115, 100, 78, 0.15) 0.75px, transparent 0.75px);
-          background-size: 14px 14px;
-        }
-
-        .lb-iso-visualizer .stage-container {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          cursor: grab;
-          touch-action: none;
-          z-index: 5;
-        }
-
-        .lb-iso-visualizer .stage-container:active {
-          cursor: grabbing;
-        }
-
-        .lb-iso-visualizer .scene-svg {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          display: block;
-          overflow: visible;
-          shape-rendering: geometricPrecision;
-          text-rendering: geometricPrecision;
-        }
-
-        .lb-iso-visualizer .hud-top-bar {
-          position: absolute;
-          top: 14px;
-          left: 16px;
-          right: 16px;
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 10px;
-          pointer-events: none;
-          z-index: 30;
-          flex-wrap: wrap;
-        }
-
-        .lb-iso-visualizer .hud-metrics-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-          pointer-events: auto;
-        }
-
-        .lb-iso-visualizer .metric-card {
-          background: rgba(253, 251, 247, 0.95);
-          border: 1.5px solid #c8c0af;
-          border-radius: 10px;
-          padding: 6px 13px;
-          min-width: 112px;
-          box-shadow: 0 2px 5px rgba(35, 33, 30, 0.05);
-          backdrop-filter: blur(6px);
-        }
-
-        .lb-iso-visualizer .metric-card__header {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 9.5px;
-          font-weight: 700;
-          color: #7a7367;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          margin-bottom: 1px;
-        }
-
-        .lb-iso-visualizer .metric-card__value {
-          font-size: 15.5px;
-          font-weight: 800;
-          color: #23211e;
-          letter-spacing: -0.02em;
-          font-variant-numeric: tabular-nums;
-        }
-
-        .lb-iso-visualizer .metric-card__value--green {
-          color: #217238;
-        }
-
-        .lb-iso-visualizer .hud-actions-row {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          pointer-events: auto;
-          flex-wrap: wrap;
-        }
-
-        .lb-iso-visualizer .neo-btn {
-          background: #fdfbf7;
-          color: #23211e;
-          border: 2px solid #23211e;
-          border-radius: 10px;
-          padding: 6px 11px;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11.5px;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          cursor: pointer;
-          box-shadow: 0 2.5px 0 #23211e, 0 4px 8px rgba(35, 33, 30, 0.08);
-          transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.12s ease;
-        }
-
-        .lb-iso-visualizer .neo-btn:hover {
-          background: #fff7e4;
-          transform: translateY(-1px);
-          box-shadow: 0 3.5px 0 #23211e, 0 6px 12px rgba(35, 33, 30, 0.12);
-        }
-
-        .lb-iso-visualizer .neo-btn:active {
-          transform: translateY(1.5px);
-          box-shadow: 0 1px 0 #23211e;
-        }
-
-        .lb-iso-visualizer .neo-btn--active {
-          background: #f3ce75;
-        }
-
-        .lb-iso-visualizer .neo-btn--accent {
-          background: #fde5d9;
-        }
-
-        .lb-iso-visualizer .neo-btn--accent:hover {
-          background: #fbd5c2;
-        }
-
-        .lb-iso-visualizer .stepper-group {
-          display: inline-flex;
-          align-items: center;
-          background: #fdfbf7;
-          border: 2px solid #23211e;
-          border-radius: 10px;
-          overflow: hidden;
-          box-shadow: 0 2.5px 0 #23211e;
-        }
-
-        .lb-iso-visualizer .stepper-label {
-          padding: 5px 9px;
-          font-size: 11px;
-          font-weight: 800;
-          color: #23211e;
-          background: #f4eee1;
-          border-right: 1.5px solid #23211e;
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-        }
-
-        .lb-iso-visualizer .stepper-btn {
-          padding: 5px 9px;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 12.5px;
-          font-weight: 800;
-          color: #23211e;
-          background: #fdfbf7;
-          border: none;
-          border-right: 1.5px solid #23211e;
-          cursor: pointer;
-          transition: background-color 0.12s ease;
-        }
-
-        .lb-iso-visualizer .stepper-btn:last-child {
-          border-right: none;
-        }
-
-        .lb-iso-visualizer .stepper-btn:hover:not(:disabled) {
-          background: #f3ce75;
-        }
-
-        .lb-iso-visualizer .stepper-btn:disabled {
-          opacity: 0.38;
-          cursor: not-allowed;
-        }
-
-        .lb-iso-visualizer .rps-group {
-          display: inline-flex;
-          background: #efe9dc;
-          border: 2px solid #23211e;
-          border-radius: 10px;
-          overflow: hidden;
-          box-shadow: 0 2.5px 0 #23211e;
-        }
-
-        .lb-iso-visualizer .rps-btn {
-          padding: 5.5px 9px;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
-          font-weight: 700;
-          color: #4d473e;
-          background: transparent;
-          border: none;
-          border-right: 1.5px solid #23211e;
-          cursor: pointer;
-          transition: background-color 0.12s ease, color 0.12s ease;
-        }
-
-        .lb-iso-visualizer .rps-btn:last-child {
-          border-right: none;
-        }
-
-        .lb-iso-visualizer .rps-btn:hover {
-          background: #f9f3e3;
-          color: #23211e;
-        }
-
-        .lb-iso-visualizer .rps-btn.active {
-          background: #f3ce75;
-          color: #23211e;
-          font-weight: 800;
-        }
-
-        .lb-iso-visualizer .hud-bottom-legend {
-          position: absolute;
-          left: 18px;
-          bottom: 14px;
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #665f54;
-          z-index: 25;
-          pointer-events: none;
-        }
-
-        .lb-iso-visualizer .legend-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .lb-iso-visualizer .legend-dot {
-          width: 11px;
-          height: 11px;
-          border-radius: 50%;
-          border: 2px solid #23211e;
-          display: inline-block;
-        }
-
-        .lb-iso-visualizer .legend-dot--req {
-          background: #f08c65;
-        }
-
-        .lb-iso-visualizer .legend-dot--res {
-          background: #78c67a;
-        }
-
-        .lb-iso-visualizer .legend-dot--hand {
-          background: #f6f1e6;
-          border-color: #4f9d52;
-        }
-
-        .lb-iso-visualizer .hud-zoom-controls {
-          position: absolute;
-          right: 18px;
-          bottom: 14px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          z-index: 25;
-          pointer-events: auto;
-        }
-
-        .lb-iso-visualizer .zoom-pill {
-          display: inline-flex;
-          align-items: center;
-          background: #fdfbf7;
-          border: 2px solid #23211e;
-          border-radius: 10px;
-          box-shadow: 0 2.5px 0 #23211e;
-          overflow: hidden;
-        }
-
-        .lb-iso-visualizer .zoom-btn {
-          padding: 5px 10px;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 12px;
-          font-weight: 800;
-          color: #23211e;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          transition: background-color 0.12s ease;
-        }
-
-        .lb-iso-visualizer .zoom-btn:hover:not(:disabled) {
-          background: #f5ecd7;
-        }
-
-        .lb-iso-visualizer .zoom-btn:disabled {
-          opacity: 0.32;
-          cursor: not-allowed;
-        }
-
-        @media (max-width: 639px) {
-          .lb-iso-visualizer .hud-top-bar {
-            top: 8px;
-            left: 8px;
-            right: 8px;
-          }
-          .lb-iso-visualizer .hud-metrics-row {
-            gap: 5px;
-          }
-          .lb-iso-visualizer .metric-card {
-            padding: 4px 8px;
-            min-width: 82px;
-            border-radius: 8px;
-          }
-          .lb-iso-visualizer .metric-card__header {
-            font-size: 8px;
-          }
-          .lb-iso-visualizer .metric-card__value {
-            font-size: 12px;
-          }
-          .lb-iso-visualizer .hud-bottom-legend {
-            left: 10px;
-            bottom: 10px;
-            gap: 10px;
-            font-size: 9.5px;
-          }
-          .lb-iso-visualizer .hud-zoom-controls {
-            right: 10px;
-            bottom: 10px;
-          }
-        }
-
-        .lb-iso-visualizer .zoom-readout {
-          padding: 5px 9px;
-          font-size: 11px;
-          font-weight: 700;
-          border-left: 1.5px solid #23211e;
-          border-right: 1.5px solid #23211e;
-          min-width: 54px;
-          text-align: center;
-          font-variant-numeric: tabular-nums;
-          cursor: pointer;
-        }
-
-        .lb-iso-visualizer .iso-interactive-node {
-          cursor: pointer;
-        }
-
-        @keyframes svg-gear-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .lb-iso-visualizer .svg-gear-spin {
-          transform-box: fill-box;
-          transform-origin: center;
-          animation: svg-gear-spin 7s linear infinite;
-        }
-
-        .lb-iso-visualizer .svg-gear-paused {
-          animation-play-state: paused;
-        }
-
-        /* Dark Mode Colorful Theme Overrides */
-        .lb-iso-visualizer.lb-theme-dark {
-          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
-          color: #f6f2ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .paper-grain {
-          opacity: 0.42;
-          background-image: radial-gradient(rgba(196, 181, 253, 0.11) 0.75px, transparent 0.75px);
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .metric-card {
-          background: rgba(34, 30, 44, 0.94);
-          border-color: #463f57;
-          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
-          color: #a99fc2;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
-          color: #f6f2ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark #metric-dns {
-          color: #ffd166;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark #metric-connect {
-          color: #7cc0ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark #metric-server {
-          color: #c4b5fd;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark #metric-rps {
-          color: #ff9472;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .metric-card__value--green {
-          color: #4ade80;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn {
-          background: #262230;
-          color: #f6f2ff;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
-          background: #332d40;
-          border-color: #a78bfa;
-          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn:active {
-          box-shadow: 0 1px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--active {
-          background: #fbbf24;
-          color: #141218;
-          border-color: #fde68a;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--active:hover {
-          background: #fcd34d;
-          color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent {
-          background: #472522;
-          color: #ffbaa8;
-          border-color: #e06c58;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent:hover {
-          background: #5c2e2a;
-          color: #ffd6cc;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-group {
-          background: #262230;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-label {
-          color: #f6f2ff;
-          background: #1d1a26;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
-          color: #f6f2ff;
-          background: #262230;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
-          background: #a78bfa;
-          color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-group {
-          background: #1d1a26;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn {
-          color: #b4a9cc;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
-          background: #2e293b;
-          color: #f6f2ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
-          background: #fbbf24;
-          color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .hud-bottom-legend {
-          color: #b4a9cc;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .legend-dot {
-          border-color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .legend-dot--req {
-          background: #ff7b54;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .legend-dot--res {
-          background: #4ade80;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .legend-dot--hand {
-          background: #1e1b24;
-          border-color: #38bdf8;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .zoom-pill {
-          background: #262230;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .zoom-btn {
-          color: #f6f2ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .zoom-btn:hover {
-          background: #332d40;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .zoom-readout {
-          color: #f6f2ff;
-          border-left-color: #766b8c;
-          border-right-color: #766b8c;
-        }
-      `}</style>
+      <style>{VISUALIZER_3D_STYLES}</style>
 
       <div ref={rootRef} className={`lb-iso-visualizer${isDark ? ' lb-theme-dark' : ''}`}>
         <div className="paper-grain" />
@@ -3760,11 +3800,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       </div>
     </>
   );
-}
+});
 
-export default function Visualizer3D({ theme, onThemeChange, onSelectNode, selectedNode } = {}) {
+export default memo(function Visualizer3D({ theme, onThemeChange, onSelectNode, selectedNode } = {}) {
   return <LoadBalancerVisualizer theme={theme} onThemeChange={onThemeChange} />;
-}
+});
 
 
 

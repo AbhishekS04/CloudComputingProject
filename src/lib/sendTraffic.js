@@ -146,6 +146,7 @@ export async function sendOne({
     const elapsedMs = performance.now() - t0;
     const contentType = resp.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await resp.json().catch(() => ({})) : {};
+    simulationEngine.syncRemoteLbPausedFromResponse(resp.status, data, !isDirect);
 
     const serverId = data.selected_server || data.server_id || 'unknown';
     const vmMeta = KNOWN_VMS[serverId] || {
@@ -414,10 +415,11 @@ export async function runStressTest({
 }
 
 /**
- * Continuous rate-based HTTP stream from browser (--rate N).
+ * Rate-based HTTP stream from browser (--rate N), stopping automatically after `count` requests when provided.
  */
 export async function runContinuousStream({
   url = getGatewayUrl(),
+  count = null,
   rate = 5,
   delay = 0,
   signal,
@@ -427,33 +429,54 @@ export async function runContinuousStream({
   const cleanUrl = (url || getGatewayUrl()).replace(/\/+$/, '');
   const rps = Math.max(1, Math.min(50, Number(rate) || 5));
   const intervalMs = 1000 / rps;
+  const hasFiniteCount = count !== null && count !== undefined && Number.isFinite(Number(count)) && Number(count) > 0;
+  const targetCount = hasFiniteCount ? Math.max(1, Math.min(5000, Math.floor(Number(count)))) : null;
+  const maxInFlight = String(cleanUrl).startsWith('/') ? 8 : 32;
 
   onLog?.({
     id: `stream-start-${Date.now()}`,
     level: 'info',
-    text: `[STREAM STARTED] Continuous HTTP stream @ ${rps} req/s -> ${cleanUrl}/api/request`,
+    text: targetCount
+      ? `[STREAM STARTED] Streaming ${targetCount} requests @ ${rps} req/s -> ${cleanUrl}/api/request`
+      : `[STREAM STARTED] Continuous HTTP stream @ ${rps} req/s -> ${cleanUrl}/api/request`,
   });
+  onProgress?.({ completed: 0, total: targetCount, ok: 0, fail: 0 });
 
   let idx = 0;
   let okCount = 0;
   let failCount = 0;
+  const inFlight = new Set();
 
-  while (!signal?.aborted) {
+  while (!signal?.aborted && (targetCount === null || idx < targetCount)) {
+    if (inFlight.size >= maxInFlight) {
+      await Promise.race(inFlight).catch(() => {});
+      if (signal?.aborted) break;
+    }
+
     idx += 1;
     const reqNum = idx;
-    sendOne({
+    const pending = sendOne({
       url: cleanUrl,
       reqIdx: reqNum,
       clientIp: CLIENT_IPS[(reqNum - 1) % CLIENT_IPS.length],
       delay,
       signal,
       onLog,
-    }).then((res) => {
-      if (res.aborted) return;
-      if (res.ok) okCount += 1;
-      else failCount += 1;
-      onProgress?.({ completed: okCount + failCount, total: null, ok: okCount, fail: failCount });
-    });
+    })
+      .then((res) => {
+        if (res.aborted) return;
+        if (res.ok) okCount += 1;
+        else failCount += 1;
+        onProgress?.({ completed: okCount + failCount, total: targetCount, ok: okCount, fail: failCount });
+      })
+      .finally(() => {
+        inFlight.delete(pending);
+      });
+    inFlight.add(pending);
+
+    if (targetCount !== null && idx >= targetCount) {
+      break;
+    }
 
     try {
       await sleep(intervalMs, signal);
@@ -462,11 +485,21 @@ export async function runContinuousStream({
     }
   }
 
+  if (inFlight.size > 0) {
+    await Promise.allSettled(Array.from(inFlight));
+  }
+
+  const finishedCount = okCount + failCount;
+  const label = !signal?.aborted && targetCount !== null ? 'STREAM COMPLETE' : 'STREAM STOPPED';
   onLog?.({
     id: `stream-stop-${Date.now()}`,
-    level: 'info',
-    text: `[STREAM STOPPED] Dispatched ${idx} requests (${okCount} OK, ${failCount} failed).`,
+    level: failCount === 0 && !signal?.aborted && targetCount !== null ? 'success' : 'info',
+    text: targetCount !== null
+      ? `[${label}] Sent ${finishedCount}/${targetCount} requests (${okCount} OK, ${failCount} failed).`
+      : `[${label}] Dispatched ${idx} requests (${okCount} OK, ${failCount} failed).`,
   });
+
+  return { completed: finishedCount, total: targetCount, ok: okCount, fail: failCount };
 }
 
 /**

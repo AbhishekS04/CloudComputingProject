@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { THEMES } from './Visualizer3D';
 import { useSimulationStore } from '../../store/simulationStore';
 import { playDotIn, playDotOut } from '../../lib/sound';
@@ -144,10 +144,89 @@ function sampleRouteWithNormal(route, u) {
   };
 }
 
+const VISUALIZER_2D_STYLES = `
+        @keyframes gearSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .gear-spin {
+          transform-box: fill-box;
+          transform-origin: center;
+          animation: gearSpin 6.5s linear infinite;
+        }
+        .gear-paused {
+          animation-play-state: paused;
+        }
+
+        /* Dark Mode Neo-Brutalist Overrides */
+        .lb-iso-visualizer.lb-theme-dark {
+          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
+          color: #f6f2ff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card {
+          background: rgba(34, 30, 44, 0.94);
+          border-color: #463f57;
+          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
+          color: #a99fc2;
+        }
+        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
+          color: #f6f2ff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .neo-btn {
+          background: #262230;
+          color: #f6f2ff;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
+        }
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
+          background: #332d40;
+          border-color: #a78bfa;
+          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-group {
+          background: #262230;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-label {
+          color: #f6f2ff;
+          background: #1d1a26;
+          border-right-color: #766b8c;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
+          color: #f6f2ff;
+          background: #262230;
+          border-right-color: #766b8c;
+        }
+        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
+          background: #a78bfa;
+          color: #141218;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-group {
+          background: #1d1a26;
+          border-color: #766b8c;
+          box-shadow: 0 2.5px 0 #09080d;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn {
+          color: #c4b5fd;
+          border-right-color: #463f57;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
+          background: #2a2538;
+          color: #ffffff;
+        }
+        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
+          background: #a78bfa;
+          color: #141218;
+        }
+`;
+
 // =========================================================================
 // 3. MAIN REACT APPLICATION COMPONENT
 // =========================================================================
-export default function Visualizer2D({
+const Visualizer2D = memo(function Visualizer2D({
   theme,
   onThemeChange,
   onSelectNode,
@@ -1312,85 +1391,7 @@ export default function Visualizer2D({
       }}
     >
       {/* Inline Keyframes & Crisp Neo-Brutalist Styles */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap');
-        @keyframes gearSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .gear-spin {
-          transform-box: fill-box;
-          transform-origin: center;
-          animation: gearSpin 6.5s linear infinite;
-        }
-        .gear-paused {
-          animation-play-state: paused;
-        }
-
-        /* Dark Mode Neo-Brutalist Overrides */
-        .lb-iso-visualizer.lb-theme-dark {
-          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
-          color: #f6f2ff;
-        }
-        .lb-iso-visualizer.lb-theme-dark .metric-card {
-          background: rgba(34, 30, 44, 0.94);
-          border-color: #463f57;
-          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
-        }
-        .lb-iso-visualizer.lb-theme-dark .metric-card__header {
-          color: #a99fc2;
-        }
-        .lb-iso-visualizer.lb-theme-dark .metric-card__value {
-          color: #f6f2ff;
-        }
-        .lb-iso-visualizer.lb-theme-dark .neo-btn {
-          background: #262230;
-          color: #f6f2ff;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
-        }
-        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
-          background: #332d40;
-          border-color: #a78bfa;
-          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
-        }
-        .lb-iso-visualizer.lb-theme-dark .stepper-group {
-          background: #262230;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-        .lb-iso-visualizer.lb-theme-dark .stepper-label {
-          color: #f6f2ff;
-          background: #1d1a26;
-          border-right-color: #766b8c;
-        }
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
-          color: #f6f2ff;
-          background: #262230;
-          border-right-color: #766b8c;
-        }
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
-          background: #a78bfa;
-          color: #141218;
-        }
-        .lb-iso-visualizer.lb-theme-dark .rps-group {
-          background: #1d1a26;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-        .lb-iso-visualizer.lb-theme-dark .rps-btn {
-          color: #c4b5fd;
-          border-right-color: #463f57;
-        }
-        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
-          background: #2a2538;
-          color: #ffffff;
-        }
-        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
-          background: #a78bfa;
-          color: #141218;
-        }
-      `}</style>
+      <style>{VISUALIZER_2D_STYLES}</style>
 
       {/* Unified Dot-Matrix Paper Grain Overlay */}
       <div
@@ -2257,14 +2258,14 @@ export default function Visualizer2D({
       </div>
     </div>
   );
-}
+});
 
 // =========================================================================
 // 4. REUSABLE TOP TELEMETRY CARD SUBCOMPONENT
 // =========================================================================
 function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon, isDark = false }) {
   return (
-    <div className="metric-card bg-[#fdfbf7]/95 border-[1.8px] border-[#23211e] rounded-[10px] px-3 py-1.5 min-w-[108px] shadow-[0_2px_0_#23211e,0_3px_8px_rgba(35,33,30,0.06)] backdrop-blur-sm">
+    <div className="metric-card bg-[#fdfbf7]/95 border-[1.8px] border-[#23211e] rounded-[10px] px-3 py-1.5 min-w-[108px] shadow-[0_2px_0_#23211e,0_3px_8px_rgba(35,33,30,0.06)]">
       <div className="metric-card__header flex items-center gap-1.5 text-[9.5px] font-extrabold text-[#787063] tracking-wider uppercase mb-0.5">
         {icon === 'globe' && (
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
@@ -2304,6 +2305,8 @@ function MetricCard({ label, value, valueClass = 'text-[#23211e]', icon, isDark 
     </div>
   );
 }
+
+export default Visualizer2D;
 
 
 
