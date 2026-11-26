@@ -49,6 +49,33 @@ function noLbTelemetryBridgePlugin() {
   }
 }
 
+const PROXY_ROUTES = {
+  '/api': {
+    target: process.env.VITE_API_BASE_URL || 'http://20.244.34.101:5000',
+    changeOrigin: true,
+  },
+  '/lb-api': {
+    target: 'http://20.244.34.101:5000',
+    changeOrigin: true,
+    rewrite: (p) => p.replace(/^\/lb-api/, ''),
+  },
+  '/vm-api/server-1': {
+    target: 'http://52.172.229.225:5001',
+    changeOrigin: true,
+    rewrite: (p) => p.replace(/^\/vm-api\/server-1/, ''),
+  },
+  '/vm-api/server-2': {
+    target: 'http://20.193.245.71:5001',
+    changeOrigin: true,
+    rewrite: (p) => p.replace(/^\/vm-api\/server-2/, ''),
+  },
+  '/vm-api/server-3': {
+    target: 'http://52.172.255.132:5001',
+    changeOrigin: true,
+    rewrite: (p) => p.replace(/^\/vm-api\/server-3/, ''),
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), noLbTelemetryBridgePlugin()],
@@ -61,12 +88,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://20.244.34.101:5000',
-        changeOrigin: true,
-      },
-    },
+    proxy: PROXY_ROUTES,
+  },
+  preview: {
+    proxy: PROXY_ROUTES,
   },
   build: {
     chunkSizeWarningLimit: 2000,

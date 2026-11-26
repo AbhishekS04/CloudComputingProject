@@ -399,8 +399,8 @@ class SimulationEngine {
 
     try {
       const [serversRes, statsRes] = await Promise.all([
-        fetch(`${baseUrl}/api/servers`),
-        fetch(`${baseUrl}/api/stats`)
+        fetch(`${baseUrl}/api/servers`, { cache: 'no-store' }),
+        fetch(`${baseUrl}/api/stats`, { cache: 'no-store' })
       ]);
       if (!serversRes.ok || !statsRes.ok) {
         const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;

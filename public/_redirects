@@ -1,0 +1,5 @@
+/lb-api/*           http://20.244.34.101:5000/:splat   200!
+/vm-api/server-1/*  http://52.172.229.225:5001/:splat  200!
+/vm-api/server-2/*  http://20.193.245.71:5001/:splat   200!
+/vm-api/server-3/*  http://52.172.255.132:5001/:splat  200!
+/*                  /index.html                        200

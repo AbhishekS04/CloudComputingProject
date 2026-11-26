@@ -1,6 +1,6 @@
 import { simulationEngine } from '../simulation/engine';
 import { useSimulationStore } from '../store/simulationStore';
-import { getGatewayUrl, KNOWN_VMS } from './gatewayConfig';
+import { getGatewayUrl, getVmBaseUrl, KNOWN_VMS } from './gatewayConfig';
 
 /**
  * Browser-Native Live Traffic Generator & Azure Cluster Inspector (JS replacement for send_traffic.py).
@@ -219,10 +219,11 @@ export async function probeDirectVms({ url = getGatewayUrl(), signal, onLog } = 
     if (signal?.aborted) break;
     const t0 = performance.now();
     const { signal: probeSignal, cleanup } = createTimeoutSignal(signal, 3500);
+    const vmBaseUrl = getVmBaseUrl(vm);
     try {
-      const hRes = await fetch(`http://${vm.pub}/health`, { signal: probeSignal });
+      const hRes = await fetch(`${vmBaseUrl}/health`, { signal: probeSignal });
       const ms = performance.now() - t0;
-      const iRes = await fetch(`http://${vm.pub}/api/info`, { signal: probeSignal });
+      const iRes = await fetch(`${vmBaseUrl}/api/info`, { signal: probeSignal });
       const info = iRes.ok ? await iRes.json().catch(() => ({})) : {};
 
       results.push({ ...vm, healthy: hRes.ok, latencyMs: ms, info });
@@ -573,7 +574,7 @@ export async function runNoLbCrashTest({
     vms[Math.floor(Math.random() * vms.length)] ||
     KNOWN_VMS['server-1'];
 
-  const directUrl = `http://${vm.pub}/api/process`;
+  const directUrl = `${getVmBaseUrl(vm)}/api/process`;
   const total = Math.max(15, Math.min(300, Number(count) || 45));
   const SINGLE_VM_CRASH_LIMIT = 14;
 

@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/lb-api/:path*",
+      "destination": "http://20.244.34.101:5000/:path*"
+    },
+    {
+      "source": "/vm-api/server-1/:path*",
+      "destination": "http://52.172.229.225:5001/:path*"
+    },
+    {
+      "source": "/vm-api/server-2/:path*",
+      "destination": "http://20.193.245.71:5001/:path*"
+    },
+    {
+      "source": "/vm-api/server-3/:path*",
+      "destination": "http://52.172.255.132:5001/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

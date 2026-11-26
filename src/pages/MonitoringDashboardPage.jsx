@@ -23,7 +23,7 @@ const NodeFleetTable = lazy(() => import('../components/monitoring/NodeFleetTabl
 const SlopeChart = lazy(() => import('../components/monitoring/SlopeChart'));
 
 const SKELETON_FLEX_CLASS =
-  'flex-1 flex flex-col [&>[skullet-pane]]:flex-1 [&>[skullet-pane]]:flex [&>[skullet-pane]]:flex-col [&_[skullet-loading]]:flex-1 [&_[skullet-loading]]:flex [&_[skullet-loading]]:flex-col';
+  'flex-1 flex flex-col [&>[skullet-pane]]:flex-1 [&>[skullet-pane]]:flex [&>[skullet-pane]]:flex-col [&_[skullet-loading]]:flex-1 [&_[skullet-loading]]:flex [&_[skullet-loading]]:flex-col [&_[skullet-own]]:flex-1 [&_[skullet-own]]:flex [&_[skullet-own]]:flex-col';
 
 const STATUS_NODES_DATA = [
   {
@@ -461,7 +461,7 @@ export default function MonitoringDashboardPage() {
               <Skeleton
                 id="monitoring-ingress-traffic"
                 data={ready ? ingressPayload : null}
-                skeleton={<ChartCardSkeleton variant="line" minHeight={380} />}
+                skeleton={<ChartCardSkeleton variant="traffic" minHeight={380} />}
                 label="Loading ingress traffic breakdown"
                 className={SKELETON_FLEX_CLASS}
               >
@@ -490,7 +490,7 @@ export default function MonitoringDashboardPage() {
               <Skeleton
                 id="monitoring-edge-gateway"
                 data={ready ? edgeGatewayPayload : null}
-                skeleton={<ChartCardSkeleton variant="list" minHeight={380} />}
+                skeleton={<ChartCardSkeleton variant="gateway" minHeight={380} />}
                 label="Loading edge ingress gateway telemetry"
                 className={SKELETON_FLEX_CLASS}
               >
@@ -600,7 +600,7 @@ export default function MonitoringDashboardPage() {
               <Skeleton
                 id="monitoring-ridgeline"
                 data={ready ? { ready: true } : null}
-                skeleton={<ChartCardSkeleton variant="waves" minHeight={390} />}
+                skeleton={<ChartCardSkeleton variant="ridgeline" minHeight={390} />}
                 label="Loading per-node latency ridgeline distribution"
                 className={SKELETON_FLEX_CLASS}
               >
@@ -643,7 +643,7 @@ export default function MonitoringDashboardPage() {
               <Skeleton
                 id="monitoring-slope-chart"
                 data={ready ? { ready: true } : null}
-                skeleton={<ChartCardSkeleton variant="waves" minHeight={360} />}
+                skeleton={<ChartCardSkeleton variant="slope" minHeight={360} />}
                 label="Loading load balancing slope equalization chart"
                 className={SKELETON_FLEX_CLASS}
               >
