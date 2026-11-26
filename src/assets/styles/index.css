@@ -32,7 +32,10 @@
     --chart-4: #10b981;
     --chart-5: #06b6d4;
     --chart-label: #64748b;
+    --background: #FAF7F0;
     --foreground: #0f172a;
+    --background-rgb: 250 247 240;
+    --foreground-rgb: 15 23 42;
 
     /* Arc Design System Tokens */
     --font-body: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -78,7 +81,10 @@
     --chart-4: #34d399;
     --chart-5: #22d3ee;
     --chart-label: #94a3b8;
+    --background: #121212;
     --foreground: #f8fafc;
+    --background-rgb: 18 18 18;
+    --foreground-rgb: 248 250 252;
 
     /* Arc Design System Tokens (Dark) */
     --font-body: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;

@@ -1,16 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { cn } from '../../lib/utils';
 
+const DAY_MS = 86400000;
+
 /**
- * StatusBars - Daily 90-day status strip for nodes & services
- * Based on the StatusBars component specification:
- * - Each bar represents a day, colored by operational / degraded / downtime
- * - Hover reveals day's status, exact uptime %, and incident logs
- * - Overall uptime percentage readout
+ * StatusBars - Clean 60-day availability strip per node (borderless subtle track rows).
  */
-export default function StatusBars({
-  label = 'Server A (10.0.1.10)',
-  sublabel = 'Azure East US · Standard_D4s_v5',
+const StatusBars = memo(function StatusBars({
+  label = 'Server A',
+  sublabel = '',
   maxDays = 60,
   incidents = [],
   uptime = 99.98,
@@ -18,17 +16,17 @@ export default function StatusBars({
 }) {
   const [hoveredDay, setHoveredDay] = useState(null);
 
-  // Generate day items
   const days = useMemo(() => {
-    const list = [];
+    const incidentMap = new Map();
+    for (const item of incidents) {
+      incidentMap.set(item.date, item);
+    }
+    const list = new Array(maxDays);
     const now = new Date();
-    for (let i = maxDays - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-
-      // Check incident match
-      const inc = incidents.find((item) => item.date === dateStr);
+    const todayMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    for (let i = maxDays - 1, idx = 0; i >= 0; i--, idx++) {
+      const dateStr = new Date(todayMidnight - i * DAY_MS).toISOString().slice(0, 10);
+      const inc = incidentMap.get(dateStr);
       let status = 'operational';
       let title = '100% Operational';
       let minutes = 0;
@@ -45,43 +43,37 @@ export default function StatusBars({
         }
       }
 
-      list.push({
-        date: dateStr,
-        dayNum: i,
-        status,
-        title,
-        minutes,
-      });
+      list[idx] = { date: dateStr, dayNum: i, status, title, minutes };
     }
     return list;
   }, [maxDays, incidents]);
 
   return (
-    <div className={cn('p-3 rounded-xl bg-white/70 dark:bg-white/[0.03] border border-neutral-200/80 dark:border-white/10 select-none', className)}>
-      {/* Top Header: Node Name on left, Uptime % on right */}
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <span className="text-xs font-mono font-bold text-neutral-900 dark:text-white">
+    <div
+      className={cn(
+        'px-3.5 py-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.025] select-none font-sans',
+        className
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="min-w-0 truncate">
+          <span className="text-xs font-medium text-neutral-900 dark:text-neutral-100">
             {label}
           </span>
           {sublabel && (
-            <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 ml-2">
+            <span className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 ml-2">
               {sublabel}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-            {uptime}% uptime
-          </span>
-        </div>
+        <span className="text-xs font-mono tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
+          {uptime}%
+        </span>
       </div>
 
-      {/* Bar Strip */}
-      <div className="relative flex items-center gap-[2px] h-7 w-full py-1">
+      <div className="relative flex items-center gap-[2px] h-6 w-full py-0.5">
         {days.map((d, idx) => {
-          let bgClass = 'bg-emerald-500 hover:bg-emerald-400';
+          let bgClass = 'bg-emerald-500/85 hover:bg-emerald-400';
           if (d.status === 'degraded') {
             bgClass = 'bg-amber-500 hover:bg-amber-400';
           } else if (d.status === 'downtime') {
@@ -96,39 +88,34 @@ export default function StatusBars({
               onMouseEnter={() => setHoveredDay(d)}
               onMouseLeave={() => setHoveredDay(null)}
               className={cn(
-                'flex-1 h-full rounded-[1.5px] transition-all cursor-pointer',
+                'flex-1 h-full rounded-[1.5px] transition-transform duration-150 cursor-pointer',
                 bgClass,
-                isHovered && 'scale-y-125 brightness-125 z-10 ring-1 ring-neutral-900 dark:ring-white'
+                isHovered && 'scale-y-125 brightness-110 z-10 ring-1 ring-neutral-900/60 dark:ring-white/80'
               )}
             />
           );
         })}
       </div>
 
-      {/* Footer Info: Range & Day Tooltip */}
-      <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
-        <span>{maxDays} days ago</span>
-        <div>
-          {hoveredDay ? (
-            <span className="font-semibold text-neutral-900 dark:text-white">
-              {hoveredDay.date}:{' '}
-              <span
-                className={cn(
-                  hoveredDay.status === 'operational'
-                    ? 'text-emerald-500'
-                    : hoveredDay.status === 'degraded'
-                    ? 'text-amber-500'
-                    : 'text-rose-500'
-                )}
-              >
-                {hoveredDay.title} {hoveredDay.minutes ? `(${hoveredDay.minutes}m)` : ''}
-              </span>
-            </span>
-          ) : (
-            <span>Today</span>
-          )}
+      {hoveredDay && (
+        <div className="mt-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 flex items-center justify-between">
+          <span className="font-mono text-neutral-400">{hoveredDay.date}</span>
+          <span
+            className={cn(
+              'font-medium',
+              hoveredDay.status === 'operational'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : hoveredDay.status === 'degraded'
+                ? 'text-amber-500'
+                : 'text-rose-500'
+            )}
+          >
+            {hoveredDay.title} {hoveredDay.minutes ? `(${hoveredDay.minutes}m)` : ''}
+          </span>
         </div>
-      </div>
+      )}
     </div>
   );
-}
+});
+
+export default StatusBars;

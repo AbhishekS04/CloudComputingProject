@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { THEMES } from './Visualizer3D';
 import { useSimulationStore } from '../../store/simulationStore';
+import { playDotIn, playDotOut } from '../../lib/sound';
 
 const IS_LIVE_BACKEND = true;
 
@@ -182,8 +183,11 @@ export default function Visualizer2D({
   const storeToggleSimulation = useSimulationStore((state) => state.toggleSimulation);
   const storeIsRunning = useSimulationStore((state) => state.isRunning);
   const storeLbOnline = useSimulationStore((state) => state.lbOnline);
+  const storeClusterMode = useSimulationStore((state) => state.clusterMode);
+  const storeMetrics = useSimulationStore((state) => state.metrics);
   const storeTargetRps = useSimulationStore((state) => state.targetRps);
   const storeAlgorithm = useSimulationStore((state) => state.algorithm);
+  const isLbOffline = IS_LIVE_BACKEND && storeClusterMode === 'live' && !storeLbOnline;
   const [servers, setServers] = useState(() => INITIAL_SERVERS);
 
   useEffect(() => {
@@ -197,6 +201,8 @@ export default function Visualizer2D({
         privateIp: s.privateIp || ['10.0.1.10', '10.0.1.11', '10.0.1.12'][idx] || `10.0.1.${10 + idx}`,
         cpu: s.cpu ?? 25,
         conn: s.activeConnections ?? 0,
+        totalRequests: s.totalRequests ?? 0,
+        status: s.status || 'healthy',
         healthy: s.status === 'healthy'
       }))
     );
@@ -217,7 +223,7 @@ export default function Visualizer2D({
 
   useEffect(() => {
     if (!IS_LIVE_BACKEND) return;
-    setAlgoIdx(storeAlgorithm === 'LEAST_CONNECTIONS' ? 1 : 0);
+    setAlgoIdx(storeAlgorithm === 'LEAST_CONNECTIONS' ? 1 : storeAlgorithm === 'IP_HASH' ? 2 : 0);
   }, [storeAlgorithm]);
 
   // Live HUD Metrics
@@ -263,13 +269,17 @@ export default function Visualizer2D({
       pktU: new Float32Array(MAX_PACKETS),
       pktSpeed: new Float32Array(MAX_PACKETS),
       pktOrigin: new Uint8Array(MAX_PACKETS),
+      pktTargetSrv: new Int16Array(MAX_PACKETS),
+      pktFlags: new Uint8Array(MAX_PACKETS),
+      pktLatencyMs: new Float32Array(MAX_PACKETS),
+      liveQueue: [],
+      clientCooldowns: new Float32Array(8),
       writeCursor: 0,
       rrCounter: 0,
       clientCursor: 0,
       spawnAcc: 0,
       metricAcc: 0,
       nodeBounces: new Map(),
-      pendingLivePicks: new Map(),
       activeRipples: [],
       activeToasts: [],
       activeWaves: [],
@@ -492,13 +502,13 @@ export default function Visualizer2D({
   );
 
   const spawnPacket = useCallback(
-    (routeIdx, type = 0, dir = 1, speedMult = 1.0, originClientIdx = 0, ignoreHeadway = false) => {
+    (routeIdx, type = 0, dir = 1, speedMult = 1.0, originClientIdx = 0, ignoreHeadway = false, targetSrv = -1, flags = 0, latencyMs = 0) => {
       const eng = engineRef.current;
       const route = layoutRef.current.routeTables[routeIdx];
-      if (!route) return false;
+      if (!eng || !route) return false;
 
       if (!ignoreHeadway) {
-        const HEADWAY = 0.24;
+        const HEADWAY = 0.14;
         for (let i = 0; i < MAX_PACKETS; i++) {
           if (eng.pktActive[i] === 0) continue;
           if (eng.pktRoute[i] === routeIdx && eng.pktDir[i] === dir) {
@@ -525,12 +535,18 @@ export default function Visualizer2D({
       eng.pktDir[slot] = dir;
       eng.pktU[slot] = dir === 1 ? 0.02 : 0.98;
       eng.pktOrigin[slot] = originClientIdx;
-      eng.pktSpeed[slot] = (280 * speedMult) / Math.max(route.totalLen, 1);
+      eng.pktTargetSrv[slot] = targetSrv;
+      eng.pktFlags[slot] = flags;
+      eng.pktLatencyMs[slot] = latencyMs;
+      eng.pktSpeed[slot] = (290 * speedMult) / Math.max(route.totalLen, 1);
 
       const nClients = layoutRef.current.positionedClients.length;
       if (dir === 1 && routeIdx < nClients) {
         const c = layoutRef.current.positionedClients[routeIdx];
-        if (c) triggerNodeImpact(c.id, route.startPt, '#f08c65');
+        if (c) {
+          triggerNodeImpact(c.id, route.startPt, type === 3 ? '#ef4444' : '#f08c65');
+          playDotIn(type === 2);
+        }
       }
       return true;
     },
@@ -540,6 +556,7 @@ export default function Visualizer2D({
   const clearPackets = useCallback(() => {
     const eng = engineRef.current;
     eng.pktActive.fill(0);
+    if (eng.liveQueue) eng.liveQueue.length = 0;
     packetDomRefs.current.forEach((el) => {
       if (el) el.setAttribute('display', 'none');
     });
@@ -766,13 +783,20 @@ export default function Visualizer2D({
   const vbY = camera.cy - vbH / 2;
 
   const handleWheel = (e) => {
+    if (e.deltaY > 0 && camera.zoom <= 1.001) {
+      return;
+    }
     e.preventDefault();
     const rect = stageRef.current ? stageRef.current.getBoundingClientRect() : { left: 0, top: 0 };
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     const worldX = vbX + (mouseX / viewport.w) * vbW;
     const worldY = vbY + (mouseY / viewport.h) * vbH;
-    const nextZoom = Math.min(4.0, Math.max(0.45, camera.zoom * Math.exp(-e.deltaY * 0.0014)));
+    const nextZoom = Math.min(3.5, Math.max(1.0, camera.zoom * Math.exp(-e.deltaY * 0.0014)));
+    if (nextZoom <= 1.001) {
+      setCamera({ cx: 760, cy: 455, zoom: 1.0 });
+      return;
+    }
     const nextEff = baseScale * nextZoom;
     const nextVbW = viewport.w / nextEff;
     const nextVbH = viewport.h / nextEff;
@@ -785,7 +809,7 @@ export default function Visualizer2D({
   };
 
   const handlePointerDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || camera.zoom <= 1.01) return;
     dragRef.current = {
       active: true,
       startX: e.clientX,
@@ -985,8 +1009,42 @@ export default function Visualizer2D({
           }
           if (eng.spawnAcc > 3) eng.spawnAcc = 0;
         } else {
-          // Live Azure Mode: zero dummy packets!
+          // Live Azure Mode: paced queue emission -> silky smooth evenly spaced dots, zero clumping
           eng.spawnAcc = 0;
+          for (let c = 0; c < nClients; c++) {
+            eng.clientCooldowns[c] = Math.max(0, eng.clientCooldowns[c] - dt);
+          }
+          const minGapSec = eng.liveQueue.length > 14 ? 0.065 : eng.liveQueue.length > 5 ? 0.095 : 0.12;
+          let emitted = 0;
+          while (eng.liveQueue.length > 0 && emitted < nClients && nClients > 0) {
+            let picked = -1;
+            for (let scan = 0; scan < nClients; scan++) {
+              const cand = (eng.clientCursor + scan) % nClients;
+              const cr = clientRoutes[cand];
+              let laneClear = true;
+              if (cr) {
+                for (let k = 0; k < MAX_PACKETS; k++) {
+                  if (eng.pktActive[k] && eng.pktRoute[k] === cr.routeIdx && eng.pktDir[k] === 1 && eng.pktU[k] < 0.14) {
+                    laneClear = false;
+                    break;
+                  }
+                }
+              }
+              if (eng.clientCooldowns[cand] <= 0 && cr && laneClear) {
+                picked = cand;
+                break;
+              }
+            }
+            if (picked === -1) break;
+            eng.clientCursor = (picked + 1) % nClients;
+            const item = eng.liveQueue.shift();
+            const cr = clientRoutes[picked];
+            const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
+            const pType = !item.isSuccess ? 3 : 0;
+            spawnPacket(cr.routeIdx, pType, 1, 1.18, picked, false, item.sIdx, flags, item.latency || 0);
+            eng.clientCooldowns[picked] = minGapSec;
+            emitted++;
+          }
         }
 
         // 3. Advance Active Packets Along LUTs
@@ -1001,57 +1059,83 @@ export default function Visualizer2D({
             const rIdx = eng.pktRoute[i];
             const originC = eng.pktOrigin[i];
             const route = routeTables[rIdx];
+            const tSrv = eng.pktTargetSrv[i];
+            const flags = eng.pktFlags[i];
+            const latMs = eng.pktLatencyMs[i];
+            const isDirect = (flags & 1) !== 0;
+            const isErr = (flags & 2) !== 0 || eng.pktType[i] === 3;
             eng.pktActive[i] = 0;
 
             // A) Client -> LB Input Port
             if (dir === 1 && rIdx < nClients) {
-              triggerNodeImpact('lb', route ? route.endPt : null, paletteRef.current.rippleReq);
-              let targetSrvIdx = -1;
-              if (eng.pendingLivePicks?.has(originC) && positionedServers[eng.pendingLivePicks.get(originC)]?.healthy) {
-                targetSrvIdx = eng.pendingLivePicks.get(originC);
-                eng.pendingLivePicks.delete(originC);
-              } else {
-                targetSrvIdx = pickHealthyServerIdx(originC);
-              }
-              if (targetSrvIdx !== -1 && serverRoutes[targetSrvIdx]) {
-                const sRouteObj = serverRoutes[targetSrvIdx];
-                if (route && lbArcRef.current) {
-                  const { LB } = layoutRef.current;
-                  lbArcRef.current.setAttribute(
-                    'd',
-                    `M ${route.endPt.x.toFixed(1)} ${(route.endPt.y + 8).toFixed(1)} Q ${LB.x.toFixed(1)} ${LB.y.toFixed(1)} ${sRouteObj.startPt.x.toFixed(1)} ${(sRouteObj.startPt.y - 8).toFixed(1)}`
-                  );
-                  lbArcRef.current.setAttribute('stroke', paletteRef.current.lbArc);
-                  lbArcRef.current.setAttribute('opacity', '0.92');
-                  eng.switchingArcFade = 0.28;
+              const lbOfflineNow =
+                IS_LIVE_BACKEND &&
+                useSimulationStore.getState().clusterMode === 'live' &&
+                !useSimulationStore.getState().lbOnline;
+
+              if (isDirect && tSrv >= 0 && serverRoutes[tSrv]) {
+                spawnPacket(serverRoutes[tSrv].routeIdx, isErr ? 3 : 0, 1, 1.2, originC, true, tSrv, flags, latMs);
+              } else if (lbOfflineNow) {
+                triggerNodeImpact('lb', route ? route.endPt : null, '#ef4444', '502 LB OFFLINE');
+                if (clientRoutes[originC]) {
+                  spawnPacket(clientRoutes[originC].routeIdx, 3, -1, 1.15, originC, true, tSrv, flags | 2, latMs);
                 }
-                spawnPacket(sRouteObj.routeIdx, 0, 1, speedMult, originC, true);
+              } else {
+                triggerNodeImpact('lb', route ? route.endPt : null, isErr ? '#ef4444' : paletteRef.current.rippleReq);
+                let targetSrvIdx = -1;
+                if (tSrv >= 0 && tSrv < positionedServers.length && (positionedServers[tSrv]?.healthy || isErr)) {
+                  targetSrvIdx = tSrv;
+                } else {
+                  targetSrvIdx = pickHealthyServerIdx(originC);
+                }
+                if (targetSrvIdx !== -1 && serverRoutes[targetSrvIdx]) {
+                  const sRouteObj = serverRoutes[targetSrvIdx];
+                  if (route && lbArcRef.current) {
+                    const { LB } = layoutRef.current;
+                    lbArcRef.current.setAttribute(
+                      'd',
+                      `M ${route.endPt.x.toFixed(1)} ${(route.endPt.y + 8).toFixed(1)} Q ${LB.x.toFixed(1)} ${LB.y.toFixed(1)} ${sRouteObj.startPt.x.toFixed(1)} ${(sRouteObj.startPt.y - 8).toFixed(1)}`
+                    );
+                    lbArcRef.current.setAttribute('stroke', paletteRef.current.lbArc);
+                    lbArcRef.current.setAttribute('opacity', '0.92');
+                    eng.switchingArcFade = 0.28;
+                  }
+                  spawnPacket(sRouteObj.routeIdx, isErr ? 3 : 0, 1, 1.18, originC, true, targetSrvIdx, flags, latMs);
+                } else if (clientRoutes[originC]) {
+                  spawnPacket(clientRoutes[originC].routeIdx, 3, -1, 1.15, originC, true, -1, flags | 2, latMs);
+                }
               }
             }
             // B) LB -> Backend Server Input Port
             else if (dir === 1 && rIdx >= nClients) {
               const srvIdx = rIdx - nClients;
               const srv = positionedServers[srvIdx];
-              if (srv && srv.healthy) {
-                triggerNodeImpact(srv.id, route ? route.endPt : null, paletteRef.current.rippleReq, '200 OK');
-                // Return response packet traveling Server -> LB (green type 1, ignoreHeadway = true)
-                spawnPacket(rIdx, 1, -1, speedMult, originC, true);
+              if (srv && srv.healthy && !isErr) {
+                const msVal = Math.round(latMs || 0);
+                const label = msVal > 0 ? `${isDirect ? 'DIRECT 200' : '200 OK'} · ${msVal}ms` : '200 OK';
+                triggerNodeImpact(srv.id, route ? route.endPt : null, paletteRef.current.rippleReq, label);
+                spawnPacket(rIdx, 1, -1, 1.18, originC, true, srvIdx, flags, latMs);
+              } else if (srv) {
+                triggerNodeImpact(srv.id, route ? route.endPt : null, '#ef4444', '503 CRASHED');
+                spawnPacket(rIdx, 3, -1, 1.18, originC, true, srvIdx, flags | 2, latMs);
               }
             }
             // C) Backend Server -> LB Output Port
             else if (dir === -1 && rIdx >= nClients) {
-              triggerNodeImpact('lb', route ? route.startPt : null, paletteRef.current.rippleRes);
+              if (!isDirect) {
+                triggerNodeImpact('lb', route ? route.startPt : null, isErr ? '#ef4444' : paletteRef.current.rippleRes);
+              }
               const validClientIdx = originC < nClients ? originC : 0;
               if (clientRoutes[validClientIdx]) {
-                // Return response packet traveling LB -> Client (green type 1, ignoreHeadway = true)
-                spawnPacket(clientRoutes[validClientIdx].routeIdx, 1, -1, speedMult, validClientIdx, true);
+                spawnPacket(clientRoutes[validClientIdx].routeIdx, isErr ? 3 : 1, -1, 1.18, validClientIdx, true, tSrv, flags, latMs);
               }
             }
             // D) LB -> Originating Client Port
             else if (dir === -1 && rIdx < nClients) {
               const client = positionedClients[rIdx];
               if (client && route) {
-                triggerNodeImpact(client.id, route.startPt, paletteRef.current.rippleRes);
+                triggerNodeImpact(client.id, route.startPt, isErr ? '#ef4444' : paletteRef.current.rippleRes);
+                playDotOut(isErr);
               }
             }
           }
@@ -1150,6 +1234,9 @@ export default function Visualizer2D({
         } else if (pType === 1) {
           el.setAttribute('fill', paletteRef.current.pktResFill);
           el.setAttribute('stroke', paletteRef.current.pktResStroke);
+        } else if (pType === 3) {
+          el.setAttribute('fill', '#ef4444');
+          el.setAttribute('stroke', '#7f1d1d');
         } else {
           el.setAttribute('fill', paletteRef.current.pktHandFill);
           el.setAttribute('stroke', paletteRef.current.pktHandStroke);
@@ -1168,7 +1255,7 @@ export default function Visualizer2D({
     const onLbPacketEvent = (e) => {
       const eng = engineRef.current;
       if (!eng) return;
-      const { serverId, isSuccess } = e.detail || {};
+      const { serverId, isSuccess, directNoLb, latency } = e.detail || {};
       const srvs = stateRef.current.servers;
       if (!srvs || srvs.length === 0) return;
       let targetIdx = srvs.findIndex((s, idx) =>
@@ -1181,12 +1268,15 @@ export default function Visualizer2D({
         (typeof serverId === 'string' && serverId.endsWith(String(idx + 1)))
       );
       const sIdx = targetIdx >= 0 ? targetIdx : (eng.rrCounter % srvs.length);
-      const nC = stateRef.current.clients.length;
-      const cIdx = eng.clientCursor % (nC || 1);
-      eng.clientCursor++;
-      const pType = isSuccess ? 0 : 2;
-      eng.pendingLivePicks?.set(cIdx, sIdx);
-      spawnPacket(cIdx, pType, 1, 1.3, cIdx, true);
+      if (eng.liveQueue.length >= 12) {
+        eng.liveQueue.shift();
+      }
+      eng.liveQueue.push({
+        sIdx,
+        isSuccess: isSuccess !== false,
+        directNoLb: Boolean(directNoLb),
+        latency: latency || 0
+      });
     };
     window.addEventListener('lb-packet-event', onLbPacketEvent);
 
@@ -1205,7 +1295,7 @@ export default function Visualizer2D({
 
   return (
     <div
-      className={`lb-iso-visualizer relative w-full h-[680px] lg:h-[740px] overflow-hidden select-none ${isDark ? 'lb-theme-dark' : ''}`}
+      className={`lb-iso-visualizer relative w-full h-[470px] sm:h-[580px] lg:h-[690px] overflow-hidden select-none ${isDark ? 'lb-theme-dark' : ''}`}
       style={{
         fontFamily: "'JetBrains Mono', monospace",
         background: isDark
@@ -1312,24 +1402,44 @@ export default function Visualizer2D({
       <div className="absolute top-3.5 left-4 right-4 z-30 flex flex-wrap items-start justify-between gap-2.5 pointer-events-none">
         {/* Left: Live Telemetry Cards */}
         <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-          <MetricCard label="DNS LOOKUP" value={`${metrics.dns} ms`} icon="globe" isDark={isDark} />
-          <MetricCard label="LB DISPATCH" value={`${metrics.dispatch} ms`} icon="route" isDark={isDark} />
+          <MetricCard
+            label="TRANSFERRED"
+            value={
+              IS_LIVE_BACKEND && storeClusterMode === 'live'
+                ? (storeMetrics.failedRequests > 0
+                    ? `${(storeMetrics.totalRequests || 0).toLocaleString()} (${storeMetrics.failedRequests} err)`
+                    : `${(storeMetrics.totalRequests || 0).toLocaleString()} reqs`)
+                : `${(storeMetrics.totalRequests || 0).toLocaleString()} reqs`
+            }
+            icon="globe"
+            isDark={isDark}
+          />
+          <MetricCard
+            label="LB DISPATCH"
+            value={isLbOffline ? 'OFFLINE' : `${Math.round(storeMetrics.lbDispatch ?? metrics.dispatch)} ms · ${storeMetrics.activeConnectionsTotal ?? 0}c`}
+            icon="route"
+            isDark={isDark}
+          />
           <MetricCard
             label="SERVER EXEC"
-            value={healthyCount > 0 ? `${metrics.server} ms` : 'ERR 503'}
+            value={isLbOffline ? 'PAUSED' : (healthyCount > 0 ? `${Math.round(storeMetrics.serverExec ?? metrics.server)} ms` : 'ERR 503')}
             icon="server"
             isDark={isDark}
           />
-          <MetricCard label="THROUGHPUT" value={`${targetRPS.toLocaleString()} req/s`} icon="pulse" isDark={isDark} />
+          <MetricCard
+            label="THROUGHPUT"
+            value={`${(isLbOffline ? 0 : (storeClusterMode === 'live' ? (storeMetrics.currentRps || 0) : targetRPS)).toLocaleString()} req/s`}
+            icon="pulse"
+            isDark={isDark}
+          />
           <MetricCard
             label="TOTAL RTT"
-            value={healthyCount > 0 ? `${metrics.rtt} ms` : 'OFFLINE'}
-            valueClass={healthyCount > 0 ? (isDark ? 'text-emerald-400' : 'text-[#217238]') : 'text-rose-500'}
+            value={isLbOffline ? 'LB OFFLINE' : (healthyCount > 0 ? `${Math.round(storeMetrics.avgLatency || metrics.rtt)} ms` : 'NO NODES')}
+            valueClass={!isLbOffline && healthyCount > 0 ? (isDark ? 'text-emerald-400' : 'text-[#217238]') : 'text-rose-500'}
             icon="clock"
             isDark={isDark}
           />
         </div>
-=======
 
         {/* Right: Topology Steppers, RPS Selector, Strategy & Legend */}
         {!IS_LIVE_BACKEND && (
@@ -1724,15 +1834,15 @@ export default function Visualizer2D({
             }}
           >
             <g ref={lbBounceRef}>
-              {/* 2.5D Extruded Golden Amber Bottom Shadow Block */}
+              {/* 2.5D Extruded Golden Amber Bottom Shadow Block (or gray when LB offline) */}
               <rect
                 x="4.5"
                 y="6.5"
                 width={layout.LB.w}
                 height={layout.LB.h}
                 rx="14"
-                fill={palette.lbWall48}
-                stroke={palette.lbStroke}
+                fill={isLbOffline ? palette.srvOffWall50 : palette.lbWall48}
+                stroke={isLbOffline ? palette.srvOffStroke : palette.lbStroke}
                 strokeWidth="2.6"
               />
               {/* Top Golden Amber Surface */}
@@ -1742,8 +1852,8 @@ export default function Visualizer2D({
                 width={layout.LB.w}
                 height={layout.LB.h}
                 rx="14"
-                fill="url(#lb-top-grad)"
-                stroke={palette.lbStroke}
+                fill={isLbOffline ? 'url(#srv-off-grad)' : 'url(#lb-top-grad)'}
+                stroke={isLbOffline ? palette.srvOffStroke : palette.lbStroke}
                 strokeWidth="2.6"
               />
               {/* Crisp White Bevel Highlight */}
@@ -1771,9 +1881,9 @@ export default function Visualizer2D({
 
               {/* Globe Icon */}
               <g transform="translate(38, 37)">
-                <circle cx="0" cy="0" r="14.5" fill={palette.portRingFill} stroke={palette.lbIcon} strokeWidth="2.3" />
-                <ellipse cx="0" cy="0" rx="6.8" ry="14.5" fill="none" stroke={palette.lbIcon} strokeWidth="2.1" />
-                <line x1="-14" y1="0" x2="14" y2="0" stroke={palette.lbIcon} strokeWidth="2.1" />
+                <circle cx="0" cy="0" r="14.5" fill={palette.portRingFill} stroke={isLbOffline ? '#6e665c' : palette.lbIcon} strokeWidth="2.3" />
+                <ellipse cx="0" cy="0" rx="6.8" ry="14.5" fill="none" stroke={isLbOffline ? '#6e665c' : palette.lbIcon} strokeWidth="2.1" />
+                <line x1="-14" y1="0" x2="14" y2="0" stroke={isLbOffline ? '#6e665c' : palette.lbIcon} strokeWidth="2.1" />
               </g>
 
               {/* Title & VIP */}
@@ -1784,7 +1894,7 @@ export default function Visualizer2D({
                 fontFamily="'Inter', sans-serif"
                 fontSize="16.5"
                 fontWeight="800"
-                fill={palette.lbTitle}
+                fill={isLbOffline ? palette.srvOffTitle : palette.lbTitle}
               >
                 Load Balancer Core
               </text>
@@ -1795,14 +1905,14 @@ export default function Visualizer2D({
                 fontFamily="'JetBrains Mono', monospace"
                 fontSize="11.5"
                 fontWeight="700"
-                fill={palette.lbSubtitle}
+                fill={isLbOffline ? palette.pillOfflineText : palette.lbSubtitle}
               >
-                Pub: 127.0.0.1:5000 · Priv: 10.0.1.4
+                {isLbOffline ? 'GATEWAY OFFLINE · Port 5000' : 'Pub: 127.0.0.1:5000 · Priv: 10.0.1.4'}
               </text>
 
               {/* Divider & Junction Node */}
-              <line x1="14" y1="73" x2={layout.LB.w - 14} y2="73" stroke={palette.lbStroke} strokeWidth="1.9" />
-              <circle cx={layout.LB.w / 2} cy="73" r="4.6" fill={palette.rippleReq} stroke={palette.lbStroke} strokeWidth="2" />
+              <line x1="14" y1="73" x2={layout.LB.w - 14} y2="73" stroke={isLbOffline ? palette.srvOffStroke : palette.lbStroke} strokeWidth="1.9" />
+              <circle cx={layout.LB.w / 2} cy="73" r="4.6" fill={isLbOffline ? '#9e9687' : palette.rippleReq} stroke={isLbOffline ? palette.srvOffStroke : palette.lbStroke} strokeWidth="2" />
 
               {/* Active Algorithm Pill */}
               <rect
@@ -1811,7 +1921,7 @@ export default function Visualizer2D({
                 width="196"
                 height="33"
                 rx="8"
-                fill={palette.pillBg}
+                fill={isLbOffline ? palette.pillOfflineBg : palette.pillBg}
                 stroke={palette.pillBorder}
                 strokeWidth="2.1"
               />
@@ -1823,9 +1933,9 @@ export default function Visualizer2D({
                 fontSize="12"
                 fontWeight="800"
                 letterSpacing="0.06em"
-                fill={palette.pillText}
+                fill={isLbOffline ? palette.pillOfflineText : palette.pillText}
               >
-                [ {ALGORITHMS[algoIdx]} ]
+                [ {isLbOffline ? 'LB OFFLINE' : ALGORITHMS[algoIdx]} ]
               </text>
             </g>
           </g>
@@ -2016,7 +2126,7 @@ export default function Visualizer2D({
                       fontWeight="800"
                       fill={s.healthy ? '#23211e' : '#94291b'}
                     >
-                      {s.healthy ? `CPU ${s.cpu}% • ${s.conn}c` : 'OFFLINE • FAILOVER ACTIVE'}
+                      {s.healthy ? `CPU ${s.cpu}% • ${s.totalRequests || 0} reqs` : (s.status === 'failed' ? 'CRASHED • FAILOVER ACTIVE' : 'OFFLINE • FAILOVER ACTIVE')}
                     </text>
                   </g>
                 </g>
@@ -2103,8 +2213,14 @@ export default function Visualizer2D({
       <div className="absolute right-4 bottom-3.5 z-25 flex items-center gap-2 pointer-events-auto">
         <div className="inline-flex items-center bg-[#fdfbf7] dark:bg-[#262230] border-2 border-[#23211e] dark:border-[#766b8c] rounded-[10px] shadow-[0_2.5px_0_#23211e] dark:shadow-[0_2.5px_0_#09080d] overflow-hidden">
           <button
-            onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.45, c.zoom / 1.22) }))}
-            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
+            onClick={() =>
+              setCamera((c) => {
+                const nextZ = Math.max(1.0, c.zoom / 1.22);
+                return nextZ <= 1.001 ? { cx: 760, cy: 455, zoom: 1.0 } : { ...c, zoom: nextZ };
+              })
+            }
+            disabled={camera.zoom <= 1.001}
+            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             title="Zoom Out"
           >
             −
@@ -2117,8 +2233,9 @@ export default function Visualizer2D({
             {Math.round(camera.zoom * 100)}%
           </div>
           <button
-            onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(4.0, c.zoom * 1.22) }))}
-            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer"
+            onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(3.5, c.zoom * 1.22) }))}
+            disabled={camera.zoom >= 3.49}
+            className="px-2.5 py-1 text-[12px] font-extrabold hover:bg-[#f5ecd7] dark:hover:bg-[#332d40] text-[#23211e] dark:text-[#f6f2ff] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             title="Zoom In"
           >
             +

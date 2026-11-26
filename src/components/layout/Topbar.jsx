@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSimulationStore } from '../../store/simulationStore';
+import { useBlurFadeThemeTransition } from '../ui/BlurFadeThemeTransition';
 import {
   Sun,
   Moon,
@@ -28,16 +29,9 @@ export default function Topbar() {
   const targetRps = useSimulationStore((state) => state.targetRps);
   const algorithm = useSimulationStore((state) => state.algorithm);
 
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, triggerTransition, isAnimating } = useBlurFadeThemeTransition();
+  const darkMode = theme === 'dark';
   const [helpOpen, setHelpOpen] = useState(false);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
 
   return (
     <>
@@ -74,9 +68,11 @@ export default function Topbar() {
 
           {/* Dark / Light Toggle */}
           <button
-            onClick={() => setDarkMode(!darkMode)}
+            type="button"
+            disabled={isAnimating}
+            onClick={() => triggerTransition()}
             aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className="p-2 rounded-xl bg-cream-100 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 text-charcoal-600 dark:text-cream-200 hover:bg-cream-200 dark:hover:bg-charcoal-700 transition-colors"
+            className="p-2 rounded-xl bg-cream-100 dark:bg-charcoal-800 border border-cream-300 dark:border-charcoal-700 text-charcoal-600 dark:text-cream-200 hover:bg-cream-200 dark:hover:bg-charcoal-700 transition-colors cursor-pointer disabled:opacity-60"
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {darkMode ? <Sun aria-hidden="true" size={16} className="text-amber-400" /> : <Moon aria-hidden="true" size={16} />}

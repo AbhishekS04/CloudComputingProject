@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { LineChart as ArcLineChart, type LineChartDatum, type LineChartSeries } from '@/components/arc/line-chart/line-chart';
 import { TELEMETRY_RANGES_DATA, TELEMETRY_LINE_CHART_SERIES } from '@/lib/line-chart-demo-data';
 
@@ -25,7 +25,7 @@ type TimeframeKey = typeof TIMEFRAMES[number];
  * - Solid primary line with area fill and dashed secondary line
  * - Responsive ResizeObserver and WCAG accessibility
  */
-export default function MultiSeriesLineChart({
+const MultiSeriesLineChart = memo(function MultiSeriesLineChart({
   data: customData,
   series: customSeries,
   title = 'REAL-TIME INGRESS THROUGHPUT & RESPONSE LATENCY',
@@ -84,7 +84,7 @@ export default function MultiSeriesLineChart({
   };
 
   return (
-    <div className={`p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md flex flex-col justify-between font-sans ${className}`}>
+    <div className={`p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] shadow-xs flex flex-col justify-between font-sans ${className}`}>
       {/* Top Header: Title, Metric Readout & Timeframe Segmented Switcher */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-3 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
         <div>
@@ -146,4 +146,6 @@ export default function MultiSeriesLineChart({
       </div>
     </div>
   );
-}
+});
+
+export default MultiSeriesLineChart;

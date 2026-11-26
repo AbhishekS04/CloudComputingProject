@@ -9,6 +9,8 @@ export default {
   theme: {
     extend: {
       colors: {
+        background: 'rgb(var(--background-rgb) / <alpha-value>)',
+        foreground: 'rgb(var(--foreground-rgb) / <alpha-value>)',
         cream: {
           50: '#FDFCF9',
           100: '#FCFAF5', // Cards

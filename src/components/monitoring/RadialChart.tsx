@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   RadialAxis,
   RadialCenter,
@@ -7,7 +7,6 @@ import {
   RadialLegend,
   RadialScrubber,
 } from "@bklitui/ui/charts";
-import { Clock, Radio, RotateCcw } from 'lucide-react';
 
 const series = [
   { dataKey: "delivered", label: "Delivered (req/s)", color: "var(--chart-4)" },
@@ -15,11 +14,6 @@ const series = [
   { dataKey: "burst", label: "Burst Overhead", color: "var(--chart-1)", emphasize: true },
 ];
 
-/**
- * Generates 96 × 15-minute bins for the 24-hour diurnal cycle (00:00 to 23:45).
- * Models real-world ingress traffic arriving at the Azure Load Balancer VM
- * across daytime peaks and nighttime troughs.
- */
 function generateRadialChartData() {
   const bins = [];
   const now = new Date();
@@ -32,11 +26,8 @@ function generateRadialChartData() {
     const minutes = totalMinutes % 60;
     const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
-    // Realistic diurnal activity curve
     const hourFloat = hours + minutes / 60;
     const diurnalCurve = Math.max(0.15, 0.45 + 0.55 * Math.sin(((hourFloat - 6) / 24) * Math.PI * 2));
-
-    // Yesterday comparison baseline
     const yesterday = Math.round(180 + diurnalCurve * 140 + (Math.sin(i * 0.4) * 20));
 
     if (i <= nowBinIndex) {
@@ -44,30 +35,17 @@ function generateRadialChartData() {
       const queued = Math.round(8 + diurnalCurve * 12 + ((i % 4) * 2));
       const burst = Math.round(15 + diurnalCurve * 25 + ((i % 3) * 4));
 
-      bins.push({
-        time: timeStr,
-        delivered,
-        queued,
-        burst,
-        yesterday,
-      });
+      bins.push({ time: timeStr, delivered, queued, burst, yesterday });
     } else {
-      // Future bins after "now" have null for active series, ghost dots for yesterday
-      bins.push({
-        time: timeStr,
-        delivered: null,
-        queued: null,
-        burst: null,
-        yesterday,
-      });
+      bins.push({ time: timeStr, delivered: null, queued: null, burst: null, yesterday });
     }
   }
 
   return { bins, nowBinIndex };
 }
 
-export default function RadialChartComponent({
-  label = "24-Hour Diurnal Ingress Cycle",
+const RadialChartComponent = memo(function RadialChartComponent({
+  label = "24-Hour Ingress Cycle",
   className = "",
 }: {
   label?: string;
@@ -86,23 +64,19 @@ export default function RadialChartComponent({
 
   return (
     <div
-      className={`p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md flex flex-col justify-between font-sans ${className}`}
+      className={`p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] shadow-xs flex flex-col justify-between font-sans ${className}`}
     >
-      {/* Apple Bento Card Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-black/[0.05] dark:border-white/[0.06] mb-4">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-indigo-500" />
+      <div className="pb-3.5 border-b border-black/[0.05] dark:border-white/[0.06] mb-4 flex items-center justify-between gap-2">
+        <div>
           <h3 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
             {label}
           </h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Today vs yesterday · 15-min bins
+          </p>
         </div>
-        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center gap-1.5">
-          <Radio className="w-2.5 h-2.5 text-indigo-500 animate-pulse" />
-          Azure LB Clock
-        </span>
       </div>
 
-      {/* Composable Bklit Radial Chart Suite */}
       <div className="flex-1 flex items-center justify-center w-full py-2">
         <RadialChart
           data={bins}
@@ -143,13 +117,12 @@ export default function RadialChartComponent({
                         diff >= 0 ? "text-emerald-500" : "text-rose-500"
                       }`}
                     >
-                      {diff > 0 ? `+${diff}` : diff} req/s vs yesterday
+                      {diff > 0 ? `+${diff}` : diff} vs yesterday
                     </span>
                   </div>
                 );
               }
 
-              // At rest default display
               const restDelivered = (activeBin?.delivered as number) ?? 240;
               const restYesterday = (activeBin?.yesterday as number) ?? 210;
               const restDiff = restDelivered - restYesterday;
@@ -167,7 +140,7 @@ export default function RadialChartComponent({
                       restDiff >= 0 ? "text-emerald-500" : "text-rose-500"
                     }`}
                   >
-                    {restDiff > 0 ? `+${restDiff}` : restDiff} req/s vs yesterday
+                    {restDiff > 0 ? `+${restDiff}` : restDiff} vs yesterday
                   </span>
                 </div>
               );
@@ -177,14 +150,12 @@ export default function RadialChartComponent({
         </RadialChart>
       </div>
 
-      {/* Footer System Status */}
       <div className="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 mt-2">
-        <span>Diurnal Ingress · 96 Bins (15-min)</span>
-        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-          <RotateCcw className="w-3 h-3" />
-          LB Gateway Synced
-        </span>
+        <span>96 diurnal intervals</span>
+        <span>Hover ring to scrub</span>
       </div>
     </div>
   );
-}
+});
+
+export default RadialChartComponent;

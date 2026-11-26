@@ -131,7 +131,6 @@ export function Ridgeline({ series, label, unit = "", formatValue, domain, overl
   }, []);
 
   // Targets: one density per series on a shared domain, scaled so the tallest peak of all rises `overlap` rows.
-  const signature = JSON.stringify([series, domain, bandwidth]);
   const model = useMemo(() => {
     const stats = series.map(entry => statsOf(entry.values));
     const widths = stats.map(entry => bandwidth ?? silverman(entry));
@@ -144,7 +143,7 @@ export function Ridgeline({ series, label, unit = "", formatValue, domain, overl
     const peak = Math.max(1e-9, ...curves.flatMap(curve => curve.ys));
     const shapes = new Map<string, Shape>(series.map((entry, index) => { const curve = curves[index]!, stat = stats[index]!; return [entry.id, { xs: curve.xs, ys: curve.ys.map(y => y / peak), row: index, q1: stat.q1, median: stat.median, q3: stat.q3 }]; }));
     return { stats: new Map(series.map((entry, index) => [entry.id, stats[index]!])), shapes, lo, hi };
-  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [series, domain, bandwidth]);
 
   const [ownActive, setOwnActive] = useState<string | null>(defaultActive);
   const current = active !== undefined ? active : ownActive;
@@ -225,7 +224,7 @@ export function Ridgeline({ series, label, unit = "", formatValue, domain, overl
     }, onComplete: finish });
     return () => controls.stop();
   }, [shown, model, reduced]);
-  useLayoutEffect(() => { paintRef.current(); });
+  useLayoutEffect(() => { paintRef.current(); }, [width, height, gutter, plotWidth, rowHeight, overlap, top, current, model]);
 
   // Axis ticks for the target domain; their positions follow the drawn domain every frame.
   const tickCount = Math.max(2, Math.floor(plotWidth / 72));

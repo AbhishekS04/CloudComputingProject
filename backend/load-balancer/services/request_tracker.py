@@ -1,4 +1,5 @@
 import threading
+import time
 from collections import deque
 from datetime import datetime, timezone
 
@@ -32,6 +33,8 @@ class RequestTracker:
                 "total_response_time_ms": 0.0,
                 "avg_response_time_ms": 0.0,
                 "last_checked": None,
+                "crashed_until": 0.0,
+                "crash_reason": None,
             }
         self._logs = deque(maxlen=max_logs)
         self._request_counter = 0
@@ -75,6 +78,8 @@ class RequestTracker:
                 "total_response_time_ms": 0.0,
                 "avg_response_time_ms": 0.0,
                 "last_checked": None,
+                "crashed_until": 0.0,
+                "crash_reason": None,
             }
             return self._serialize_server(self._servers[server_id])
 
@@ -87,23 +92,69 @@ class RequestTracker:
             srv = self._servers.get(server_id)
             if not srv:
                 return None
+            # If node was crashed/unhealthy while enabled, restoring brings it back healthy
+            if srv["enabled"] and srv["status"] == "unhealthy":
+                srv["status"] = "healthy"
+                srv["crashed_until"] = 0.0
+                srv["crash_reason"] = None
+                return self._serialize_server(srv)
+
             srv["enabled"] = not srv["enabled"]
             if not srv["enabled"]:
                 srv["status"] = "offline"
+                srv["crashed_until"] = 0.0
+                srv["crash_reason"] = None
             else:
                 srv["status"] = "healthy"
+                srv["crashed_until"] = 0.0
+                srv["crash_reason"] = None
+            return self._serialize_server(srv)
+
+    def mark_crashed(self, server_id, cooldown_seconds=0.0, reason="Connection Failed"):
+        with self._lock:
+            srv = self._servers.get(server_id)
+            if not srv:
+                return None
+            srv["status"] = "unhealthy"
+            srv["crashed_until"] = (time.time() + cooldown_seconds) if cooldown_seconds > 0 else 0.0
+            srv["crash_reason"] = reason
+            srv["last_checked"] = datetime.now(timezone.utc).isoformat()
+            return self._serialize_server(srv)
+
+    def recover_server(self, server_id):
+        with self._lock:
+            srv = self._servers.get(server_id)
+            if not srv:
+                return None
+            srv["enabled"] = True
+            srv["status"] = "healthy"
+            srv["crashed_until"] = 0.0
+            srv["crash_reason"] = None
+            srv["last_checked"] = datetime.now(timezone.utc).isoformat()
             return self._serialize_server(srv)
 
     def update_health(self, server_id, is_healthy):
         with self._lock:
             srv = self._servers.get(server_id)
             if not srv:
-                return
+                return False, None
+            prev_status = srv["status"]
+            now = time.time()
             srv["last_checked"] = datetime.now(timezone.utc).isoformat()
             if not srv["enabled"]:
                 srv["status"] = "offline"
+            elif srv.get("crashed_until", 0.0) > now:
+                srv["status"] = "unhealthy"
             else:
-                srv["status"] = "healthy" if is_healthy else "unhealthy"
+                if is_healthy:
+                    srv["status"] = "healthy"
+                    srv["crashed_until"] = 0.0
+                    srv["crash_reason"] = None
+                else:
+                    srv["status"] = "unhealthy"
+                    if not srv.get("crash_reason"):
+                        srv["crash_reason"] = "Health Check Failed"
+            return (srv["status"] != prev_status), self._serialize_server(srv)
 
     def start_connection(self, server_id):
         with self._lock:
@@ -191,4 +242,5 @@ class RequestTracker:
             "failed_requests": srv["failed_requests"],
             "avg_response_time_ms": srv["avg_response_time_ms"],
             "last_checked": srv["last_checked"],
+            "crash_reason": srv.get("crash_reason"),
         }

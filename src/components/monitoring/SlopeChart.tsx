@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { SlopeChart as ArcSlopeChart, type SlopeItem } from '@/components/arc/slope-chart/slope-chart';
 import { SLOPE_CHART_REGIONS } from '@/lib/slope-chart-demo-data';
 
@@ -21,7 +21,7 @@ type AlgoKey = typeof ALGO_KEYS[number];
  * Features segmented algorithm switcher, smooth line morphing on change,
  * rank change indicator pills, leader hairlines, and keyboard accessibility.
  */
-export default function SlopeChart({
+const SlopeChart = memo(function SlopeChart({
   data: customData,
   label: customLabel,
   startLabel: customStartLabel,
@@ -40,7 +40,7 @@ export default function SlopeChart({
   const highlightKey = customHighlightKey !== undefined ? customHighlightKey : activeDataset.highlightKey;
 
   return (
-    <div className={`p-5 sm:p-6 rounded-2xl bg-white/80 dark:bg-[#14161b]/90 border border-black/[0.06] dark:border-white/[0.08] shadow-xs backdrop-blur-md flex flex-col justify-between font-sans ${className}`}>
+    <div className={`p-5 sm:p-6 rounded-2xl bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] shadow-xs flex flex-col justify-between font-sans ${className}`}>
       {/* Card Header: Title, Period & Algorithm Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.06]">
         <div>
@@ -88,4 +88,6 @@ export default function SlopeChart({
       </div>
     </div>
   );
-}
+});
+
+export default SlopeChart;

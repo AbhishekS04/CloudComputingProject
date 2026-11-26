@@ -68,12 +68,17 @@ class SimulationEngine {
     this.intervalId = null;
     this.syncIntervalId = null;
     this.eventSource = null;
+    this.bridgeSource = null;
+    this.lastBridgeEventAt = 0;
     this.tickRate = 120; // 120ms per engine tick
     this.accumulator = 0;
     this.requestsThisSecond = 0;
     this.latencySamplesThisSecond = [];
     this.lastSecondTime = Date.now();
     this.pendingLogs = [];
+    this.pendingServerDeltas = {};
+    this.pendingMetricDelta = { total: 0, ok: 0, fail: 0, latency: null, exec: null, disp: null };
+    this.deltaFlushTimer = null;
   }
 
   start() {
@@ -83,6 +88,7 @@ class SimulationEngine {
     this.syncFromBackend();
     this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
     this.initEventStream();
+    this.initBridgeStream();
 
     this.intervalId = setInterval(() => this.tick(), this.tickRate);
   }
@@ -99,6 +105,66 @@ class SimulationEngine {
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
+    }
+    if (this.bridgeSource) {
+      this.bridgeSource.close();
+      this.bridgeSource = null;
+    }
+    if (this.deltaFlushTimer) {
+      clearTimeout(this.deltaFlushTimer);
+      this.deltaFlushTimer = null;
+    }
+  }
+
+  initBridgeStream() {
+    if (typeof window === 'undefined') return;
+    if (this.bridgeSource) {
+      this.bridgeSource.close();
+      this.bridgeSource = null;
+    }
+    try {
+      this.bridgeSource = new EventSource('/__bridge/stream');
+      this.bridgeSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          this.lastBridgeEventAt = Date.now();
+          if (data.type === 'request') {
+            this.handleLiveRequestEvent(data);
+            if (data.crashed && data.selected_server) {
+              useSimulationStore.setState((state) => ({
+                servers: state.servers.map((s) =>
+                  s.id === data.selected_server
+                    ? { ...s, status: 'failed', activeConnections: 0, cpu: 0 }
+                    : s
+                )
+              }));
+            }
+          } else if (data.type === 'server_update') {
+            if (data.action === 'crash' && data.server_id) {
+              useSimulationStore.setState((state) => ({
+                servers: state.servers.map((s) =>
+                  s.id === data.server_id
+                    ? { ...s, status: 'failed', activeConnections: 0, cpu: 0 }
+                    : s
+                )
+              }));
+            } else if (data.action === 'recover') {
+              useSimulationStore.setState((state) => ({
+                servers: state.servers.map((s) => ({
+                  ...s,
+                  status: 'healthy',
+                  activeConnections: 0,
+                  cpu: 22
+                }))
+              }));
+            }
+          }
+        } catch {
+          // ignore parse error
+        }
+      };
+    } catch {
+      // ignore if EventSource unavailable
     }
   }
 
@@ -163,6 +229,7 @@ class SimulationEngine {
     }
 
     // 1. Dispatch lightweight visual event for 2D & 3D visualizers (0 React re-renders, 60 FPS)
+    // 1. Dispatch lightweight visual event immediately for 2D & 3D SVG loops (0 React re-renders, 60-120 FPS)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('lb-packet-event', {
@@ -170,6 +237,7 @@ class SimulationEngine {
             serverId,
             clientIp: data.client_ip || '198.51.100.4',
             isSuccess,
+            directNoLb: Boolean(data.direct_no_lb),
             latency,
             publicIp: data.public_ip,
             privateIp: data.private_ip,
@@ -179,36 +247,55 @@ class SimulationEngine {
       );
     }
 
-    // Immediately update target server live counters and cluster metrics
-    useSimulationStore.setState((state) => ({
-      servers: state.servers.map((s) => {
-        if (
-          s.id === serverId ||
-          s.name === serverId ||
-          s.host === serverId ||
-          (data.public_ip && s.publicIp && s.publicIp.includes(data.public_ip))
-        ) {
-          const newActive = (s.activeConnections || 0) + 1;
-          const cpuBump = Math.min(96, Math.max(15, (s.cpu || 25) + Math.round(Math.random() * 3 - 1)));
-          return {
-            ...s,
-            activeConnections: newActive,
-            cpu: cpuBump,
-            totalRequests: (s.totalRequests || 0) + 1,
-            successfulRequests: (s.successfulRequests || 0) + (isSuccess ? 1 : 0),
-            failedRequests: (s.failedRequests || 0) + (isSuccess ? 0 : 1),
-            avgLatency: s.avgLatency ? Math.round((s.avgLatency * 4 + latency) / 5) : latency
-          };
-        }
-        return s;
-      }),
-      metrics: {
-        ...state.metrics,
-        totalRequests: (state.metrics.totalRequests || 0) + 1,
-        successfulRequests: (state.metrics.successfulRequests || 0) + (isSuccess ? 1 : 0),
-        failedRequests: (state.metrics.failedRequests || 0) + (isSuccess ? 0 : 1)
-      }
-    }));
+    // Batch Zustand state updates (prevents 60Hz React/Recharts re-render stutter under high concurrency)
+    const key = serverId || data.public_ip || 'unknown';
+    const prevD = this.pendingServerDeltas[key] || {
+      serverId,
+      publicIp: data.public_ip,
+      total: 0,
+      ok: 0,
+      fail: 0,
+      latencySum: 0,
+      latencyCount: 0,
+      directNoLb: false,
+      crashed: false
+    };
+    prevD.total += 1;
+    if (isSuccess) {
+      prevD.ok += 1;
+      prevD.latencySum += latency;
+      prevD.latencyCount += 1;
+    } else {
+      prevD.fail += 1;
+    }
+    if (data.direct_no_lb) prevD.directNoLb = true;
+    if (data.crashed) prevD.crashed = true;
+    this.pendingServerDeltas[key] = prevD;
+
+    this.pendingMetricDelta.total += 1;
+    if (isSuccess) {
+      this.pendingMetricDelta.ok += 1;
+      this.pendingMetricDelta.latency = latency;
+    } else {
+      this.pendingMetricDelta.fail += 1;
+    }
+    if (data.server_exec_ms !== undefined) {
+      this.pendingMetricDelta.exec = Math.round(data.server_exec_ms);
+    }
+    if (data.direct_no_lb) {
+      this.pendingMetricDelta.disp = 0;
+    } else if (data.lb_dispatch_ms !== undefined) {
+      this.pendingMetricDelta.disp = Math.max(1, Math.round(data.lb_dispatch_ms));
+    }
+
+    if (data.crashed) {
+      this.flushPendingStoreDeltas();
+    } else if (!this.deltaFlushTimer) {
+      this.deltaFlushTimer = setTimeout(() => {
+        this.deltaFlushTimer = null;
+        this.flushPendingStoreDeltas();
+      }, 160);
+    }
 
     // 2. Buffer log for non-blocking periodic flush
     const targetServer = store.servers.find((s) => s.id === serverId) || {
@@ -223,7 +310,9 @@ class SimulationEngine {
       client: { id: 'term-client', name: 'Terminal Client', ip: data.client_ip || '198.51.100.4' },
       server: targetServer,
       serverName: `${targetServer.name || serverId} (${data.public_ip || targetServer.ip || 'Azure VM'})`,
-      endpoint: '/api/process',
+      endpoint: data.direct_no_lb
+        ? '/api/process (Direct No-LB)'
+        : (data.failover_from ? `/api/process (Failover from ${data.failover_from})` : '/api/process'),
       method: 'POST',
       latency,
       status: data.status_code || (isSuccess ? 200 : 502),
@@ -236,6 +325,53 @@ class SimulationEngine {
     }
   }
 
+  flushPendingStoreDeltas() {
+    const serverDeltas = Object.values(this.pendingServerDeltas);
+    const mDelta = this.pendingMetricDelta;
+    if (serverDeltas.length === 0 && mDelta.total === 0) return;
+
+    this.pendingServerDeltas = {};
+    this.pendingMetricDelta = { total: 0, ok: 0, fail: 0, latency: null, exec: null, disp: null };
+
+    useSimulationStore.setState((state) => ({
+      servers: state.servers.map((s) => {
+        const d = serverDeltas.find(
+          (item) =>
+            s.id === item.serverId ||
+            s.name === item.serverId ||
+            s.host === item.serverId ||
+            (item.publicIp && s.publicIp && s.publicIp.includes(item.publicIp))
+        );
+        if (!d) return s;
+        const avgSample = d.latencyCount > 0 ? Math.round(d.latencySum / d.latencyCount) : s.avgLatency;
+        const cpuBump = d.crashed
+          ? 0
+          : d.directNoLb
+            ? Math.min(99, (s.cpu || 30) + Math.min(35, d.ok * 8))
+            : Math.min(96, Math.max(18, (s.cpu || 25) + Math.min(20, d.total * 2)));
+        return {
+          ...s,
+          status: d.crashed ? 'failed' : s.status,
+          activeConnections: d.crashed ? 0 : Math.min(28, d.total),
+          cpu: cpuBump,
+          totalRequests: (s.totalRequests || 0) + d.total,
+          successfulRequests: (s.successfulRequests || 0) + d.ok,
+          failedRequests: (s.failedRequests || 0) + d.fail,
+          avgLatency: s.avgLatency && avgSample ? Math.round((s.avgLatency * 3 + avgSample) / 4) : (avgSample || s.avgLatency)
+        };
+      }),
+      metrics: {
+        ...state.metrics,
+        totalRequests: (state.metrics.totalRequests || 0) + mDelta.total,
+        successfulRequests: (state.metrics.successfulRequests || 0) + mDelta.ok,
+        failedRequests: (state.metrics.failedRequests || 0) + mDelta.fail,
+        avgLatency: mDelta.latency !== null ? mDelta.latency : state.metrics.avgLatency,
+        serverExec: mDelta.exec !== null ? mDelta.exec : state.metrics.serverExec,
+        lbDispatch: mDelta.disp !== null ? mDelta.disp : state.metrics.lbDispatch
+      }
+    }));
+  }
+
   async syncFromBackend() {
     const store = useSimulationStore.getState();
     if (store.clusterMode !== 'live' || !BASE_URL) return;
@@ -246,11 +382,28 @@ class SimulationEngine {
         fetch(`${BASE_URL}/api/stats`)
       ]);
       if (!serversRes.ok || !statsRes.ok) {
+        const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
         useSimulationStore.setState((state) => ({
           lbOnline: false,
-          servers: state.servers.map((s) => ({ ...s, status: 'failed', activeConnections: 0, cpu: 0 }))
+          servers: bridgeActive
+            ? state.servers
+            : state.servers.map((s) => ({
+                ...s,
+                activeConnections: 0,
+                cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
+              })),
+          metrics: {
+            ...state.metrics,
+            currentRps: bridgeActive ? state.metrics.currentRps : 0,
+            activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
+          }
         }));
         return;
+      }
+
+      const wasLbOffline = !useSimulationStore.getState().lbOnline;
+      if (wasLbOffline && !this.eventSource) {
+        this.initEventStream();
       }
 
       const serversData = await serversRes.json();
@@ -276,11 +429,20 @@ class SimulationEngine {
         };
       });
     } catch (err) {
+      const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
       useSimulationStore.setState((state) => ({
         lbOnline: false,
+        servers: bridgeActive
+          ? state.servers
+          : state.servers.map((s) => ({
+              ...s,
+              activeConnections: 0,
+              cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
+            })),
         metrics: {
           ...state.metrics,
-          currentRps: 0
+          currentRps: bridgeActive ? state.metrics.currentRps : 0,
+          activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
         }
       }));
     }

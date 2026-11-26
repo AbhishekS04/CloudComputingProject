@@ -309,9 +309,9 @@ export function HeatmapCells({
                         opacity,
                         transform: scale !== 1 ? `scale(${scale})` : undefined,
                         transformOrigin: `${x + cellSize / 2}px ${y + cellHeight / 2}px`,
-                        transition: "all 0.15s ease-out",
+                        transition: "opacity 0.15s ease-out, transform 0.15s ease-out",
                       }}
-                      className="cursor-pointer transition-colors duration-150"
+                      className="cursor-pointer"
                       onMouseEnter={(e) => {
                         if (!interactive) return;
                         const rect = e.currentTarget.getBoundingClientRect();

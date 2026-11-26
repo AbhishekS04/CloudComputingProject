@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSimulationStore } from '../../store/simulationStore';
+import { playDotIn, playDotOut } from '../../lib/sound';
 
 const IS_LIVE_BACKEND = true;
 
@@ -532,39 +533,38 @@ function createIsoDiamondBlockSVG({
   let led2 = null;
   const rackBoxes = [];
   const rackLines = [];
+  const globeEls = [];
 
   if (iconType === 'globe') {
-    iconG.appendChild(
-      createSVG('circle', {
-        cx: 0,
-        cy: 0,
-        r: 20,
-        fill: 'none',
-        stroke: palette.lbIcon,
-        'stroke-width': '2.8',
-      })
-    );
-    iconG.appendChild(
-      createSVG('ellipse', {
-        cx: 0,
-        cy: 0,
-        rx: 9.5,
-        ry: 20,
-        fill: 'none',
-        stroke: palette.lbIcon,
-        'stroke-width': '2.6',
-      })
-    );
-    iconG.appendChild(
-      createSVG('line', {
-        x1: -19.5,
-        y1: 0,
-        x2: 19.5,
-        y2: 0,
-        stroke: palette.lbIcon,
-        'stroke-width': '2.6',
-      })
-    );
+    const gCircle = createSVG('circle', {
+      cx: 0,
+      cy: 0,
+      r: 20,
+      fill: 'none',
+      stroke: palette.lbIcon,
+      'stroke-width': '2.8',
+    });
+    const gEllipse = createSVG('ellipse', {
+      cx: 0,
+      cy: 0,
+      rx: 9.5,
+      ry: 20,
+      fill: 'none',
+      stroke: palette.lbIcon,
+      'stroke-width': '2.6',
+    });
+    const gLine = createSVG('line', {
+      x1: -19.5,
+      y1: 0,
+      x2: 19.5,
+      y2: 0,
+      stroke: palette.lbIcon,
+      'stroke-width': '2.6',
+    });
+    globeEls.push(gCircle, gEllipse, gLine);
+    iconG.appendChild(gCircle);
+    iconG.appendChild(gEllipse);
+    iconG.appendChild(gLine);
   } else if (iconType === 'server') {
     const rackBox1 = createSVG('rect', {
       x: -22,
@@ -690,6 +690,7 @@ function createIsoDiamondBlockSVG({
     led2,
     rackBoxes,
     rackLines,
+    globeEls,
     t1,
     t2,
     subEl,
@@ -1148,7 +1149,7 @@ function createClientLabelPillSVG({ cx, cy, text, palette = THEMES.light }) {
 }
 
 function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
-  const width = 212;
+  const width = 232;
   const height = 31;
   const hw = width / 2;
   const hh = height / 2;
@@ -1202,8 +1203,8 @@ function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
   gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: palette.pillGearHole }));
   g.appendChild(gearWrap);
 
-  const trackX = -hw + 30;
-  const trackW = 40;
+  const trackX = -hw + 28;
+  const trackW = 34;
   const trackH = 8.2;
   g.appendChild(
     createSVG('rect', {
@@ -1228,15 +1229,15 @@ function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
   g.appendChild(fillRect);
 
   const metricText = createSVG('text', {
-    x: trackX + trackW + 7,
-    y: 4.0,
+    x: trackX + trackW + 6,
+    y: 3.8,
     'text-anchor': 'start',
     fill: palette.pillText,
     'font-family': "'JetBrains Mono', monospace",
-    'font-size': '11px',
+    'font-size': '10px',
     'font-weight': '800',
   });
-  metricText.textContent = `${srv.cpu}% • ${srv.connections}c • ${srv.privateIp || '10.0.1.10'}`;
+  metricText.textContent = `${srv.cpu}% • ${srv.totalRequests || 0} req`;
   g.appendChild(metricText);
 
   const toggleW = 35;
@@ -1328,7 +1329,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
   const btnZoomOutRef = useRef(null);
   const zoomReadoutRef = useRef(null);
   const btnFitRef = useRef(null);
+  const metricTotalReqsRef = useRef(null);
+  const metricDispatchRef = useRef(null);
+  const metricServerExecRef = useRef(null);
   const metricRpsRef = useRef(null);
+  const metricTotalRttRef = useRef(null);
   const rpsBtnRefs = useRef([]);
 
   useEffect(() => {
@@ -1362,7 +1367,10 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           privateIp: s.privateIp || '10.0.1.10',
           cpu: s.cpu ?? 25,
           connections: s.activeConnections ?? 0,
+          totalRequests: s.totalRequests ?? 0,
+          avgLatency: s.avgLatency ?? 0,
           healthy: s.status === 'healthy',
+          status: s.status || 'healthy',
           halfSize: 1.38,
           cornerR: 0.42,
           height: 58,
@@ -1370,14 +1378,41 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           v: 0,
         }));
       }
-      isPaused = !useSimulationStore.getState().isRunning || !useSimulationStore.getState().lbOnline;
+      isPaused = !useSimulationStore.getState().isRunning;
       targetRPS = useSimulationStore.getState().targetRps;
       currentAlgoIdx = useSimulationStore.getState().algorithm === 'LEAST_CONNECTIONS' ? 1 : 0;
-      if (metricRpsRef.current) {
-        const initState = useSimulationStore.getState();
-        const rpsVal = initState.metrics?.currentRps ?? initState.targetRps ?? 0;
-        metricRpsRef.current.textContent = rpsVal + " req/s";
-      }
+      const syncHudMetrics = (st) => {
+        const inLive = st.clusterMode === 'live';
+        const online = inLive ? Boolean(st.lbOnline) : true;
+        const healthyCnt = (st.servers || []).filter((s) => s.status === 'healthy').length;
+        const totalReqs = st.metrics?.totalRequests ?? 0;
+        const failedReqs = st.metrics?.failedRequests ?? 0;
+        const activeConns = st.metrics?.activeConnectionsTotal ?? 0;
+        const rpsVal = (st.isRunning && online) ? (st.metrics?.currentRps ?? (inLive ? 0 : st.targetRps)) : 0;
+        const avgRtt = Math.round(st.metrics?.avgLatency || 0);
+        const srvExec = Math.round(st.metrics?.serverExec ?? (inLive ? 4 : 42));
+        const lbDisp = Math.round(st.metrics?.lbDispatch ?? (inLive ? 2 : 24));
+
+        if (metricTotalReqsRef.current) {
+          metricTotalReqsRef.current.textContent = failedReqs > 0
+            ? `${totalReqs.toLocaleString()} (${failedReqs} err)`
+            : `${totalReqs.toLocaleString()} reqs`;
+        }
+        if (metricDispatchRef.current) {
+          metricDispatchRef.current.textContent = online ? `${lbDisp} ms · ${activeConns}c` : 'OFFLINE';
+        }
+        if (metricServerExecRef.current) {
+          metricServerExecRef.current.textContent = !online ? 'PAUSED' : (healthyCnt > 0 ? `${srvExec} ms` : 'ERR 503');
+        }
+        if (metricRpsRef.current) {
+          metricRpsRef.current.textContent = `${rpsVal} req/s`;
+        }
+        if (metricTotalRttRef.current) {
+          metricTotalRttRef.current.textContent = !online ? 'LB OFFLINE' : (healthyCnt > 0 ? `${avgRtt} ms` : 'NO NODES');
+          metricTotalRttRef.current.classList.toggle('metric-card__value--green', online && healthyCnt > 0);
+        }
+      };
+      syncHudMetrics(useSimulationStore.getState());
     }
     let rrCounter = 0;
 
@@ -1390,6 +1425,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     const serverNodeRefs = new Map();
     let lbNodeRef = null;
     let lbSwitchingArcEl = null;
+    let currentLbOnline = IS_LIVE_BACKEND ? useSimulationStore.getState().lbOnline : true;
 
     const SVG_PACKET_POOL_SIZE = 280;
     const svgPacketNodes = [];
@@ -1408,21 +1444,27 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     const MAX_PACKETS = 2048;
     const pktActive = new Uint8Array(MAX_PACKETS);
     const pktRoute = new Uint16Array(MAX_PACKETS);
-    const pktType = new Uint8Array(MAX_PACKETS); // 0 = coral request, 1 = green response, 2 = handshake
+    const pktType = new Uint8Array(MAX_PACKETS); // 0 = coral request, 1 = green response, 2 = handshake, 3 = crimson error
     const pktDir = new Int8Array(MAX_PACKETS); // +1 forward, -1 reverse
     const pktU = new Float32Array(MAX_PACKETS); // 0.0 -> 1.0 normalized arc-length
     const pktSpeed = new Float32Array(MAX_PACKETS);
     const pktClientOrigin = new Uint8Array(MAX_PACKETS);
+    const pktTargetSrv = new Int16Array(MAX_PACKETS);
+    const pktFlags = new Uint8Array(MAX_PACKETS); // bit 1: directNoLb, bit 2: isErr
+    const pktLatencyMs = new Float32Array(MAX_PACKETS);
+
+    const livePacketQueue = [];
+    const clientCooldowns = new Float32Array(8);
 
     let pktWriteCursor = 0;
-    const MIN_SAME_LANE_HEADWAY = 0.25;
+    const MIN_SAME_LANE_HEADWAY = 0.14;
 
     const camera = {
       cx: 820,
       cy: 485,
       zoom: 1.0,
-      minZoom: 0.45,
-      maxZoom: 4.5,
+      minZoom: 1.0,
+      maxZoom: 3.5,
     };
 
     let viewportW = stageContainer.clientWidth || window.innerWidth;
@@ -1430,6 +1472,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let baseScale = 1.0;
 
     function applyViewBox() {
+      if (camera.zoom <= 1.001) {
+        camera.zoom = 1.0;
+        camera.cx = 820;
+        camera.cy = 485;
+      }
       const effScale = baseScale * camera.zoom;
       const vw = viewportW / effScale;
       const vh = viewportH / effScale;
@@ -1440,6 +1487,13 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       if (zoomReadoutRef.current) {
         zoomReadoutRef.current.textContent = `${Math.round(camera.zoom * 100)}%`;
       }
+      if (btnZoomOutRef.current) {
+        btnZoomOutRef.current.disabled = camera.zoom <= 1.001;
+      }
+      if (btnZoomInRef.current) {
+        btnZoomInRef.current.disabled = camera.zoom >= camera.maxZoom - 0.01;
+      }
+      stageContainer.style.cursor = camera.zoom > 1.01 ? 'grab' : 'default';
     }
 
     function syncViewportSize() {
@@ -1676,7 +1730,17 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       return true;
     }
 
-    function spawnPacket(routeIdx, type = 0, dir = 1, speedMultiplier = 1.0, originClientIdx = 0, ignoreHeadway = false) {
+    function spawnPacket(
+      routeIdx,
+      type = 0,
+      dir = 1,
+      speedMultiplier = 1.0,
+      originClientIdx = 0,
+      ignoreHeadway = false,
+      targetSrv = -1,
+      flags = 0,
+      latencyMs = 0
+    ) {
       const route = ROUTE_TABLES[routeIdx];
       if (!route) return false;
       if (!ignoreHeadway && !canSpawnOnRoute(routeIdx, dir)) return false;
@@ -1698,14 +1762,18 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       pktDir[slot] = dir;
       pktU[slot] = dir === 1 ? 0.025 : 0.975;
       pktClientOrigin[slot] = originClientIdx;
+      pktTargetSrv[slot] = targetSrv;
+      pktFlags[slot] = flags;
+      pktLatencyMs[slot] = latencyMs;
 
-      const pxPerSec = 265 * speedMultiplier;
+      const pxPerSec = 290 * speedMultiplier;
       pktSpeed[slot] = pxPerSec / Math.max(route.totalLen, 1);
 
       if (dir === 1 && routeIdx < STATE.clients.length) {
         const client = STATE.clients[routeIdx];
         if (client) {
-          triggerNodeImpact(client.id, route.startPt, palette.rippleReq);
+          triggerNodeImpact(client.id, route.startPt, type === 3 ? '#ef4444' : palette.rippleReq);
+          playDotIn(type === 2);
         }
       }
       return true;
@@ -1769,6 +1837,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     function clearAllPackets() {
       pktActive.fill(0);
+      livePacketQueue.length = 0;
       for (let i = 0; i < svgPacketNodes.length; i++) {
         svgPacketNodes[i].setAttribute('display', 'none');
       }
@@ -1783,7 +1852,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         if (!srv.healthy) {
           bgRect.setAttribute('fill', palette.pillOfflineBg);
           fillRect.setAttribute('width', '0');
-          metricText.textContent = 'OFFLINE';
+          metricText.textContent = srv.status === 'failed' ? 'CRASHED' : 'OFFLINE';
           metricText.setAttribute('fill', palette.pillOfflineText);
           gearPath.classList.add('svg-gear-paused');
           toggleBg.setAttribute('fill', palette.pillToggleOffRefresh);
@@ -1794,7 +1863,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           fillRect.setAttribute('width', w.toFixed(1));
           const barColor = srv.cpu > 78 ? '#e36652' : srv.cpu > 58 ? '#eba444' : '#6ec472';
           fillRect.setAttribute('fill', barColor);
-          metricText.textContent = `${srv.cpu}% • ${srv.connections}c`;
+          metricText.textContent = `${srv.cpu}% • ${srv.totalRequests || 0} req`;
           metricText.setAttribute('fill', palette.pillText);
           gearPath.classList.remove('svg-gear-paused');
           toggleBg.setAttribute('fill', palette.pillToggleOn);
@@ -1885,10 +1954,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         }
 
         spawnIsometricFloorWave(srv.u, srv.v, srv.healthy ? palette.floorWaveOnline : palette.floorWaveOffline);
+        const failLabel = srv.status === 'failed' ? 'CRASHED • FAILOVER' : 'FAILOVER • REROUTING';
         spawnMacroToast(
           refs.block.centerTop.x,
           refs.block.centerTop.y - 42,
-          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : 'FAILOVER • REROUTING',
+          srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : failLabel,
           srv.healthy ? palette.toastOkBg : palette.toastFailBg,
           srv.healthy ? palette.toastOkText : palette.toastFailText
         );
@@ -1910,6 +1980,51 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       refreshServerPillsUI();
     }
 
+    function setLoadBalancerOnline(online, announce = true) {
+      currentLbOnline = Boolean(online);
+      if (!lbNodeRef) return;
+
+      lbNodeRef.topPath.setAttribute('fill', currentLbOnline ? 'url(#lb-top-grad)' : 'url(#srv-off-top-grad)');
+      lbNodeRef.wallPath.setAttribute('fill', currentLbOnline ? 'url(#lb-wall-grad)' : 'url(#srv-off-wall-grad)');
+
+      const nextStroke = currentLbOnline ? palette.lbStroke : palette.srvOffStroke;
+      lbNodeRef.topPath.setAttribute('stroke', nextStroke);
+      lbNodeRef.wallPath.setAttribute('stroke', nextStroke);
+
+      const nextTitle = currentLbOnline ? palette.lbTitle : palette.srvOffTitle;
+      lbNodeRef.t1?.setAttribute('fill', nextTitle);
+      lbNodeRef.t2?.setAttribute('fill', nextTitle);
+
+      if (lbNodeRef.globeEls) {
+        const iconCol = currentLbOnline ? palette.lbIcon : '#6e665c';
+        lbNodeRef.globeEls.forEach((el) => el.setAttribute('stroke', iconCol));
+      }
+
+      if (!currentLbOnline) {
+        lbNodeRef.haloRing?.setAttribute('opacity', '0');
+      }
+
+      if (lbNodeRef.subEl) {
+        lbNodeRef.subEl.textContent = currentLbOnline ? (STATE.loadBalancer.subtitle || ALGORITHMS[currentAlgoIdx]) : 'LB OFFLINE';
+        lbNodeRef.subEl.setAttribute('fill', currentLbOnline ? palette.lbSubtitle : palette.pillOfflineText);
+      }
+
+      if (announce) {
+        spawnIsometricFloorWave(
+          STATE.loadBalancer.u,
+          STATE.loadBalancer.v,
+          currentLbOnline ? palette.floorWaveOnline : palette.floorWaveOffline
+        );
+        spawnMacroToast(
+          lbNodeRef.centerTop.x,
+          lbNodeRef.centerTop.y - 44,
+          currentLbOnline ? 'LOAD BALANCER ONLINE' : 'LOAD BALANCER OFFLINE',
+          currentLbOnline ? palette.toastOkBg : palette.toastFailBg,
+          currentLbOnline ? palette.toastOkText : palette.toastFailText
+        );
+      }
+    }
+
     function applyAlgorithmName(algoName) {
       const normalized = String(algoName).toUpperCase();
       const matchIdx = ALGORITHMS.indexOf(normalized);
@@ -1918,7 +2033,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       const algo = ALGORITHMS[currentAlgoIdx];
       STATE.loadBalancer.subtitle = algo;
 
-      if (lbNodeRef && lbNodeRef.subEl) {
+      if (lbNodeRef && lbNodeRef.subEl && currentLbOnline) {
         lbNodeRef.subEl.textContent = algo;
         spawnMacroToast(
           lbNodeRef.centerTop.x,
@@ -2371,6 +2486,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       }
 
       refreshServerPillsUI();
+      setLoadBalancerOnline(currentLbOnline, false);
     }
 
     engineApiRef.current = {
@@ -2497,6 +2613,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     });
 
     const onWheel = (e) => {
+      // At 100% default fit, scrolling down lets Lenis scroll the page naturally
+      if (e.deltaY > 0 && camera.zoom <= 1.001) {
+        return;
+      }
+      // At 100% scrolling up while Ctrl/pinch isn't pressed? Let user zoom in smoothly ONLY if zoomed or pinching/scrolling inside stage
       e.preventDefault();
       const effScaleBefore = baseScale * camera.zoom;
       const vwBefore = viewportW / effScaleBefore;
@@ -2504,20 +2625,28 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       const vxBefore = camera.cx - vwBefore / 2;
       const vyBefore = camera.cy - vhBefore / 2;
 
-      const worldX = vxBefore + (e.clientX / viewportW) * vwBefore;
-      const worldY = vyBefore + (e.clientY / viewportH) * vhBefore;
+      const rect = stageContainer.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const worldX = vxBefore + (mx / viewportW) * vwBefore;
+      const worldY = vyBefore + (my / viewportH) * vhBefore;
 
       const zoomFactor = Math.exp(-e.deltaY * 0.0014);
       camera.zoom = Math.min(camera.maxZoom, Math.max(camera.minZoom, camera.zoom * zoomFactor));
 
-      const effScaleAfter = baseScale * camera.zoom;
-      const vwAfter = viewportW / effScaleAfter;
-      const vhAfter = viewportH / effScaleAfter;
-
-      const vxAfter = worldX - (e.clientX / viewportW) * vwAfter;
-      const vyAfter = worldY - (e.clientY / viewportH) * vhAfter;
-      camera.cx = vxAfter + vwAfter / 2;
-      camera.cy = vyAfter + vhAfter / 2;
+      if (camera.zoom <= 1.001) {
+        camera.zoom = 1.0;
+        camera.cx = 820;
+        camera.cy = 485;
+      } else {
+        const effScaleAfter = baseScale * camera.zoom;
+        const vwAfter = viewportW / effScaleAfter;
+        const vhAfter = viewportH / effScaleAfter;
+        const vxAfter = worldX - (mx / viewportW) * vwAfter;
+        const vyAfter = worldY - (my / viewportH) * vhAfter;
+        camera.cx = vxAfter + vwAfter / 2;
+        camera.cy = vyAfter + vhAfter / 2;
+      }
 
       applyViewBox();
     };
@@ -2531,8 +2660,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let dragStartCY = 0;
 
     const onPointerDown = (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || camera.zoom <= 1.01) return;
       isDragging = true;
+      stageContainer.style.cursor = 'grabbing';
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       dragStartCX = camera.cx;
@@ -2551,6 +2681,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     const onPointerUp = () => {
       isDragging = false;
+      stageContainer.style.cursor = camera.zoom > 1.01 ? 'grab' : 'default';
     };
 
     stageContainer.addEventListener('pointerdown', onPointerDown);
@@ -2598,6 +2729,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     let rafId = 0;
 
     const pendingLiveServerPicks = new Map();
+    const pendingDirectPicks = new Map();
 
     function renderLoop(now) {
       rafId = requestAnimationFrame(renderLoop);
@@ -2606,15 +2738,13 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
       const nClients = STATE.clients.length;
 
-      if (!isPaused && (!IS_LIVE_BACKEND || useSimulationStore.getState().lbOnline)) {
+      if (!isPaused) {
         updateMacroAndSpringAnimations(dt);
-
-        if (IS_LIVE_BACKEND && !useSimulationStore.getState().lbOnline) { clearAllPackets(); return; }
 
         const currentMode = useSimulationStore.getState().clusterMode;
         const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
 
-        if (currentMode === 'dummy') {
+        if (currentMode === 'dummy' && currentLbOnline) {
           const visualEmitRate =
             targetRPS <= 12
               ? 3.2
@@ -2639,9 +2769,33 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           }
           if (spawnAccumulator > 3) spawnAccumulator = 0;
         } else {
-          // Live Azure Mode: zero synthetic dummy packets!
-          // Packets animate strictly in response to live 'lb-packet-event' from real terminal requests.
+          // Live Azure Mode: paced queue emission -> silky smooth evenly spaced dots, zero clumping
           spawnAccumulator = 0;
+          for (let c = 0; c < nClients; c++) {
+            clientCooldowns[c] = Math.max(0, clientCooldowns[c] - dt);
+          }
+          const minGapSec = livePacketQueue.length > 14 ? 0.065 : livePacketQueue.length > 5 ? 0.095 : 0.12;
+          let spawnedThisFrame = 0;
+          while (livePacketQueue.length > 0 && spawnedThisFrame < nClients) {
+            let pickedClient = -1;
+            for (let scan = 0; scan < nClients; scan++) {
+              const cand = (clientCursor + scan) % nClients;
+              const rC = clientRouteIndices[cand];
+              if (clientCooldowns[cand] <= 0 && rC !== undefined && canSpawnOnRoute(rC, 1)) {
+                pickedClient = cand;
+                break;
+              }
+            }
+            if (pickedClient === -1) break;
+            clientCursor = (pickedClient + 1) % (nClients || 1);
+            const item = livePacketQueue.shift();
+            const rC = clientRouteIndices[pickedClient];
+            const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
+            const pType = !item.isSuccess ? 3 : 0;
+            spawnPacket(rC, pType, 1, 1.18, pickedClient, false, item.sIdx, flags, item.latency || 0);
+            clientCooldowns[pickedClient] = minGapSec;
+            spawnedThisFrame++;
+          }
         }
 
         for (let i = 0; i < MAX_PACKETS; i++) {
@@ -2655,49 +2809,82 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
             const rIdx = pktRoute[i];
             const originC = pktClientOrigin[i];
             const route = ROUTE_TABLES[rIdx];
+            const tSrv = pktTargetSrv[i];
+            const flags = pktFlags[i];
+            const latMs = pktLatencyMs[i];
+            const isDirect = (flags & 1) !== 0;
+            const isErr = (flags & 2) !== 0 || pktType[i] === 3;
             pktActive[i] = 0;
 
             if (dir === 1 && rIdx < nClients) {
-              triggerNodeImpact('lb', route ? route.endPt : null, palette.rippleReq);
-              let targetSrv = -1;
-              if (pendingLiveServerPicks.has(originC) && STATE.servers[pendingLiveServerPicks.get(originC)]?.healthy) {
-                targetSrv = pendingLiveServerPicks.get(originC);
-                pendingLiveServerPicks.delete(originC);
+              if (isDirect && tSrv >= 0 && serverRouteIndices[tSrv] !== undefined) {
+                const sRouteIdx = serverRouteIndices[tSrv];
+                spawnPacket(sRouteIdx, isErr ? 3 : 0, 1, 1.2, originC, true, tSrv, flags, latMs);
+              } else if (!currentLbOnline) {
+                triggerNodeImpact('lb', route ? route.endPt : null, '#ef4444', '502 LB OFFLINE');
+                spawnPacket(clientRouteIndices[originC] ?? rIdx, 3, -1, 1.15, originC, true, tSrv, flags | 2, latMs);
               } else {
-                targetSrv = pickHealthyServerIdx(originC);
-              }
-              if (targetSrv !== -1) {
-                const sRouteIdx = serverRouteIndices[targetSrv];
-                const sRoute = ROUTE_TABLES[sRouteIdx];
-                if (route && sRoute) {
-                  triggerLBSwitchingArc(route.endPt, sRoute.startPt);
+                triggerNodeImpact('lb', route ? route.endPt : null, isErr ? '#ef4444' : palette.rippleReq);
+                let targetSrv = -1;
+                if (tSrv >= 0 && tSrv < STATE.servers.length && (STATE.servers[tSrv]?.healthy || isErr)) {
+                  targetSrv = tSrv;
+                } else {
+                  targetSrv = pickHealthyServerIdx(originC);
                 }
-                spawnPacket(sRouteIdx, 0, 1, speedMult, originC, true);
+                if (targetSrv !== -1) {
+                  const sRouteIdx = serverRouteIndices[targetSrv];
+                  const sRoute = ROUTE_TABLES[sRouteIdx];
+                  if (route && sRoute) {
+                    triggerLBSwitchingArc(route.endPt, sRoute.startPt);
+                  }
+                  spawnPacket(sRouteIdx, isErr ? 3 : 0, 1, 1.18, originC, true, targetSrv, flags, latMs);
+                } else {
+                  spawnPacket(clientRouteIndices[originC] ?? rIdx, 3, -1, 1.15, originC, true, -1, flags | 2, latMs);
+                }
               }
             } else if (dir === 1 && rIdx >= nClients) {
               const srvIdx = rIdx - nClients;
               const srv = STATE.servers[srvIdx];
-              if (srv && srv.healthy) {
-                triggerNodeImpact(srv.id, route ? route.endPt : null, palette.rippleReq, '200 OK');
-                // Return response packet traveling Server -> LB (green type 1, ignoreHeadway = true)
-                spawnPacket(rIdx, 1, -1, speedMult, originC, true);
+              if (srv && srv.healthy && !isErr) {
+                const msVal = Math.round(latMs || srv.avgLatency || 0);
+                const prefix = isDirect ? 'DIRECT 200' : '200 OK';
+                const latText = msVal > 0 ? `${prefix} · ${msVal}ms` : prefix;
+                triggerNodeImpact(srv.id, route ? route.endPt : null, palette.rippleReq, latText);
+                // Smooth green return response packet Server -> LB
+                spawnPacket(rIdx, 1, -1, 1.18, originC, true, srvIdx, flags, latMs);
+              } else if (srv) {
+                triggerNodeImpact(srv.id, route ? route.endPt : null, '#ef4444', '503 CRASHED');
+                spawnPacket(rIdx, 3, -1, 1.18, originC, true, srvIdx, flags | 2, latMs);
               }
             } else if (dir === -1 && rIdx >= nClients) {
-              triggerNodeImpact('lb', route ? route.startPt : null, palette.rippleRes);
-              const validClientIdx = originC < nClients ? originC : (Math.random() * nClients) | 0;
-              // Return response packet traveling LB -> Client (green type 1, ignoreHeadway = true)
-              spawnPacket(clientRouteIndices[validClientIdx], 1, -1, speedMult, validClientIdx, true);
+              if (!isDirect) {
+                triggerNodeImpact('lb', route ? route.startPt : null, isErr ? '#ef4444' : palette.rippleRes);
+              }
+              const validClientIdx = originC < nClients ? originC : 0;
+              // Return response packet LB -> Client along actual wire
+              spawnPacket(
+                clientRouteIndices[validClientIdx],
+                isErr ? 3 : 1,
+                -1,
+                1.18,
+                validClientIdx,
+                true,
+                tSrv,
+                flags,
+                latMs
+              );
             } else if (dir === -1 && rIdx < nClients) {
               const client = STATE.clients[rIdx];
               if (client && route) {
-                triggerNodeImpact(client.id, route.startPt, palette.rippleRes);
+                triggerNodeImpact(client.id, route.startPt, isErr ? '#ef4444' : palette.rippleRes);
+                playDotOut(isErr);
               }
             }
           }
         }
 
         metricTimer += dt;
-        if (metricTimer >= 1.0) {
+        if (currentMode === 'dummy' && metricTimer >= 1.0) {
           metricTimer = 0;
           const healthyCount = STATE.servers.filter((s) => s.healthy).length || 1;
           const loadShare = Math.round(
@@ -2754,6 +2941,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         } else if (pType === 1) {
           circleEl.setAttribute('fill', palette.pktResFill);
           circleEl.setAttribute('stroke', palette.pktResStroke);
+        } else if (pType === 3) {
+          circleEl.setAttribute('fill', '#ef4444');
+          circleEl.setAttribute('stroke', '#7f1d1d');
         } else {
           circleEl.setAttribute('fill', palette.pktHandFill);
           circleEl.setAttribute('stroke', palette.pktHandStroke);
@@ -2770,33 +2960,68 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     const unsubStore = useSimulationStore.subscribe((st) => {
       if (!IS_LIVE_BACKEND) return;
-      isPaused = !st.isRunning || !st.lbOnline;
+      const inLiveMode = st.clusterMode === 'live';
+      const nextLbOnline = inLiveMode ? Boolean(st.lbOnline) : true;
+      isPaused = !st.isRunning;
       targetRPS = st.targetRps;
-      if (metricRpsRef.current) {
-        const liveRps = st.isRunning ? (st.metrics?.currentRps ?? st.targetRps) : 0;
-        metricRpsRef.current.textContent = liveRps + " req/s";
+
+      const healthyCnt = (st.servers || []).filter((s) => s.status === 'healthy').length;
+      const totalReqs = st.metrics?.totalRequests ?? 0;
+      const failedReqs = st.metrics?.failedRequests ?? 0;
+      const activeConns = st.metrics?.activeConnectionsTotal ?? 0;
+      const liveRps = (st.isRunning && nextLbOnline) ? (st.metrics?.currentRps ?? (inLiveMode ? 0 : st.targetRps)) : 0;
+      const avgRtt = Math.round(st.metrics?.avgLatency || 0);
+      const srvExec = Math.round(st.metrics?.serverExec ?? (inLiveMode ? 4 : 42));
+      const lbDisp = Math.round(st.metrics?.lbDispatch ?? (inLiveMode ? 2 : 24));
+
+      if (metricTotalReqsRef.current) {
+        metricTotalReqsRef.current.textContent = failedReqs > 0
+          ? `${totalReqs.toLocaleString()} (${failedReqs} err)`
+          : `${totalReqs.toLocaleString()} reqs`;
       }
-      const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : 'ROUND ROBIN';
+      if (metricDispatchRef.current) {
+        metricDispatchRef.current.textContent = nextLbOnline ? `${lbDisp} ms · ${activeConns}c` : 'OFFLINE';
+      }
+      if (metricServerExecRef.current) {
+        metricServerExecRef.current.textContent = !nextLbOnline ? 'PAUSED' : (healthyCnt > 0 ? `${srvExec} ms` : 'ERR 503');
+      }
+      if (metricRpsRef.current) {
+        metricRpsRef.current.textContent = `${liveRps} req/s`;
+      }
+      if (metricTotalRttRef.current) {
+        metricTotalRttRef.current.textContent = !nextLbOnline ? 'LB OFFLINE' : (healthyCnt > 0 ? `${avgRtt} ms` : 'NO NODES');
+        metricTotalRttRef.current.classList.toggle('metric-card__value--green', nextLbOnline && healthyCnt > 0);
+      }
+
+      const desiredAlgo = st.algorithm === 'LEAST_CONNECTIONS' ? 'LEAST CONN' : st.algorithm === 'IP_HASH' ? 'IP HASH' : 'ROUND ROBIN';
       if (ALGORITHMS[currentAlgoIdx] !== desiredAlgo) {
         applyAlgorithmName(desiredAlgo);
       }
       if (st.servers && st.servers.length === STATE.servers.length) {
         st.servers.forEach((s, i) => {
+          const nextHealthy = s.status === 'healthy';
+          const healthChanged = STATE.servers[i].healthy !== nextHealthy;
           STATE.servers[i].name = s.name;
           STATE.servers[i].cpu = s.cpu ?? 25;
           STATE.servers[i].connections = s.activeConnections ?? 0;
-          STATE.servers[i].healthy = s.status === 'healthy';
+          STATE.servers[i].totalRequests = s.totalRequests ?? 0;
+          STATE.servers[i].avgLatency = s.avgLatency ?? 0;
+          STATE.servers[i].status = s.status || 'healthy';
+          if (healthChanged) {
+            toggleServerHealth(i, nextHealthy);
+          } else {
+            STATE.servers[i].healthy = nextHealthy;
+          }
         });
         refreshServerPillsUI();
       }
-      if (!st.lbOnline) {
-        clearAllPackets();
-        STATE.servers.forEach((s, i) => { toggleServerHealth(i, false); });
+      if (nextLbOnline !== currentLbOnline) {
+        setLoadBalancerOnline(nextLbOnline, true);
       }
     });
     
     const onLbPacketEvent = (e) => {
-      const { serverId, isSuccess } = e.detail || {};
+      const { serverId, isSuccess, directNoLb, latency } = e.detail || {};
       const nServers = STATE.servers.length;
       if (nServers === 0) return;
       isPaused = false;
@@ -2812,13 +3037,16 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       );
       if (sIdx === -1) sIdx = rrCounter % nServers;
 
-      const nClients = STATE.clients.length;
-      const cIdx = clientCursor % (nClients || 1);
-      clientCursor++;
-      const pType = isSuccess ? 0 : 2;
-      pendingLiveServerPicks.set(cIdx, sIdx);
-      const rIdx = clientRouteIndices[cIdx] !== undefined ? clientRouteIndices[cIdx] : 0;
-      spawnPacket(rIdx, pType, 1, 1.25, cIdx, true);
+      // Represent any volume (10 reqs or 10,000 reqs) smoothly without flooding wires with dots
+      if (livePacketQueue.length >= 12) {
+        livePacketQueue.shift();
+      }
+      livePacketQueue.push({
+        sIdx,
+        isSuccess: isSuccess !== false,
+        directNoLb: Boolean(directNoLb),
+        latency: latency || 0,
+      });
     };
     window.addEventListener('lb-packet-event', onLbPacketEvent);
 
@@ -2866,12 +3094,24 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
         .lb-iso-visualizer {
           position: relative;
           width: 100%;
-          min-height: 520px;
-          height: 720px;
+          min-height: 440px;
+          height: 470px;
           overflow: hidden;
           background: radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 70%, #ebe2d0 100%);
           font-family: 'JetBrains Mono', monospace;
           color: #23211e;
+        }
+
+        @media (min-width: 640px) {
+          .lb-iso-visualizer {
+            height: 580px;
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .lb-iso-visualizer {
+            height: 690px;
+          }
         }
 
         .lb-iso-visualizer .paper-grain {
@@ -3172,8 +3412,45 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
           transition: background-color 0.12s ease;
         }
 
-        .lb-iso-visualizer .zoom-btn:hover {
+        .lb-iso-visualizer .zoom-btn:hover:not(:disabled) {
           background: #f5ecd7;
+        }
+
+        .lb-iso-visualizer .zoom-btn:disabled {
+          opacity: 0.32;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 639px) {
+          .lb-iso-visualizer .hud-top-bar {
+            top: 8px;
+            left: 8px;
+            right: 8px;
+          }
+          .lb-iso-visualizer .hud-metrics-row {
+            gap: 5px;
+          }
+          .lb-iso-visualizer .metric-card {
+            padding: 4px 8px;
+            min-width: 82px;
+            border-radius: 8px;
+          }
+          .lb-iso-visualizer .metric-card__header {
+            font-size: 8px;
+          }
+          .lb-iso-visualizer .metric-card__value {
+            font-size: 12px;
+          }
+          .lb-iso-visualizer .hud-bottom-legend {
+            left: 10px;
+            bottom: 10px;
+            gap: 10px;
+            font-size: 9.5px;
+          }
+          .lb-iso-visualizer .hud-zoom-controls {
+            right: 10px;
+            bottom: 10px;
+          }
         }
 
         .lb-iso-visualizer .zoom-readout {
@@ -3385,12 +3662,11 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
             <div className="metric-card">
               <div className="metric-card__header">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                  <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
-                <span>DNS LOOKUP</span>
+                <span>TRANSFERRED</span>
               </div>
-              <div className="metric-card__value" id="metric-dns">18 ms</div>
+              <div className="metric-card__value" ref={metricTotalReqsRef} id="metric-dns">0 reqs</div>
             </div>
 
             <div className="metric-card">
@@ -3402,7 +3678,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
                 </svg>
                 <span>LB DISPATCH</span>
               </div>
-              <div className="metric-card__value" id="metric-connect">24 ms</div>
+              <div className="metric-card__value" ref={metricDispatchRef} id="metric-connect">1 ms · 0c</div>
             </div>
 
             <div className="metric-card">
@@ -3413,7 +3689,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
                 </svg>
                 <span>SERVER EXEC</span>
               </div>
-              <div className="metric-card__value" id="metric-server">42 ms</div>
+              <div className="metric-card__value" ref={metricServerExecRef} id="metric-server">0 ms</div>
             </div>
 
             <div className="metric-card">
@@ -3423,7 +3699,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
                 </svg>
                 <span>THROUGHPUT</span>
               </div>
-              <div className="metric-card__value" ref={metricRpsRef} id="metric-rps">12 req/s</div>
+              <div className="metric-card__value" ref={metricRpsRef} id="metric-rps">0 req/s</div>
             </div>
 
             <div className="metric-card">
@@ -3434,7 +3710,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
                 </svg>
                 <span>TOTAL RTT</span>
               </div>
-              <div className="metric-card__value metric-card__value--green" id="metric-total">84 ms</div>
+              <div className="metric-card__value metric-card__value--green" ref={metricTotalRttRef} id="metric-total">0 ms</div>
             </div>
           </div>
         </div>

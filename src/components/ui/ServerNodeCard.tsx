@@ -5,17 +5,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronUp,
   Globe,
-  MousePointer2,
+  Cursor,
   Flame,
   Tag,
   Shield,
   Power,
   Clock,
-  Link as LinkIcon,
+  Link,
   CheckCircle,
   AlertCircle,
-} from 'lucide-react';
-import { RxArrowTopRight } from 'react-icons/rx';
+  ArrowUpRight,
+} from 'reicon-react';
+import { DuotoneIcon } from './DuotoneIcon';
 
 interface ServerNodeCardProps {
   server: {
@@ -190,15 +191,15 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
           >
             <div className="space-y-2.5 p-3.5">
               {/* Virtual IP Row */}
-              <DataRow icon={<Globe size={13} />} label="Virtual IP & Port">
+              <DataRow icon={<DuotoneIcon icon={Globe} size={13} secondaryOpacity={0.16} />} label="Virtual IP & Port">
                 <div className="flex items-center gap-1.5 truncate rounded-md border border-black/[0.06] dark:border-white/[0.08] px-2 py-0.5 text-[11px] font-mono text-neutral-700 dark:text-neutral-300 bg-white dark:bg-[#2C2C2E]">
-                  <LinkIcon size={10} className="shrink-0 text-neutral-400" />
+                  <Link size={11} className="shrink-0 text-neutral-400" />
                   <span className="truncate">{publicIp}</span>
                 </div>
               </DataRow>
 
               {/* Operational State Row */}
-              <DataRow icon={<Power size={13} />} label="Operational State">
+              <DataRow icon={<DuotoneIcon icon={Power} size={13} secondaryOpacity={0.18} />} label="Operational State">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -211,13 +212,13 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
                       : 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#C41C14] dark:text-[#FF453A] hover:bg-[#FF3B30]/15'
                   }`}
                 >
-                  <Power size={10} />
+                  <Power size={11} />
                   <span>{isHealthy ? 'ACTIVE (Online)' : 'DRAINED (Offline)'}</span>
                 </button>
               </DataRow>
 
               {/* CPU Utilization Row */}
-              <DataRow icon={<Flame size={13} />} label="CPU Utilization">
+              <DataRow icon={<DuotoneIcon icon={Flame} size={13} secondaryOpacity={0.2} />} label="CPU Utilization">
                 <div className="flex items-center gap-2">
                   <div className="w-16 h-1 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
                     <div
@@ -240,40 +241,40 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
                         : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.04] dark:bg-white/[0.04] text-neutral-500'
                     }`}
                   >
-                    {cpu}% <RxArrowTopRight size={11} strokeWidth={0.5} />
+                    {cpu}% <ArrowUpRight size={11} />
                   </div>
                 </div>
               </DataRow>
 
               {/* Endpoints */}
-              <DataRow icon={<Globe size={13} />} label="Public Endpoint">
+              <DataRow icon={<DuotoneIcon icon={Globe} size={13} secondaryOpacity={0.16} />} label="Public Endpoint">
                 <span className="text-[11px] font-mono font-medium text-blue-600 dark:text-blue-400">
                   {publicIp}
                 </span>
               </DataRow>
 
-              <DataRow icon={<Shield size={13} />} label="Azure VNet Private IP">
+              <DataRow icon={<DuotoneIcon icon={Shield} size={13} secondaryOpacity={0.18} />} label="Azure VNet Private IP">
                 <span className="text-[11px] font-mono font-medium text-emerald-600 dark:text-emerald-400">
                   {privateIp}
                 </span>
               </DataRow>
 
               {/* Active Connections */}
-              <DataRow icon={<MousePointer2 size={13} />} label="Active TCP Conns">
+              <DataRow icon={<DuotoneIcon icon={Cursor} size={13} secondaryOpacity={0.16} />} label="Active TCP Conns">
                 <span className="text-[11px] font-mono font-medium text-neutral-800 dark:text-neutral-200">
                   {connections} sockets
                 </span>
               </DataRow>
 
               {/* Response Latency */}
-              <DataRow icon={<Clock size={13} />} label="Measured Latency">
+              <DataRow icon={<DuotoneIcon icon={Clock} size={13} secondaryOpacity={0.16} />} label="Measured Latency">
                 <span className="text-[11px] font-mono font-medium text-neutral-800 dark:text-neutral-200">
                   {isHealthy ? `${latency} ms` : '—'}
                 </span>
               </DataRow>
 
               {/* Routing State Tags */}
-              <DataRow icon={<Tag size={13} />} label="Routing State">
+              <DataRow icon={<DuotoneIcon icon={Tag} size={13} secondaryOpacity={0.16} />} label="Routing State">
                 <div className="flex items-center gap-1.5">
                   <span className="rounded border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#2C2C2E] px-1.5 py-0.5 text-[10px] font-mono text-neutral-600 dark:text-neutral-300">
                     L7 Node
@@ -291,18 +292,18 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
               </DataRow>
 
               {/* Health Check Probe */}
-              <DataRow icon={<Shield size={13} />} label="Health Probe">
+              <DataRow icon={<DuotoneIcon icon={Shield} size={13} secondaryOpacity={0.18} />} label="Health Probe">
                 <div className="flex items-center gap-1.5 text-[11px] font-mono">
                   {isHealthy ? (
                     <>
-                      <CheckCircle size={12} className="text-[#34C759] shrink-0" />
+                      <DuotoneIcon icon={CheckCircle} size={13} className="text-[#34C759]" secondaryOpacity={0.26} />
                       <span className="text-[#248A3D] dark:text-[#30D158] font-medium">
                         HTTP 200 OK (2s interval)
                       </span>
                     </>
                   ) : (
                     <>
-                      <AlertCircle size={12} className="text-[#FF3B30] shrink-0" />
+                      <DuotoneIcon icon={AlertCircle} size={13} className="text-[#FF3B30]" secondaryOpacity={0.26} />
                       <span className="text-[#C41C14] dark:text-[#FF453A] font-medium">
                         Failover Active (Bypassed)
                       </span>

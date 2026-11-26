@@ -53,5 +53,7 @@ def get_initial_servers():
     return servers
 
 
-HEALTH_CHECK_INTERVAL = float(os.getenv("HEALTH_CHECK_INTERVAL", "5.0"))
-REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "15.0"))
+HEALTH_CHECK_INTERVAL = float(os.getenv("HEALTH_CHECK_INTERVAL", "2.5"))
+REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "4.0"))
+OVERLOAD_MAX_CONNS = int(os.getenv("OVERLOAD_MAX_CONNS", "12"))
+OVERLOAD_COOLDOWN_SEC = float(os.getenv("OVERLOAD_COOLDOWN_SEC", "20.0"))

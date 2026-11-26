@@ -124,16 +124,16 @@ export function StatCard({
   const shown = useMotionValue(anim ? 0 : value);
   const text = useTransform(shown, (v) => fmt.current(v));
   const mounted = useRef(false);
+  const targetNum = active === null ? value : (trend[active] ?? value);
   useEffect(() => {
-    const target = active === null ? value : trend[active];
     const intro = !mounted.current;
     mounted.current = true;
-    const c = animate(shown, target, {
+    const c = animate(shown, targetNum, {
       duration: reduce ? 0 : intro ? 1.1 : 0.22,
       ease: EASE_OUT,
     });
     return () => c.stop();
-  }, [active, value, trend, shown, reduce]);
+  }, [targetNum, shown, reduce]);
 
   /* scrub cursor */
   const curX = useSpring(0, { stiffness: 600, damping: 44, mass: 0.5 });
@@ -194,17 +194,13 @@ export function StatCard({
       onPointerLeave={(e) => e.pointerType === "mouse" && setActive(null)}
       onKeyDown={onKey}
       onBlur={() => setActive(null)}
-      className={`group relative min-w-0 select-none overflow-hidden rounded-2xl bg-white/80 pt-4 text-neutral-700 backdrop-blur-md transition-[box-shadow] duration-200 dark:bg-[#1A1A1A]/90 dark:text-neutral-300 ${ring} ${focus} [@media(hover:hover)]:hover:ring-black/15 dark:[@media(hover:hover)]:hover:ring-white/15 ${className}`}
-      style={{
-        boxShadow:
-          "0 1px 2px rgba(0,0,0,0.04), 0 18px 36px -28px rgba(0,0,0,0.2)",
-      }}
+      className={`group relative min-w-0 select-none overflow-hidden rounded-2xl bg-white/95 pt-5 text-neutral-700 transition-[box-shadow] duration-200 dark:bg-[#14161b]/95 dark:text-neutral-300 border border-black/[0.06] dark:border-white/[0.08] shadow-xs ${focus} [@media(hover:hover)]:hover:border-black/15 dark:[@media(hover:hover)]:hover:border-white/15 ${className}`}
     >
-      <div className="flex items-start justify-between gap-3 px-4">
-        <p className={`truncate text-[12.5px] font-medium ${muted}`}>{label}</p>
+      <div className="flex items-start justify-between gap-3 px-5">
+        <p className={`truncate text-xs font-medium ${muted}`}>{label}</p>
         <span
           className={cx(
-            "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-medium tabular-nums",
+            "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
             good === null &&
               "bg-black/[0.05] text-neutral-500 dark:bg-white/[0.06]",
             good === true &&
@@ -227,10 +223,10 @@ export function StatCard({
         </span>
       </div>
 
-      <p className="mt-1.5 px-4 text-[28px] font-semibold leading-none tracking-[-0.035em] tabular-nums text-neutral-900 dark:text-neutral-50 sm:text-[30px] font-mono">
+      <p className="mt-2 px-5 text-2xl sm:text-[28px] font-semibold leading-none tracking-tight tabular-nums text-neutral-900 dark:text-neutral-50 font-sans">
         <motion.span>{text}</motion.span>
       </p>
-      <p className={`mt-1.5 truncate px-4 text-[12px] font-mono ${muted}`}>
+      <p className={`mt-1.5 truncate px-5 text-xs tabular-nums ${muted}`}>
         {sub}
       </p>
 

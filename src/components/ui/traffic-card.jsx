@@ -165,7 +165,7 @@ export function TrafficCard({
   return (
     <div
       className={cn(
-        'relative bg-white/80 dark:bg-[#1A1A1A]/90 border border-neutral-200/80 dark:border-white/10 rounded-2xl p-5 shadow-xs backdrop-blur-md transition-all duration-200 select-none text-neutral-900 dark:text-neutral-100',
+        'relative bg-white/95 dark:bg-[#14161b]/95 border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-xs transition-all duration-200 select-none text-neutral-900 dark:text-neutral-100 font-sans',
         className
       )}
       aria-labelledby={headingId}
@@ -174,7 +174,7 @@ export function TrafficCard({
       <div className="flex items-center justify-between gap-3 mb-3">
         <h3
           id={headingId}
-          className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200"
+          className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
         >
           {title}
         </h3>
@@ -184,7 +184,7 @@ export function TrafficCard({
           <div
             role="tablist"
             aria-label={`${title} time range`}
-            className="flex items-center p-0.5 rounded-lg bg-neutral-100 dark:bg-white/5 border border-neutral-200/80 dark:border-white/10"
+            className="flex items-center p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06]"
           >
             {ranges.map((range) => {
               const isSelected = range.id === selectedRangeId;
@@ -195,16 +195,16 @@ export function TrafficCard({
                   aria-selected={isSelected}
                   onClick={() => handleRangeSelect(range.id)}
                   className={cn(
-                    'relative px-2.5 py-1 text-[11px] font-mono font-semibold rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer',
+                    'relative px-3 py-0.5 text-xs rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer',
                     isSelected
-                      ? 'text-neutral-900 dark:text-white font-bold'
-                      : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                      ? 'text-neutral-900 dark:text-white font-semibold'
+                      : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white font-medium'
                   )}
                 >
                   {isSelected && (
                     <motion.div
                       layoutId="easyui-traffic-card-tab-indicator"
-                      className="absolute inset-0 bg-white dark:bg-[#2A2A2A] rounded-md shadow-2xs border border-neutral-200/80 dark:border-white/10"
+                      className="absolute inset-0 bg-white dark:bg-[#202227] rounded-full shadow-xs"
                       transition={{ type: 'spring', bounce: 0.2, duration: 0.35 }}
                     />
                   )}
@@ -219,16 +219,16 @@ export function TrafficCard({
       {/* Metric Headline & Caption */}
       <div className="mb-4">
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-neutral-900 dark:text-white tabular-nums">
+          <span className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white tabular-nums">
             {format(displayTotal)}
           </span>
-          <span className="text-xs font-mono font-medium text-neutral-400 dark:text-neutral-500">
-            {hoveredPointIndex !== null ? `${unit} on ${points[hoveredPointIndex]?.label}` : unit}
+          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            {hoveredPointIndex !== null ? `${unit} · ${points[hoveredPointIndex]?.label}` : unit}
           </span>
         </div>
 
         {activeRange.caption && (
-          <p className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 mt-0.5">
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">
             {activeRange.caption}
           </p>
         )}
@@ -408,7 +408,7 @@ export function TrafficCard({
       </div>
 
       {/* Bottom Channel Legend (Interactive highlight) */}
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 mt-3.5 pt-3 border-t border-neutral-200/80 dark:border-white/10 font-mono">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3.5 pt-3 border-t border-black/[0.05] dark:border-white/[0.06] font-sans">
         {resolvedChannels.map((channel) => {
           const isDimmed = activeChannelId && activeChannelId !== channel.id;
           return (
@@ -418,7 +418,7 @@ export function TrafficCard({
                 setActiveChannelId((prev) => (prev === channel.id ? null : channel.id))
               }
               className={cn(
-                'flex items-center gap-1.5 text-[11px] font-medium transition-all rounded-md px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-white/5 cursor-pointer',
+                'flex items-center gap-1.5 text-xs font-medium transition-all rounded-full px-2 py-0.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer',
                 isDimmed ? 'opacity-40' : 'opacity-100'
               )}
             >

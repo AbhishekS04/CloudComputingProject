@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Maximize2, Minimize2, Layers, BarChart3 } from 'lucide-react';
+import { Sun, Moon, Maximize2, Minimize, VolumeHigh, VolumeX } from 'reicon-react';
+import { DuotoneIcon } from '../ui/DuotoneIcon';
 import { useSimulationStore } from '../../store/simulationStore';
+import { useBlurFadeThemeTransition } from '../ui/BlurFadeThemeTransition';
+import { isSoundEnabled, subscribeSoundChange, toggleSound } from '../../lib/sound';
+import { ProgressiveBlur } from '../ui/progressive-blur';
+import { FloatingMenu } from '../ui/FloatingMenu';
 import { cn } from '../../lib/utils';
 
 export default function SystemDesignNavbar() {
   const location = useLocation();
-  const darkMode = useSimulationStore((state) => state.isDarkMode);
-  const toggleDarkMode = useSimulationStore((state) => state.toggleDarkMode);
+  const { theme, triggerTransition, isAnimating } = useBlurFadeThemeTransition();
+  const darkMode = theme === 'dark';
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+
+  useEffect(() => subscribeSoundChange(setSoundOn), []);
 
   const algorithm = useSimulationStore((state) => state.algorithm);
   const targetRps = useSimulationStore((state) => state.targetRps);
@@ -54,104 +62,140 @@ export default function SystemDesignNavbar() {
     }
   };
 
-  return (
-    <header className="h-14 px-4 sm:px-6 bg-white/75 dark:bg-[#111215]/80 backdrop-blur-xl border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between sticky top-0 z-50 shrink-0 select-none transition-colors duration-200 font-sans">
-      {/* 1. Left: Pure Apple Brand Mark & Segmented Navigation */}
-      <div className="flex items-center gap-4 sm:gap-6">
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-b from-neutral-900 to-neutral-800 dark:from-white dark:to-neutral-200 text-white dark:text-neutral-900 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform duration-200">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="5" cy="12" r="2.5" />
-              <circle cx="19" cy="6" r="2" />
-              <circle cx="19" cy="18" r="2" />
-              <path d="M7.5 12h3.5c2 0 3-1.5 4-4.5l.5-1.5" />
-              <path d="M11 12c1 0 2 1.5 3 4.5l.5 1.5" />
-            </svg>
-          </div>
-          <span className="font-semibold text-[15px] tracking-tight text-neutral-900 dark:text-white">
-            LoadFlow
-          </span>
-        </Link>
+  const navLinks = [
+    {
+      label: 'Studio',
+      to: '/',
+      active: location.pathname === '/',
+    },
+    {
+      label: 'Monitoring',
+      to: '/monitoring',
+      badge: (
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      ),
+      active: location.pathname === '/monitoring',
+    },
+    {
+      label: 'About',
+      to: '/about',
+      active: location.pathname === '/about',
+    },
+  ];
 
-        {/* Apple HIG Segmented Navigation: Studio vs Monitoring */}
-        <nav className="flex items-center p-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06] text-xs">
-          <Link
-            to="/"
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-150 text-xs font-medium cursor-pointer",
-              location.pathname === '/'
-                ? "bg-white dark:bg-[#202227] text-neutral-900 dark:text-white shadow-xs font-semibold"
-                : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-            )}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Studio</span>
-          </Link>
-          <Link
-            to="/monitoring"
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all duration-150 text-xs font-medium cursor-pointer",
-              location.pathname === '/monitoring'
-                ? "bg-white dark:bg-[#202227] text-neutral-900 dark:text-white shadow-xs font-semibold"
-                : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-            )}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Monitoring</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
-          </Link>
-        </nav>
-      </div>
-
-      {/* 2. Right: Quiet Apple Telemetry & Circular Glass Utilities */}
-      <div className="flex items-center gap-2">
-        {/* Subtle Live Cluster Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs">
+  const menuFooter = (
+    <div className="space-y-2.5 px-1">
+      {/* Compact Live Cluster Readout */}
+      <div className="flex items-center justify-between gap-2 rounded-xl bg-neutral-100/80 dark:bg-white/[0.04] border border-black/[0.04] dark:border-white/[0.06] px-3 py-2 text-[11px]">
+        <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              "w-2 h-2 rounded-full",
+              "w-1.5 h-1.5 rounded-full",
               isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
             )}
           />
-          <span className="text-neutral-600 dark:text-neutral-300 font-medium">
+          <span className="font-medium text-neutral-700 dark:text-neutral-200">
             {isOnline ? 'Active' : 'Paused'}
           </span>
           <span className="text-neutral-300 dark:text-neutral-600">·</span>
-          <span className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">
+          <span className="font-semibold text-neutral-900 dark:text-white tabular-nums">
             {activeRps} req/s
           </span>
         </div>
 
-        {/* Quiet Nodes Status Pill */}
-        <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs text-neutral-500 dark:text-neutral-400">
-          <span className="font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
-            {healthyNodes}/{totalNodes}
+        <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+          <span className="tabular-nums font-medium text-neutral-700 dark:text-neutral-200">
+            {healthyNodes}/{totalNodes} nodes
           </span>
-          <span>nodes</span>
+          <span className="text-neutral-300 dark:text-neutral-600">·</span>
+          <span className="text-[10px] tracking-wide font-medium">
+            {activeAlgo}
+          </span>
         </div>
+      </div>
 
-        {/* Circular Glass Theme Toggle Button */}
+      {/* Sound, Theme & Fullscreen Utilities */}
+      <div className="grid grid-cols-3 gap-1.5">
         <button
           type="button"
-          onClick={toggleDarkMode}
-          className="w-8 h-8 rounded-full bg-black/[0.03] hover:bg-black/[0.07] dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-black/[0.04] dark:border-white/[0.08] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white active:scale-95 flex items-center justify-center transition-all cursor-pointer"
+          data-cuelume-toggle
+          onClick={() => toggleSound()}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-black/[0.05] dark:border-white/[0.07] bg-neutral-100/70 hover:bg-neutral-200/70 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] px-2.5 py-2 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 active:scale-[0.97] transition-all cursor-pointer"
+          title={soundOn ? 'Mute UI & Packet Sounds' : 'Enable UI & Packet Sounds'}
+          aria-label={soundOn ? 'Mute UI & Packet Sounds' : 'Enable UI & Packet Sounds'}
+        >
+          {soundOn ? (
+            <DuotoneIcon icon={VolumeHigh} size={15} className="text-emerald-500" secondaryOpacity={0.28} />
+          ) : (
+            <VolumeX size={15} className="opacity-60" />
+          )}
+          <span>{soundOn ? 'Sound' : 'Muted'}</span>
+        </button>
+
+        <button
+          type="button"
+          data-cuelume-toggle
+          disabled={isAnimating}
+          onClick={() => triggerTransition()}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-black/[0.05] dark:border-white/[0.07] bg-neutral-100/70 hover:bg-neutral-200/70 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] px-2.5 py-2 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 active:scale-[0.97] transition-all cursor-pointer disabled:opacity-60"
           title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
-          {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
+          {darkMode ? (
+            <DuotoneIcon icon={Sun} size={15} className="text-amber-400" secondaryOpacity={0.34} />
+          ) : (
+            <DuotoneIcon icon={Moon} size={15} className="text-indigo-500" secondaryOpacity={0.24} />
+          )}
+          <span>{darkMode ? 'Dark' : 'Light'}</span>
         </button>
 
-        {/* Circular Glass Fullscreen Toggle Button */}
         <button
           type="button"
+          data-cuelume-tap
+          data-cuelume-emphasis="subtle"
           onClick={toggleFullscreen}
-          className="w-8 h-8 rounded-full bg-black/[0.03] hover:bg-black/[0.07] dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-black/[0.04] dark:border-white/[0.08] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white active:scale-95 flex items-center justify-center transition-all cursor-pointer"
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-black/[0.05] dark:border-white/[0.07] bg-neutral-100/70 hover:bg-neutral-200/70 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] px-2.5 py-2 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 active:scale-[0.97] transition-all cursor-pointer"
           title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
         >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          {isFullscreen ? (
+            <DuotoneIcon icon={Minimize} size={15} className="text-neutral-700 dark:text-neutral-200" secondaryOpacity={0.2} />
+          ) : (
+            <Maximize2 size={15} />
+          )}
+          <span>{isFullscreen ? 'Exit' : 'Expand'}</span>
         </button>
       </div>
-    </header>
+    </div>
+  );
+
+  return (
+    <>
+      <header className="fixed top-0 inset-x-0 z-50 w-full h-14 select-none font-sans pointer-events-none">
+        {/* Upside-down progressive blur + soft top fade behind floating nav typography */}
+        <ProgressiveBlur position="top" height="88px" className="z-0" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[84px] z-[1] bg-gradient-to-b from-[#FAF7F0]/80 via-[#FAF7F0]/35 to-transparent dark:from-[#121212]/85 dark:via-[#121212]/40 dark:to-transparent"
+        />
+
+        <div className="relative z-20 w-full max-w-[1380px] mx-auto h-14 px-3 sm:px-6 flex items-center justify-between pointer-events-auto">
+          {/* Left: Pure Text Wordmark Only (no logo icon) */}
+          <Link
+            to="/"
+            className="text-[16px] font-semibold tracking-[-0.025em] text-neutral-900 dark:text-white hover:opacity-75 transition-opacity"
+          >
+            LoadFlow
+          </Link>
+
+          {/* Right: Compact Refined Floating Menu */}
+          <FloatingMenu
+            links={navLinks}
+            footerContent={menuFooter}
+          />
+        </div>
+      </header>
+      <div className="h-14 shrink-0" aria-hidden="true" />
+    </>
   );
 }

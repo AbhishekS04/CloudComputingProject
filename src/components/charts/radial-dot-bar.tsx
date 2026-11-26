@@ -235,25 +235,19 @@ const DotGroups = memo(function DotGroups({
             stroke={group.stroke}
             strokeWidth={group.strokeWidth}
             style={{
-              opacity: dimmed ? fadedOpacity : 1,
-              transition: "opacity 0.15s ease-out",
+              opacity: revealed ? (dimmed ? fadedOpacity : 1) : 0,
+              transition: animate
+                ? `opacity ${ENTER_DURATION_S}s ease-out`
+                : "opacity 0.15s ease-out",
             }}
           >
             {group.dots.map((dot) => (
               <circle
                 cx={dot.x}
                 cy={dot.y}
+                fillOpacity={dot.opacity}
                 key={dot.key}
                 r={dot.r}
-                style={{
-                  opacity: revealed ? dot.opacity : 0,
-                  transform: revealed ? undefined : "scale(0)",
-                  transformBox: "fill-box",
-                  transformOrigin: "center",
-                  transition: animate
-                    ? `opacity ${ENTER_DURATION_S}s ease-out ${dot.delay}s, transform ${ENTER_DURATION_S}s cubic-bezier(0.2, 0.8, 0.2, 1) ${dot.delay}s`
-                    : undefined,
-                }}
               />
             ))}
           </g>

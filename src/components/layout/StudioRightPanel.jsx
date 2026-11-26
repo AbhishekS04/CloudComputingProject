@@ -4,7 +4,6 @@ import { useSimulationStore } from '../../store/simulationStore';
 import { simulationEngine } from '../../simulation/engine';
 
 const IS_LIVE_BACKEND = true;
-import { Terminal, Copy, Check, Activity, ShieldCheck } from 'lucide-react';
 import {
   Server,
   Slider,
@@ -14,7 +13,12 @@ import {
   Plus,
   Minus,
   ArrowRight,
+  BrowserTerminal,
+  Copy,
+  Check,
+  ShieldCheck,
 } from 'reicon-react';
+import { DuotoneIcon } from '../ui/DuotoneIcon';
 
 const RPS_LEVELS = [
   { val: 12, label: '12/s' },
@@ -246,7 +250,7 @@ export default function StudioRightPanel() {
         ) : (
           <div className="flex items-center justify-between pt-2.5 border-t border-black/[0.06] dark:border-white/[0.08] text-[11px] text-neutral-500 dark:text-neutral-400">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <DuotoneIcon icon={ShieldCheck} size={14} className="text-emerald-500" secondaryOpacity={0.25} />
               <span>Azure Central India Fleet</span>
             </span>
             <span className="font-mono text-neutral-600 dark:text-neutral-300">
@@ -264,7 +268,7 @@ export default function StudioRightPanel() {
           {/* Section Header */}
           <div className="flex items-center justify-between pb-1 border-b border-black/[0.05] dark:border-white/[0.06]">
             <div className="flex items-center gap-1.5">
-              <Terminal className="w-3.5 h-3.5 text-[#007AFF]" />
+              <DuotoneIcon icon={BrowserTerminal} size={15} className="text-[#007AFF]" secondaryOpacity={0.22} />
               <h3 className="text-[12px] font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
                 Terminal Traffic Controller
               </h3>
@@ -332,6 +336,26 @@ export default function StudioRightPanel() {
                 desc: 'Floods cluster with concurrent threads to test capacity'
               },
               {
+                label: 'Without LB Attack (Crash Single VM)',
+                cmd: 'python send_traffic.py --no-lb',
+                desc: 'Sends traffic directly to 1 random VM (LB OFF) -> crashes VM!'
+              },
+              {
+                label: 'With LB Protection (Zero Crash)',
+                cmd: 'python send_traffic.py --with-lb',
+                desc: 'Sends identical flood via LB across all 3 VMs -> 100% survival!'
+              },
+              {
+                label: 'Overload Crash & Failover Test',
+                cmd: 'python send_traffic.py --overload',
+                desc: 'Overloads nodes to trigger crash + smooth failover shift'
+              },
+              {
+                label: 'Faculty Presentation Demo (Full)',
+                cmd: 'python send_traffic.py --demo --auto',
+                desc: 'Automated 4-act live showcase for Azure audit, traffic, crash & recovery'
+              },
+              {
                 label: 'Direct Azure VM Probe',
                 cmd: 'python send_traffic.py --direct',
                 desc: 'Inspects health & request counters on all 3 Azure VMs'
@@ -357,12 +381,12 @@ export default function StudioRightPanel() {
                   >
                     {copiedCmd === cmd ? (
                       <>
-                        <Check size={10} className="text-[#34C759]" />
+                        <Check size={11} className="text-[#34C759]" />
                         <span className="text-[#34C759]">Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy size={10} />
+                        <Copy size={11} />
                         <span>Copy</span>
                       </>
                     )}

@@ -1,11 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { cn } from '../../lib/utils';
+
+const DEFAULT_DONUT_COLORS = [
+  '#3B82F6', // Blue (HTTP/2)
+  '#10B981', // Emerald (WebSocket)
+  '#8B5CF6', // Purple (gRPC)
+  '#F59E0B', // Amber (REST API)
+  '#EC4899', // Pink (Static Assets)
+  '#64748B', // Slate (Health & Probes)
+];
 
 /**
  * DonutChart - Arc morphing donut chart with rolling center readout and synced legend
  * Following UI Arc specification & Apple HIG design tokens
  */
-export default function DonutChart({
+const DonutChart = memo(function DonutChart({
   data = [],
   label = 'Traffic by Service',
   unit = 'req/s',
@@ -34,66 +43,58 @@ export default function DonutChart({
   // Compute arc angles
   const radius = size / 2;
   const innerRadius = radius - thickness;
-  const circumference = 2 * Math.PI * (radius - thickness / 2);
-
-  // Default color palette for cloud protocols
-  const defaultColors = [
-    '#3B82F6', // Blue (HTTP/2)
-    '#10B981', // Emerald (WebSocket)
-    '#8B5CF6', // Purple (gRPC)
-    '#F59E0B', // Amber (REST API)
-    '#EC4899', // Pink (Static Assets)
-    '#64748B', // Slate (Health & Probes)
-  ];
+  const defaultColors = DEFAULT_DONUT_COLORS;
 
   // Calculate arc slices
-  let cumulativeAngle = -90; // Start at top
-  const slices = visibleData.map((d, i) => {
-    const fraction = total > 0 ? d.value / total : 0;
-    const sweepAngle = fraction * 360;
-    const startAngle = cumulativeAngle;
-    cumulativeAngle += sweepAngle;
-    const endAngle = cumulativeAngle;
+  const slices = useMemo(() => {
+    let cumulativeAngle = -90; // Start at top
+    return visibleData.map((d, i) => {
+      const fraction = total > 0 ? d.value / total : 0;
+      const sweepAngle = fraction * 360;
+      const startAngle = cumulativeAngle;
+      cumulativeAngle += sweepAngle;
+      const endAngle = cumulativeAngle;
 
-    const color = d.color || defaultColors[i % defaultColors.length];
+      const color = d.color || defaultColors[i % defaultColors.length];
 
-    // SVG arc path
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = (endAngle * Math.PI) / 180;
+      // SVG arc path
+      const startRad = (startAngle * Math.PI) / 180;
+      const endRad = (endAngle * Math.PI) / 180;
 
-    const x1 = radius + radius * Math.cos(startRad);
-    const y1 = radius + radius * Math.sin(startRad);
-    const x2 = radius + radius * Math.cos(endRad);
-    const y2 = radius + radius * Math.sin(endRad);
+      const x1 = radius + radius * Math.cos(startRad);
+      const y1 = radius + radius * Math.sin(startRad);
+      const x2 = radius + radius * Math.cos(endRad);
+      const y2 = radius + radius * Math.sin(endRad);
 
-    const x3 = radius + innerRadius * Math.cos(endRad);
-    const y3 = radius + innerRadius * Math.sin(endRad);
-    const x4 = radius + innerRadius * Math.cos(startRad);
-    const y4 = radius + innerRadius * Math.sin(startRad);
+      const x3 = radius + innerRadius * Math.cos(endRad);
+      const y3 = radius + innerRadius * Math.sin(endRad);
+      const x4 = radius + innerRadius * Math.cos(startRad);
+      const y4 = radius + innerRadius * Math.sin(startRad);
 
-    const largeArc = sweepAngle > 180 ? 1 : 0;
+      const largeArc = sweepAngle > 180 ? 1 : 0;
 
-    const pathData = sweepAngle >= 359.9
-      ? `M ${radius + radius} ${radius}
-         A ${radius} ${radius} 0 1 0 ${radius - radius} ${radius}
-         A ${radius} ${radius} 0 1 0 ${radius + radius} ${radius}
-         M ${radius + innerRadius} ${radius}
-         A ${innerRadius} ${innerRadius} 0 1 1 ${radius - innerRadius} ${radius}
-         A ${innerRadius} ${innerRadius} 0 1 1 ${radius + innerRadius} ${radius} Z`
-      : `M ${x1} ${y1}
-         A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}
-         L ${x3} ${y3}
-         A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}
-         Z`;
+      const pathData = sweepAngle >= 359.9
+        ? `M ${radius + radius} ${radius}
+           A ${radius} ${radius} 0 1 0 ${radius - radius} ${radius}
+           A ${radius} ${radius} 0 1 0 ${radius + radius} ${radius}
+           M ${radius + innerRadius} ${radius}
+           A ${innerRadius} ${innerRadius} 0 1 1 ${radius - innerRadius} ${radius}
+           A ${innerRadius} ${innerRadius} 0 1 1 ${radius + innerRadius} ${radius} Z`
+        : `M ${x1} ${y1}
+           A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}
+           L ${x3} ${y3}
+           A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}
+           Z`;
 
-    return {
-      ...d,
-      color,
-      fraction,
-      pathData,
-      percent: Math.round(fraction * 100),
-    };
-  });
+      return {
+        ...d,
+        color,
+        fraction,
+        pathData,
+        percent: Math.round(fraction * 100),
+      };
+    });
+  }, [visibleData, total, radius, innerRadius, defaultColors]);
 
   const toggleHide = (key) => {
     setHiddenKeys((prev) =>
@@ -207,4 +208,6 @@ export default function DonutChart({
       </div>
     </div>
   );
-}
+});
+
+export default DonutChart;

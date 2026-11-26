@@ -34,7 +34,6 @@ def create_app(start_health_checker=True):
             return response
 
     tracker = RequestTracker(config.get_initial_servers())
-    health_checker = HealthChecker(tracker, interval=config.HEALTH_CHECK_INTERVAL)
 
     balancers = {
         "round_robin": RoundRobinBalancer(),
@@ -56,6 +55,16 @@ def create_app(start_health_checker=True):
                     q.put_nowait(data)
                 except Exception:
                     pass
+
+    health_checker = HealthChecker(
+        tracker,
+        interval=config.HEALTH_CHECK_INTERVAL,
+        on_status_change=lambda srv: broadcast_event({
+            "type": "server_update",
+            "action": "health_change",
+            "server": srv,
+        }),
+    )
 
     def get_algorithm():
         with state_lock:
@@ -203,9 +212,7 @@ def create_app(start_health_checker=True):
         recovered = []
         for srv in tracker.get_all_servers():
             srv_id = srv["id"]
-            if not srv["enabled"]:
-                tracker.toggle_server(srv_id)
-            tracker.update_health(srv_id, True)
+            tracker.recover_server(srv_id)
             recovered.append(srv_id)
         broadcast_event({"type": "server_update", "action": "recover", "servers": tracker.get_all_servers()})
         return jsonify({"status": "success", "recovered": recovered, "message": "All Azure backend nodes restored"}), 200
@@ -258,6 +265,7 @@ def create_app(start_health_checker=True):
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }), 503
 
+        req_arrival = time.time()
         algo = get_algorithm()
         healthy_servers = tracker.get_healthy_servers()
         payload = request.get_json(silent=True) or {}
@@ -287,105 +295,176 @@ def create_app(start_health_checker=True):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }), 503
 
-        try:
-            selected = balancers[algo].select_server(healthy_servers, client_ip=client_ip)
-        except TypeError:
-            selected = balancers[algo].select_server(healthy_servers)
-
-        server_id = selected["id"]
-        target_url = f"{selected['url']}/api/process"
-
         if "delay" not in payload and "delay" in request.args:
             payload["delay"] = request.args.get("delay")
 
-        req_id = tracker.start_connection(server_id)
-        start_time = time.time()
+        tried_ids = set()
+        failover_from = None
+        last_error = None
+        last_server_id = None
+        last_elapsed_ms = 0.0
 
-        try:
-            resp = requests.post(target_url, json=payload, timeout=config.REQUEST_TIMEOUT)
-            elapsed_ms = (time.time() - start_time) * 1000.0
-            backend_data = resp.json()
+        while True:
+            candidates = [s for s in tracker.get_healthy_servers() if s["id"] not in tried_ids]
+            if not candidates:
+                break
 
-            success = resp.status_code == 200
-            tracker.end_connection(
-                server_id=server_id,
-                req_id=req_id,
-                algorithm=algo,
-                success=success,
-                response_time_ms=elapsed_ms,
-                status_code=resp.status_code,
-            )
+            try:
+                selected = balancers[algo].select_server(candidates, client_ip=client_ip)
+            except TypeError:
+                selected = balancers[algo].select_server(candidates)
 
-            srv_info = tracker.get_server(server_id) or {}
-            event_payload = {
-                "type": "request",
-                "request_id": req_id,
-                "algorithm": algo,
-                "selected_server": server_id,
-                "server_url": selected["url"],
-                "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
-                "private_ip": srv_info.get("private_ip") or "10.0.1.10",
-                "client_ip": client_ip,
-                "status": "success" if success else "error",
-                "status_code": resp.status_code,
-                "response_time_ms": round(elapsed_ms, 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            broadcast_event(event_payload)
+            server_id = selected["id"]
+            tried_ids.add(server_id)
+            last_server_id = server_id
+            target_url = f"{selected['url']}/api/process"
 
-            return jsonify({
-                "request_id": req_id,
-                "algorithm": algo,
-                "selected_server": server_id,
-                "public_ip": event_payload["public_ip"],
-                "private_ip": event_payload["private_ip"],
-                "status": "success" if success else "error",
-                "response_time_ms": round(elapsed_ms, 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "response": backend_data,
-            }), resp.status_code
+            # Circuit Breaker: Detect overload saturation if other healthy nodes can absorb failover
+            if selected.get("active_connections", 0) >= config.OVERLOAD_MAX_CONNS and len(candidates) > 1:
+                crashed_srv = tracker.mark_crashed(
+                    server_id,
+                    cooldown_seconds=config.OVERLOAD_COOLDOWN_SEC,
+                    reason=f"Overload Saturation ({selected.get('active_connections')} active conns)",
+                )
+                req_id = tracker.start_connection(server_id)
+                tracker.end_connection(
+                    server_id=server_id,
+                    req_id=req_id,
+                    algorithm=algo,
+                    success=False,
+                    response_time_ms=12.0,
+                    status_code=503,
+                    error="Circuit Breaker: Overload Crash",
+                )
+                srv_info = crashed_srv or tracker.get_server(server_id) or {}
+                broadcast_event({
+                    "type": "request",
+                    "request_id": req_id,
+                    "algorithm": algo,
+                    "selected_server": server_id,
+                    "server_url": selected["url"],
+                    "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+                    "private_ip": srv_info.get("private_ip") or "10.0.1.10",
+                    "client_ip": client_ip,
+                    "status": "error",
+                    "status_code": 503,
+                    "response_time_ms": 12.0,
+                    "error": "Circuit Breaker: Overload Crash",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+                broadcast_event({"type": "server_update", "action": "crash", "server": srv_info})
+                failover_from = failover_from or server_id
+                last_error = f"Overload saturation on {server_id}"
+                continue
 
-        except Exception as exc:
-            elapsed_ms = (time.time() - start_time) * 1000.0
-            tracker.update_health(server_id, False)
-            tracker.end_connection(
-                server_id=server_id,
-                req_id=req_id,
-                algorithm=algo,
-                success=False,
-                response_time_ms=elapsed_ms,
-                status_code=502,
-                error=str(exc),
-            )
+            req_id = tracker.start_connection(server_id)
+            start_time = time.time()
+            lb_dispatch_ms = max(0.2, round((start_time - req_arrival) * 1000.0, 2))
 
-            srv_info = tracker.get_server(server_id) or {}
-            event_payload = {
-                "type": "request",
-                "request_id": req_id,
-                "algorithm": algo,
-                "selected_server": server_id,
-                "server_url": selected["url"],
-                "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
-                "private_ip": srv_info.get("private_ip") or "10.0.1.10",
-                "client_ip": client_ip,
-                "status": "error",
-                "status_code": 502,
-                "response_time_ms": round(elapsed_ms, 2),
-                "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            broadcast_event(event_payload)
+            try:
+                resp = requests.post(target_url, json=payload, timeout=config.REQUEST_TIMEOUT)
+                elapsed_ms = (time.time() - start_time) * 1000.0
+                backend_data = resp.json()
+                server_exec_ms = round(float(backend_data.get("processing_time_ms", 1.5)), 2)
 
-            return jsonify({
-                "request_id": req_id,
-                "algorithm": algo,
-                "selected_server": server_id,
-                "status": "error",
-                "response_time_ms": round(elapsed_ms, 2),
-                "message": f"Backend server '{server_id}' failed to respond",
-                "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }), 502
+                success = resp.status_code == 200
+                tracker.end_connection(
+                    server_id=server_id,
+                    req_id=req_id,
+                    algorithm=algo,
+                    success=success,
+                    response_time_ms=elapsed_ms,
+                    status_code=resp.status_code,
+                )
+
+                srv_info = tracker.get_server(server_id) or {}
+                event_payload = {
+                    "type": "request",
+                    "request_id": req_id,
+                    "algorithm": algo,
+                    "selected_server": server_id,
+                    "server_url": selected["url"],
+                    "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+                    "private_ip": srv_info.get("private_ip") or "10.0.1.10",
+                    "client_ip": client_ip,
+                    "status": "success" if success else "error",
+                    "status_code": resp.status_code,
+                    "response_time_ms": round(elapsed_ms, 2),
+                    "server_exec_ms": server_exec_ms,
+                    "lb_dispatch_ms": lb_dispatch_ms,
+                    "failover_from": failover_from,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                broadcast_event(event_payload)
+
+                body = {
+                    "request_id": req_id,
+                    "algorithm": algo,
+                    "selected_server": server_id,
+                    "public_ip": event_payload["public_ip"],
+                    "private_ip": event_payload["private_ip"],
+                    "status": "success" if success else "error",
+                    "response_time_ms": round(elapsed_ms, 2),
+                    "server_exec_ms": server_exec_ms,
+                    "lb_dispatch_ms": lb_dispatch_ms,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "response": backend_data,
+                }
+                if failover_from:
+                    body["failover_from"] = failover_from
+                return jsonify(body), resp.status_code
+
+            except Exception as exc:
+                elapsed_ms = (time.time() - start_time) * 1000.0
+                last_elapsed_ms = elapsed_ms
+                last_error = str(exc)
+
+                is_timeout = isinstance(exc, requests.exceptions.Timeout)
+                crashed_srv = tracker.mark_crashed(
+                    server_id,
+                    cooldown_seconds=config.OVERLOAD_COOLDOWN_SEC if is_timeout else 0.0,
+                    reason="Request Timeout (>4s)" if is_timeout else "VM Unreachable / Connection Refused",
+                )
+                tracker.end_connection(
+                    server_id=server_id,
+                    req_id=req_id,
+                    algorithm=algo,
+                    success=False,
+                    response_time_ms=elapsed_ms,
+                    status_code=502,
+                    error=str(exc),
+                )
+
+                srv_info = crashed_srv or tracker.get_server(server_id) or {}
+                event_payload = {
+                    "type": "request",
+                    "request_id": req_id,
+                    "algorithm": algo,
+                    "selected_server": server_id,
+                    "server_url": selected["url"],
+                    "public_ip": srv_info.get("public_ip") or selected["url"].replace("http://", "").replace("https://", "").rstrip("/"),
+                    "private_ip": srv_info.get("private_ip") or "10.0.1.10",
+                    "client_ip": client_ip,
+                    "status": "error",
+                    "status_code": 502,
+                    "response_time_ms": round(elapsed_ms, 2),
+                    "error": str(exc),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                broadcast_event(event_payload)
+                broadcast_event({"type": "server_update", "action": "crash", "server": srv_info})
+                failover_from = failover_from or server_id
+
+        return jsonify({
+            "request_id": f"err-{int(time.time() * 1000)}",
+            "algorithm": algo,
+            "selected_server": last_server_id,
+            "status": "error",
+            "response_time_ms": round(last_elapsed_ms, 2),
+            "message": "All attempted backend servers failed to respond",
+            "error": last_error or "No healthy backend servers available",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 502
 
     app.tracker = tracker
     app.health_checker = health_checker
