@@ -45,7 +45,7 @@ export async function toggleSound() {
   if (soundEnabled) {
     const ok = await unlock();
     if (ok) audioUnlocked = true;
-    play("toggle", { emphasis: "subtle" });
+    play("toggle", { emphasis: "strong", volume: 1 });
   }
   notifyListeners();
   return soundEnabled;
@@ -54,8 +54,13 @@ export async function toggleSound() {
 export function initSoundSystem() {
   if (typeof window === "undefined") return () => {};
 
-  setVolume(0.65);
+  setVolume(1.0);
   setEnabled(soundEnabled);
+
+  const hadEmphasis = document.body?.hasAttribute("data-cuelume-emphasis");
+  if (document.body && !hadEmphasis) {
+    document.body.setAttribute("data-cuelume-emphasis", "strong");
+  }
 
   const unbindCuelume = bind();
 
@@ -80,7 +85,7 @@ export function initSoundSystem() {
         if (ok) audioUnlocked = true;
       });
     }
-    play("tap", { emphasis: "subtle", volume: 0.75 });
+    play("tap", { emphasis: "strong", volume: 1 });
   };
 
   window.addEventListener("pointerdown", handleFirstGesture, { passive: true, capture: true });
@@ -89,6 +94,9 @@ export function initSoundSystem() {
 
   return () => {
     unbindCuelume();
+    if (document.body && !hadEmphasis) {
+      document.body.removeAttribute("data-cuelume-emphasis");
+    }
     window.removeEventListener("pointerdown", handleFirstGesture, { capture: true });
     window.removeEventListener("keydown", handleFirstGesture, { capture: true });
     document.removeEventListener("click", handleUnmarkedButtonClick);
@@ -96,7 +104,7 @@ export function initSoundSystem() {
 }
 
 /**
- * Plays a soft glassy cue only when a request dot enters the network from a client.
+ * Plays a crisp glassy cue only when a request dot enters the network from a client.
  * Never plays during travel ticks or intermediate LB hops.
  */
 export function playDotIn(isHandshake = false) {
@@ -106,13 +114,13 @@ export function playDotIn(isHandshake = false) {
   lastDotInAt = now;
 
   play("tap", {
-    emphasis: "subtle",
-    volume: isHandshake ? 0.14 : 0.22,
+    emphasis: "normal",
+    volume: isHandshake ? 0.42 : 0.62,
   });
 }
 
 /**
- * Plays a soft warm cue (or low muted cue on error) only when a dot finishes its round trip at a client.
+ * Plays a warm confirmation cue (or distinct tone on error) only when a dot finishes its round trip at a client.
  * Never plays during travel ticks or intermediate LB hops.
  */
 export function playDotOut(isError = false) {
@@ -122,7 +130,7 @@ export function playDotOut(isError = false) {
   lastDotOutAt = now;
 
   play(isError ? "error" : "ready", {
-    emphasis: "subtle",
-    volume: isError ? 0.26 : 0.2,
+    emphasis: "normal",
+    volume: isError ? 0.65 : 0.55,
   });
 }

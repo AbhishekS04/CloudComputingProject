@@ -24,11 +24,14 @@ SERVER_METADATA = {
     },
 }
 
+GATEWAY_PUBLIC_IP = os.getenv("GATEWAY_PUBLIC_IP", "20.244.34.101:5000")
+GATEWAY_PRIVATE_IP = os.getenv("GATEWAY_PRIVATE_IP", "172.16.0.4")
+
 GATEWAY_INFO = {
-    "name": "Load Balancer Gateway",
-    "public_ip": "127.0.0.1:5000",
-    "private_ip": "10.0.1.4",
-    "vnet": "10.0.1.0/24"
+    "name": "Azure LB-VM Gateway",
+    "public_ip": GATEWAY_PUBLIC_IP,
+    "private_ip": GATEWAY_PRIVATE_IP,
+    "vnet": "vnet-centralindia-2"
 }
 
 

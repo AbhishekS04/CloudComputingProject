@@ -18,6 +18,8 @@ import {
   Slider
 } from 'reicon-react';
 import { formatPercent, formatMs, formatNumber } from '../../utils/formatters';
+import { getGatewayHost } from '../../lib/gatewayConfig';
+import { SmoothDropdown } from '../ui/SmoothDropdown';
 
 export default function InspectorPanel({ onClose }) {
   const selectedNode = useSimulationStore((state) => state.selectedNode);
@@ -218,11 +220,11 @@ export default function InspectorPanel({ onClose }) {
         <div className="space-y-4">
           <div>
             <h3 className="text-base font-bold text-charcoal-800 dark:text-cream-100">
-              Azure VM 1 · Load Balancer Gateway
+              Azure LB-VM · Load Balancer Gateway
             </h3>
             <div className="text-[11px] font-mono space-y-0.5 mt-0.5">
-              <p className="text-blue-600 dark:text-blue-400 font-medium">Pub: 127.0.0.1:5000 (Proxy)</p>
-              <p className="text-emerald-600 dark:text-emerald-400 font-medium">Priv: 10.0.1.4 (VNet: 10.0.1.0/24)</p>
+              <p className="text-blue-600 dark:text-blue-400 font-medium">Pub: {getGatewayHost()} (Online VM)</p>
+              <p className="text-emerald-600 dark:text-emerald-400 font-medium">Priv: 172.16.0.4 (vnet-centralindia-2)</p>
             </div>
           </div>
 
@@ -231,17 +233,19 @@ export default function InspectorPanel({ onClose }) {
             <label className="text-[11px] font-semibold text-charcoal-400 uppercase tracking-wider block mb-1.5">
               Balancing Strategy
             </label>
-            <select
+            <SmoothDropdown
               value={algorithm}
-              onChange={(e) => setAlgorithm(e.target.value)}
-              className="w-full bg-cream-100 dark:bg-charcoal-900 border border-cream-300 dark:border-charcoal-700 rounded-xl px-3 py-2 text-xs font-medium text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-sage-500"
-            >
-              {Object.keys(ALGORITHM_INFO).map((key) => (
-                <option key={key} value={key}>
-                  {ALGORITHM_INFO[key].name}
-                </option>
-              ))}
-            </select>
+              onChange={setAlgorithm}
+              ariaLabel="Balancing Strategy"
+              placement="auto"
+              className="w-full"
+              triggerClassName="w-full bg-cream-100 dark:bg-charcoal-900 border-cream-300 dark:border-charcoal-700"
+              menuClassName="w-full"
+              options={Object.keys(ALGORITHM_INFO).map((key) => ({
+                value: key,
+                label: ALGORITHM_INFO[key].name,
+              }))}
+            />
             <p className="text-[11px] text-charcoal-400 mt-1.5 leading-relaxed">
               {ALGORITHM_INFO[algorithm].description}
             </p>

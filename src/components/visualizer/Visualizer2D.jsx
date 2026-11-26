@@ -2,6 +2,7 @@
 import { THEMES } from './Visualizer3D';
 import { useSimulationStore } from '../../store/simulationStore';
 import { playDotIn, playDotOut } from '../../lib/sound';
+import { getGatewayHost } from '../../lib/gatewayConfig';
 
 const IS_LIVE_BACKEND = true;
 
@@ -1141,41 +1142,45 @@ export default function Visualizer2D({
           }
         }
 
-        // 4. Periodic Telemetry Update
-        eng.metricAcc += dt;
-        if (eng.metricAcc >= 0.95) {
+        // 4. Periodic Telemetry Update (Dummy simulation mode only — never overwrite Azure telemetry in live mode)
+        if (currentMode === 'dummy') {
+          eng.metricAcc += dt;
+          if (eng.metricAcc >= 0.95) {
+            eng.metricAcc = 0;
+            const srvs = stateRef.current.servers;
+            const healthyCount = srvs.filter((s) => s.healthy).length;
+            const hDenom = healthyCount || 1;
+            const loadShare = Math.round(
+              (3 / hDenom) * (rps >= 1000 ? 22 : rps >= 180 ? 14 : rps >= 45 ? 6 : 0)
+            );
+            const connMult = rps >= 5000 ? 14 : rps >= 1000 ? 7 : rps >= 180 ? 3 : 1;
+
+            setServers((prev) =>
+              prev.map((s, idx) => {
+                if (!s.healthy) return s;
+                const baseCpu = 44 + ((idx * 11) % 26);
+                const jitter = Math.floor(Math.random() * 7) - 3;
+                const nextCpu = Math.min(98, Math.max(14, baseCpu + loadShare + jitter));
+                const nextConn = Math.max(
+                  4,
+                  Math.round((10 + ((idx * 3) % 9)) * connMult * (3 / hDenom)) + Math.floor(Math.random() * 3)
+                );
+                return { ...s, cpu: nextCpu, conn: nextConn };
+              })
+            );
+
+            const dns = 18;
+            const dispatch = rps >= 1000 ? 31 : 24;
+            const exec = healthyCount > 0 ? 42 + Math.round(loadShare * 0.8) : 0;
+            setMetrics({
+              dns,
+              dispatch,
+              server: exec,
+              rtt: healthyCount > 0 ? dns + dispatch + exec : 0
+            });
+          }
+        } else {
           eng.metricAcc = 0;
-          const srvs = stateRef.current.servers;
-          const healthyCount = srvs.filter((s) => s.healthy).length;
-          const hDenom = healthyCount || 1;
-          const loadShare = Math.round(
-            (3 / hDenom) * (rps >= 1000 ? 22 : rps >= 180 ? 14 : rps >= 45 ? 6 : 0)
-          );
-          const connMult = rps >= 5000 ? 14 : rps >= 1000 ? 7 : rps >= 180 ? 3 : 1;
-
-          setServers((prev) =>
-            prev.map((s, idx) => {
-              if (!s.healthy) return s;
-              const baseCpu = 44 + ((idx * 11) % 26);
-              const jitter = Math.floor(Math.random() * 7) - 3;
-              const nextCpu = Math.min(98, Math.max(14, baseCpu + loadShare + jitter));
-              const nextConn = Math.max(
-                4,
-                Math.round((10 + ((idx * 3) % 9)) * connMult * (3 / hDenom)) + Math.floor(Math.random() * 3)
-              );
-              return { ...s, cpu: nextCpu, conn: nextConn };
-            })
-          );
-
-          const dns = 18;
-          const dispatch = rps >= 1000 ? 31 : 24;
-          const exec = healthyCount > 0 ? 42 + Math.round(loadShare * 0.8) : 0;
-          setMetrics({
-            dns,
-            dispatch,
-            server: exec,
-            rtt: healthyCount > 0 ? dns + dispatch + exec : 0
-          });
         }
       }
 
@@ -1907,7 +1912,7 @@ export default function Visualizer2D({
                 fontWeight="700"
                 fill={isLbOffline ? palette.pillOfflineText : palette.lbSubtitle}
               >
-                {isLbOffline ? 'GATEWAY OFFLINE · Port 5000' : 'Pub: 127.0.0.1:5000 · Priv: 10.0.1.4'}
+                {isLbOffline ? `GATEWAY OFFLINE · ${getGatewayHost()}` : `Pub: ${getGatewayHost()} · Priv: 172.16.0.4`}
               </text>
 
               {/* Divider & Junction Node */}

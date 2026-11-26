@@ -9,10 +9,10 @@ import {
   FileText,
   Settings,
   ChevronLeft,
-  ChevronRight,
-  Flash
+  ChevronRight
 } from 'reicon-react';
 import { useSimulationStore } from '../../store/simulationStore';
+import { BrandLogo } from '../ui/BrandLogo';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Overview', icon: Grid },
@@ -39,13 +39,11 @@ export default function Sidebar() {
       <div>
         <div className="flex items-center justify-between p-5 border-b border-cream-200 dark:border-charcoal-800">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-xl bg-sage-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
-              <Flash aria-hidden="true" size={20} weight="Filled" />
-            </div>
+            <BrandLogo size={40} />
             {!isCollapsed && (
               <div className="flex flex-col">
                 <span className="font-extrabold tracking-tight text-lg text-charcoal-900 dark:text-cream-100 font-sans">
-                  LOADFLOW
+                  BIFROST
                 </span>
                 <span className="text-[10px] text-charcoal-400 font-medium tracking-wider uppercase">
                   Engine Visualizer
@@ -113,7 +111,7 @@ export default function Sidebar() {
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-charcoal-400 font-mono px-1">
-              <span>LOADFLOW core</span>
+              <span>BIFROST core</span>
               <span className="px-1.5 py-0.5 rounded bg-cream-200 dark:bg-charcoal-800 text-charcoal-500">
                 v1.0.0
               </span>

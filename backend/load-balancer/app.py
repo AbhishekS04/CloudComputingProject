@@ -89,9 +89,9 @@ def create_app(start_health_checker=True):
             "algorithm": stats["algorithm"],
             "healthy_servers": stats["healthy_servers"],
             "total_servers": stats["total_servers"],
-            "gateway_public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
-            "gateway_private_ip": "10.0.1.4",
-            "vnet": "10.0.1.0/24",
+            "gateway_public_ip": config.GATEWAY_PUBLIC_IP,
+            "gateway_private_ip": config.GATEWAY_PRIVATE_IP,
+            "vnet": config.GATEWAY_INFO["vnet"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }), 200
 
@@ -170,9 +170,9 @@ def create_app(start_health_checker=True):
             return jsonify({
                 "servers": tracker.get_all_servers(),
                 "gateway": {
-                    "public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
-                    "private_ip": "10.0.1.4",
-                    "vnet": "10.0.1.0/24"
+                    "public_ip": config.GATEWAY_PUBLIC_IP,
+                    "private_ip": config.GATEWAY_PRIVATE_IP,
+                    "vnet": config.GATEWAY_INFO["vnet"]
                 }
             }), 200
 
@@ -238,9 +238,9 @@ def create_app(start_health_checker=True):
         with state_lock:
             data["lb_paused"] = lb_paused[0]
         data["gateway"] = {
-            "public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
-            "private_ip": "10.0.1.4",
-            "vnet": "10.0.1.0/24"
+            "public_ip": config.GATEWAY_PUBLIC_IP,
+            "private_ip": config.GATEWAY_PRIVATE_IP,
+            "vnet": config.GATEWAY_INFO["vnet"]
         }
         return jsonify(data), 200
 
@@ -279,8 +279,8 @@ def create_app(start_health_checker=True):
                 "algorithm": algo,
                 "selected_server": None,
                 "server_url": None,
-                "public_ip": "127.0.0.1:5000",
-                "private_ip": "10.0.1.4",
+                "public_ip": config.GATEWAY_PUBLIC_IP,
+                "private_ip": config.GATEWAY_PRIVATE_IP,
                 "client_ip": client_ip,
                 "status": "error",
                 "status_code": 503,
@@ -480,9 +480,9 @@ def create_app(start_health_checker=True):
         return jsonify({
             "status": "paused" if paused_now else "healthy",
             "gateway": "azure-vm-lb-01",
-            "gateway_public_ip": f"{config.HOST if config.HOST != '0.0.0.0' else '127.0.0.1'}:{config.PORT}",
-            "gateway_private_ip": "10.0.1.4",
-            "vnet": "10.0.1.0/24",
+            "gateway_public_ip": config.GATEWAY_PUBLIC_IP,
+            "gateway_private_ip": config.GATEWAY_PRIVATE_IP,
+            "vnet": config.GATEWAY_INFO["vnet"],
             "algorithm": get_algorithm(),
             "paused": paused_now,
             "timestamp": datetime.now(timezone.utc).isoformat()

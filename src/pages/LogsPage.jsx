@@ -12,6 +12,7 @@ import {
   Play
 } from 'reicon-react';
 import { formatTime, formatMs } from '../utils/formatters';
+import { SmoothDropdown } from '../components/ui/SmoothDropdown';
 
 export default function LogsPage() {
   const { requestLogs, clearLogs } = useTraffic();
@@ -53,7 +54,7 @@ export default function LogsPage() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredLogs, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `loadflow-logs-${Date.now()}.json`);
+    downloadAnchor.setAttribute("download", `bifrost-logs-${Date.now()}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -121,33 +122,35 @@ export default function LogsPage() {
         {/* Server Filter */}
         <div className="flex items-center gap-2">
           <span className="text-charcoal-400 font-medium">Server:</span>
-          <select
+          <SmoothDropdown
             value={selectedServerFilter}
-            onChange={(e) => setSelectedServerFilter(e.target.value)}
-            className="bg-cream-100 dark:bg-charcoal-900 border border-cream-300 dark:border-charcoal-700 rounded-xl px-3 py-2 font-medium text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-sage-500"
-          >
-            <option value="ALL">All Nodes</option>
-            {servers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-            <option value="NONE">Unrouted (503)</option>
-          </select>
+            onChange={setSelectedServerFilter}
+            ariaLabel="Filter logs by server"
+            placement="auto"
+            triggerClassName="bg-cream-100 dark:bg-charcoal-900 border-cream-300 dark:border-charcoal-700"
+            options={[
+              { value: 'ALL', label: 'All Nodes' },
+              ...servers.map((s) => ({ value: s.id, label: s.name })),
+              { value: 'NONE', label: 'Unrouted (503)' },
+            ]}
+          />
         </div>
 
         {/* Status Filter */}
         <div className="flex items-center gap-2">
           <span className="text-charcoal-400 font-medium">Status:</span>
-          <select
+          <SmoothDropdown
             value={selectedStatusFilter}
-            onChange={(e) => setSelectedStatusFilter(e.target.value)}
-            className="bg-cream-100 dark:bg-charcoal-900 border border-cream-300 dark:border-charcoal-700 rounded-xl px-3 py-2 font-medium text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-sage-500"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="200">200 OK</option>
-            <option value="5xx">5xx Errors</option>
-          </select>
+            onChange={setSelectedStatusFilter}
+            ariaLabel="Filter logs by status"
+            placement="auto"
+            triggerClassName="bg-cream-100 dark:bg-charcoal-900 border-cream-300 dark:border-charcoal-700"
+            options={[
+              { value: 'ALL', label: 'All Statuses' },
+              { value: '200', label: '200 OK' },
+              { value: '5xx', label: '5xx Errors' },
+            ]}
+          />
         </div>
       </div>
 

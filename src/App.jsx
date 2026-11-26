@@ -17,6 +17,7 @@ import LogsPage from './pages/LogsPage';
 import SettingsPage from './pages/SettingsPage';
 import { simulationEngine } from './simulation/engine';
 import { initSoundSystem } from './lib/sound';
+import { CustomScrollbar } from './components/ui/CustomScrollbar';
 
 const MonitoringDashboardPage = lazy(() => import('./pages/MonitoringDashboardPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -72,6 +73,13 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const link = document.getElementById('bifrost-favicon');
+    if (link) {
+      link.setAttribute('href', isDarkMode ? '/logos/bifrost-white.png' : '/logos/bifrost-black.png');
+    }
+  }, [isDarkMode]);
+
   return (
     <ReactLenis root options={{ lerp: 0.1, smoothWheel: true }}>
       <BlurFadeThemeTransition
@@ -100,6 +108,7 @@ export default function App() {
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <CustomScrollbar />
         </SkulletProvider>
       </BlurFadeThemeTransition>
     </ReactLenis>

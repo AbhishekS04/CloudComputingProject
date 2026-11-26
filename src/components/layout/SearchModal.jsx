@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Search, X, ArrowRight } from 'reicon-react';
 import { COURSE_MODULES } from '../../data/courseData';
 
@@ -20,8 +21,6 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   // Flatten all lessons
   const allLessons = COURSE_MODULES.flatMap((m) =>
     (m.lessons || []).map((l) => ({
@@ -40,8 +39,24 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-charcoal-900/60 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-[#FAF8F2] dark:bg-charcoal-900 border border-[#DDD6C6] dark:border-charcoal-700 rounded-2xl max-w-xl w-full shadow-modal overflow-hidden">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="search-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-charcoal-900/60 backdrop-blur-xs"
+        >
+          <motion.div
+            key="search-modal-dialog"
+            initial={{ opacity: 0, scale: 0.95, y: 8, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.95, y: 8, filter: 'blur(4px)' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            className="bg-[#FAF8F2] dark:bg-charcoal-900 border border-[#DDD6C6] dark:border-charcoal-700 rounded-2xl max-w-xl w-full shadow-modal overflow-hidden"
+          >
         {/* Search Input Bar */}
         <div className="flex items-center gap-3 p-4 border-b border-[#DDD6C6] dark:border-charcoal-700">
           <Search aria-hidden="true" size={20} className="text-charcoal-400" />
@@ -105,7 +120,9 @@ export default function SearchModal({ isOpen, onClose, onSelectLesson }) {
           <span>Navigate with arrow keys</span>
           <span>ESC to close</span>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

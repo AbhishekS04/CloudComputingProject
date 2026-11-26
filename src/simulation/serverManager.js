@@ -133,10 +133,10 @@ export const DUMMY_SERVERS = [
 ];
 
 export const GATEWAY_METADATA = {
-  name: 'Azure VM 1 · Load Balancer Gateway',
-  publicIp: '127.0.0.1:5000',
-  privateIp: '10.0.1.4',
-  vnet: '10.0.1.0/24'
+  name: 'Azure LB-VM · Load Balancer Gateway',
+  publicIp: '20.244.34.101:5000',
+  privateIp: '172.16.0.4',
+  vnet: 'vnet-centralindia-2'
 };
 
 export function createNewServer(index, customProps = {}) {

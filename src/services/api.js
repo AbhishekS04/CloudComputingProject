@@ -1,54 +1,56 @@
 ﻿import { useSimulationStore } from '../store/simulationStore';
+import { getGatewayUrl } from '../lib/gatewayConfig';
 
 /**
- * API Service Layer for future backend integration.
- * By default runs in simulated/mock mode seamlessly, but is ready to swap
- * with real REST endpoints by setting VITE_API_BASE_URL.
+ * API Service Layer for live Azure Load Balancer REST communication.
  */
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-
 export const apiService = {
   async fetchServers() {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       return Promise.resolve(useSimulationStore.getState().servers);
     }
-    const res = await fetch(`${BASE_URL}/api/servers`);
+    const res = await fetch(`${baseUrl}/api/servers`);
     return res.json();
   },
 
   async fetchMetrics() {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       return Promise.resolve(useSimulationStore.getState().metrics);
     }
-    const res = await fetch(`${BASE_URL}/api/metrics`);
+    const res = await fetch(`${baseUrl}/api/metrics`);
     return res.json();
   },
 
   async startSimulation() {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       useSimulationStore.getState().setIsRunning(true);
       return Promise.resolve({ status: 'running' });
     }
-    const res = await fetch(`${BASE_URL}/api/lb/toggle`, { method: 'POST' });
+    const res = await fetch(`${baseUrl}/api/lb/toggle`, { method: 'POST' });
     return res.json();
   },
 
   async stopSimulation() {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       useSimulationStore.getState().setIsRunning(false);
       return Promise.resolve({ status: 'paused' });
     }
-    const res = await fetch(`${BASE_URL}/api/lb/toggle`, { method: 'POST' });
+    const res = await fetch(`${baseUrl}/api/lb/toggle`, { method: 'POST' });
     return res.json();
   },
 
   async sendTrafficConfig(config) {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       if (config.targetRps) useSimulationStore.getState().setTargetRps(config.targetRps);
       if (config.algorithm) useSimulationStore.getState().setAlgorithm(config.algorithm);
       return Promise.resolve({ success: true, config });
     }
-    const res = await fetch(`${BASE_URL}/api/simulation/config`, {
+    const res = await fetch(`${baseUrl}/api/simulation/config`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
@@ -57,19 +59,21 @@ export const apiService = {
   },
 
   async fetchRequestLogs(limit = 100) {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       return Promise.resolve(useSimulationStore.getState().requestLogs.slice(0, limit));
     }
-    const res = await fetch(`${BASE_URL}/api/logs?limit=${limit}`);
+    const res = await fetch(`${baseUrl}/api/logs?limit=${limit}`);
     return res.json();
   },
 
   async addServer(serverData) {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       useSimulationStore.getState().addServer(serverData);
       return Promise.resolve({ success: true });
     }
-    const res = await fetch(`${BASE_URL}/api/servers`, {
+    const res = await fetch(`${baseUrl}/api/servers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(serverData)
@@ -78,22 +82,22 @@ export const apiService = {
   },
 
   async removeServer(serverId) {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       useSimulationStore.getState().removeServer(serverId);
       return Promise.resolve({ success: true });
     }
-    const res = await fetch(`${BASE_URL}/api/servers/${serverId}`, { method: 'DELETE' });
+    const res = await fetch(`${baseUrl}/api/servers/${serverId}`, { method: 'DELETE' });
     return res.json();
   },
 
   async toggleServer(serverId) {
-    if (!BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (!baseUrl) {
       useSimulationStore.getState().toggleServerStatus(serverId);
       return Promise.resolve({ success: true });
     }
-    const res = await fetch(`${BASE_URL}/api/servers/${serverId}/toggle`, { method: 'POST' });
+    const res = await fetch(`${baseUrl}/api/servers/${serverId}/toggle`, { method: 'POST' });
     return res.json();
   }
 };
-
-

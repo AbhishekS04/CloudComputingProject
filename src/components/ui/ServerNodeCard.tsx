@@ -180,12 +180,12 @@ export const ServerNodeCard: React.FC<ServerNodeCardProps> = ({
       </div>
 
       {/* 2. Expanded Deep Stats Drawer */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ height: 0, opacity: 0, filter: 'blur(3px)' }}
+            animate={{ height: 'auto', opacity: 1, filter: 'blur(0px)' }}
+            exit={{ height: 0, opacity: 0, filter: 'blur(3px)' }}
             transition={springConfig}
             className="border-t border-black/[0.05] dark:border-white/[0.06] bg-black/[0.015] dark:bg-white/[0.02] overflow-hidden"
           >

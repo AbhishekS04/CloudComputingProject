@@ -3,8 +3,7 @@ import { DEFAULT_SERVERS, DUMMY_SERVERS, GATEWAY_METADATA, createNewServer } fro
 import { MOCK_CLIENTS } from '../simulation/trafficGenerator';
 import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import { getGatewayUrl } from '../lib/gatewayConfig';
 
 export const useSimulationStore = create((set, get) => ({
   // Core simulation state
@@ -86,8 +85,9 @@ export const useSimulationStore = create((set, get) => ({
 
   setIsRunning: (isRunning) => {
     set({ isRunning });
-    if (BASE_URL) {
-      fetch(`${BASE_URL}/api/lb/toggle`, {
+    const baseUrl = getGatewayUrl();
+    if (baseUrl) {
+      fetch(`${baseUrl}/api/lb/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paused: !isRunning })
@@ -114,8 +114,9 @@ export const useSimulationStore = create((set, get) => ({
   toggleSimulation: () => {
     const next = !get().isRunning;
     set({ isRunning: next });
-    if (BASE_URL) {
-      fetch(`${BASE_URL}/api/lb/toggle`, {
+    const baseUrl = getGatewayUrl();
+    if (baseUrl) {
+      fetch(`${baseUrl}/api/lb/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paused: !next })
@@ -162,9 +163,10 @@ export const useSimulationStore = create((set, get) => ({
     if (ALGORITHM_INFO[algorithm]) {
       algorithmManager.reset();
       set({ algorithm });
-      if (BASE_URL) {
+      const baseUrl = getGatewayUrl();
+      if (baseUrl) {
         const backendAlgo = algorithm.toLowerCase();
-        fetch(`${BASE_URL}/api/algorithm`, {
+        fetch(`${baseUrl}/api/algorithm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ algorithm: backendAlgo })
@@ -232,6 +234,10 @@ export const useSimulationStore = create((set, get) => ({
   },
 
   recoverAllServers: () => {
+    const baseUrl = getGatewayUrl();
+    if (baseUrl && get().clusterMode === 'live') {
+      fetch(`${baseUrl}/api/servers/recover`, { method: 'POST' }).catch(() => {});
+    }
     const servers = get().servers.map((s) => ({
       ...s,
       status: 'healthy',
@@ -248,8 +254,9 @@ export const useSimulationStore = create((set, get) => ({
   },
 
   toggleServerStatus: (serverId) => {
-    if (BASE_URL) {
-      fetch(`${BASE_URL}/api/servers/${serverId}/toggle`, { method: 'POST' }).catch(() => {});
+    const baseUrl = getGatewayUrl();
+    if (baseUrl) {
+      fetch(`${baseUrl}/api/servers/${serverId}/toggle`, { method: 'POST' }).catch(() => {});
     }
     const servers = get().servers.map((s) => {
       if (s.id === serverId) {

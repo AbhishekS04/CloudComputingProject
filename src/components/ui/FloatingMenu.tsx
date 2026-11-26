@@ -130,14 +130,14 @@ export const FloatingMenu = forwardRef<HTMLDivElement, FloatingMenuProps>(
           {isOpen && (
             <motion.div
               key="refined-floating-menu"
-              initial={{ opacity: 0, y: -6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.96 }}
-              transition={{ type: "spring", stiffness: 360, damping: 28 }}
+              initial={{ opacity: 0, y: -8, scale: 0.94, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -6, scale: 0.95, filter: "blur(5px)" }}
+              transition={{ type: "spring", stiffness: 320, damping: 26, mass: 0.85 }}
               style={{ transformOrigin: "top right" }}
               className={cn(
-                "absolute right-0 mt-2.5 w-[min(340px,calc(100vw-20px))] rounded-2xl p-2.5",
-                "bg-white/92 dark:bg-[#16171a]/92 backdrop-blur-2xl",
+                "absolute right-0 mt-2.5 w-[min(320px,calc(100vw-24px))] rounded-2xl p-2.5",
+                "bg-white/95 dark:bg-[#16171a]/95 backdrop-blur-2xl",
                 "border border-black/[0.08] dark:border-white/[0.1]",
                 "shadow-2xl shadow-black/15 dark:shadow-black/60"
               )}
@@ -153,9 +153,9 @@ export const FloatingMenu = forwardRef<HTMLDivElement, FloatingMenuProps>(
                 {links.map((link, idx) => (
                   <motion.div
                     key={link.label}
-                    initial={{ opacity: 0, x: 6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.03, duration: 0.18 }}
+                    initial={{ opacity: 0, x: 8, filter: "blur(3px)" }}
+                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                    transition={{ delay: 0.025 + idx * 0.035, type: "spring", stiffness: 360, damping: 28 }}
                   >
                     <Link
                       to={link.to}
@@ -181,7 +181,7 @@ export const FloatingMenu = forwardRef<HTMLDivElement, FloatingMenuProps>(
                       </div>
 
                       {link.active && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-900/8 text-neutral-700 dark:bg-white/12 dark:text-neutral-200">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-900/10 text-neutral-700 dark:bg-white/15 dark:text-neutral-200">
                           Active
                         </span>
                       )}

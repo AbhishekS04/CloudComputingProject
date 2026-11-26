@@ -2,6 +2,7 @@ import React from 'react';
 import { useSimulation } from '../../hooks/useSimulation';
 import { useServers } from '../../hooks/useServers';
 import { ALGORITHM_INFO } from '../../simulation/loadBalancingAlgorithms';
+import { SmoothDropdown } from '../ui/SmoothDropdown';
 import {
   Play,
   Pause,
@@ -104,17 +105,18 @@ export default function StudioCommandBar({ timings = {}, onReplay }) {
         </button>
 
         {/* Algorithm Selector */}
-        <select
+        <SmoothDropdown
           value={algorithm}
-          onChange={(e) => setAlgorithm(e.target.value)}
-          className="bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 rounded-xl px-2.5 py-1 text-xs font-bold text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
-        >
-          {Object.keys(ALGORITHM_INFO).map((key) => (
-            <option key={key} value={key}>
-              {ALGORITHM_INFO[key].name}
-            </option>
-          ))}
-        </select>
+          onChange={setAlgorithm}
+          ariaLabel="Routing algorithm"
+          placement="auto"
+          size="xs"
+          triggerClassName="h-7 bg-white dark:bg-charcoal-800 border-[#DDD6C6] dark:border-charcoal-700 font-bold"
+          options={Object.keys(ALGORITHM_INFO).map((key) => ({
+            value: key,
+            label: ALGORITHM_INFO[key].name,
+          }))}
+        />
 
         {/* Add Node */}
         <button

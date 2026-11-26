@@ -2,8 +2,8 @@ import { useSimulationStore } from '../store/simulationStore';
 import { generateMockRequest } from './trafficGenerator';
 import { algorithmManager } from './loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
+import { getGatewayUrl, subscribeGatewayChange } from '../lib/gatewayConfig';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const SERVER_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4'];
 
 const KNOWN_PRIVATE_IPS = {
@@ -79,6 +79,8 @@ class SimulationEngine {
     this.pendingServerDeltas = {};
     this.pendingMetricDelta = { total: 0, ok: 0, fail: 0, latency: null, exec: null, disp: null };
     this.deltaFlushTimer = null;
+    this.seenRequestIds = new Set();
+    this.unsubscribeGateway = null;
   }
 
   start() {
@@ -89,11 +91,21 @@ class SimulationEngine {
     this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
     this.initEventStream();
     this.initBridgeStream();
+    if (!this.unsubscribeGateway) {
+      this.unsubscribeGateway = subscribeGatewayChange(() => {
+        this.initEventStream();
+        this.syncFromBackend();
+      });
+    }
 
     this.intervalId = setInterval(() => this.tick(), this.tickRate);
   }
 
   stop() {
+    if (this.unsubscribeGateway) {
+      this.unsubscribeGateway();
+      this.unsubscribeGateway = null;
+    }
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -170,7 +182,7 @@ class SimulationEngine {
 
   initEventStream() {
     if (typeof window === 'undefined') return;
-    const url = BASE_URL || '';
+    const url = getGatewayUrl() || '';
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
@@ -218,6 +230,14 @@ class SimulationEngine {
   }
 
   handleLiveRequestEvent(data) {
+    if (data?.request_id) {
+      if (this.seenRequestIds.has(data.request_id)) return;
+      this.seenRequestIds.add(data.request_id);
+      if (this.seenRequestIds.size > 600) {
+        const first = this.seenRequestIds.values().next().value;
+        this.seenRequestIds.delete(first);
+      }
+    }
     const store = useSimulationStore.getState();
     const isSuccess = data.status === 'success';
     const latency = Math.round(data.response_time_ms || 25);
@@ -307,7 +327,7 @@ class SimulationEngine {
     const newLog = {
       id: data.request_id || `req-${Date.now()}`,
       timestamp: Date.now(),
-      client: { id: 'term-client', name: 'Terminal Client', ip: data.client_ip || '198.51.100.4' },
+      client: { id: 'browser-client', name: 'Browser Client', ip: data.client_ip || '198.51.100.4' },
       server: targetServer,
       serverName: `${targetServer.name || serverId} (${data.public_ip || targetServer.ip || 'Azure VM'})`,
       endpoint: data.direct_no_lb
@@ -374,12 +394,13 @@ class SimulationEngine {
 
   async syncFromBackend() {
     const store = useSimulationStore.getState();
-    if (store.clusterMode !== 'live' || !BASE_URL) return;
+    const baseUrl = getGatewayUrl();
+    if (store.clusterMode !== 'live' || !baseUrl) return;
 
     try {
       const [serversRes, statsRes] = await Promise.all([
-        fetch(`${BASE_URL}/api/servers`),
-        fetch(`${BASE_URL}/api/stats`)
+        fetch(`${baseUrl}/api/servers`),
+        fetch(`${baseUrl}/api/stats`)
       ]);
       if (!serversRes.ok || !statsRes.ok) {
         const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
@@ -465,9 +486,9 @@ class SimulationEngine {
         this.dispatchSingleRequest();
       }
     } else {
-      // Live Azure Mode: All traffic is purely driven by the user's terminal/CLI or external clients.
-      // Packets animate in real-time purely from the live SSE stream (/api/stream).
-      // Zero synthetic requests are auto-dispatched from the browser.
+      // Live Azure Mode: Traffic can be driven directly from the Browser Traffic Dispatcher
+      // in StudioRightPanel (or external clients), streaming via /api/stream SSE & HTTP responses.
+      // Zero background auto-traffic is emitted while idle.
     }
 
     if (now - this.lastSecondTime >= 1000) {
@@ -479,21 +500,27 @@ class SimulationEngine {
   async dispatchRealRequest() {
     const store = useSimulationStore.getState();
     if (!store.isRunning) return;
+    const baseUrl = getGatewayUrl();
 
     // Sandbox / Dummy mode fallback: dispatch immediately via internal engine
-    if (store.clusterMode === 'dummy' || !BASE_URL) {
+    if (store.clusterMode === 'dummy' || !baseUrl) {
       this.dispatchSingleRequest();
       return;
     }
 
     try {
-      await fetch(`${BASE_URL}/api/request`, {
+      const resp = await fetch(`${baseUrl}/api/request`, {
         signal: AbortSignal.timeout(3000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
-      // Note: The SSE stream automatically receives the result and dispatches the visual event!
+      if (resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        if (data?.selected_server) {
+          this.handleLiveRequestEvent({ type: 'request', ...data });
+        }
+      }
     } catch (err) {
       this.requestsThisSecond++;
       useSimulationStore.setState((state) => ({
@@ -648,7 +675,8 @@ class SimulationEngine {
       this.latencySamplesThisSecond = [];
     }
 
-    const updatedServers = store.clusterMode === 'live' && BASE_URL
+    const baseUrl = getGatewayUrl();
+    const updatedServers = store.clusterMode === 'live' && baseUrl
       ? store.servers
       : store.servers.map((s) => {
           if (s.status === 'healthy') {
@@ -692,7 +720,7 @@ class SimulationEngine {
       metrics: {
         ...state.metrics,
         currentRps: rps,
-        avgLatency: state.clusterMode === 'live' && BASE_URL
+        avgLatency: state.clusterMode === 'live' && getGatewayUrl()
           ? state.metrics.avgLatency
           : Math.round(state.metrics.avgLatency * 0.7 + avgSecLatency * 0.3),
         peakRps: Math.max(state.metrics.peakRps, rps),

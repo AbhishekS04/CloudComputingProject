@@ -1409,7 +1409,7 @@ const LoadBalancerVisualizer = forwardRef(function LoadBalancerVisualizer(
             {/* Pause / Resume Button */}
             <button
               type="button"
-              onClick={() => setPaused((p) => { const next = !p; fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/lb/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: next }) }).catch(() => {}); return next; })}
+              onClick={() => setPaused((p) => { const next = !p; fetch((import.meta.env.VITE_API_BASE_URL || 'http://20.244.34.101:5000') + '/api/lb/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: next }) }).catch(() => {}); return next; })}
               className={`border-2 border-[#232323] rounded-lg px-3 py-1.5 text-xs font-bold shadow-[0_2px_0_#232323] active:translate-y-0.5 transition-transform ${
                 paused ? 'bg-[#f2cb78]' : 'bg-[#fcfaf5] hover:bg-white'
               }`}

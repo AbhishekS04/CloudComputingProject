@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSimulationStore } from '../../store/simulationStore';
 import { useBlurFadeThemeTransition } from '../ui/BlurFadeThemeTransition';
+import { BrandLogo } from '../ui/BrandLogo';
 import {
   Sun,
   Moon,
   HelpCircle,
-  InfoCircle,
   X,
   ChevronRight,
   Flash
@@ -91,13 +91,13 @@ export default function Topbar() {
           {/* User Profile Placeholder */}
           <div className="flex items-center gap-2 pl-2 border-l border-cream-300 dark:border-charcoal-700">
             <div className="w-8 h-8 rounded-full bg-sage-200 dark:bg-sage-900 border border-sage-400 text-sage-800 dark:text-sage-200 flex items-center justify-center font-bold text-xs">
-              LF
+              BF
             </div>
             <div className="hidden lg:flex flex-col text-left">
               <span className="text-xs font-semibold text-charcoal-800 dark:text-cream-100 leading-none">
                 DevOps Engineer
               </span>
-              <span className="text-[10px] text-charcoal-400">admin@loadflow.io</span>
+              <span className="text-[10px] text-charcoal-400">admin@bifrost.io</span>
             </div>
           </div>
         </div>
@@ -109,12 +109,10 @@ export default function Topbar() {
           <div className="bg-cream-50 dark:bg-charcoal-900 border border-cream-300 dark:border-charcoal-700 rounded-2xl max-w-2xl w-full p-6 shadow-modal max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-cream-200 dark:border-charcoal-800 mb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-sage-100 dark:bg-sage-950/60 text-sage-600 flex items-center justify-center">
-                  <InfoCircle aria-hidden="true" size={20} />
-                </div>
+                <BrandLogo size={30} />
                 <div>
                   <h3 className="text-base font-bold text-charcoal-900 dark:text-cream-100">
-                    LOADFLOW Architecture & Guide
+                    BIFROST Architecture & Guide
                   </h3>
                   <p className="text-xs text-charcoal-400">
                     Understanding modern load balancing and cluster traffic routing

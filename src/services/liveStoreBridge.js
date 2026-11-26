@@ -1,7 +1,6 @@
 import { useSimulationStore } from '../store/simulationStore';
 import { simulationEngine } from '../simulation/engine';
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_AZURE_LB_HOST;
+import { getGatewayUrl } from '../lib/gatewayConfig';
 
 const ALGO_UI_TO_STORE = {
   'ROUND ROBIN': 'ROUND_ROBIN',
@@ -20,7 +19,7 @@ const ALGO_STORE_TO_UI = {
 };
 
 export function initLiveStoreBridge() {
-  if (!BASE_URL || typeof window === 'undefined') return;
+  if (!getGatewayUrl() || typeof window === 'undefined') return;
 
   const broadcastState = () => {
     const state = useSimulationStore.getState();
@@ -71,7 +70,7 @@ export function initLiveStoreBridge() {
       getState: broadcastState,
       togglePause: () => {
         const nextPaused = useSimulationStore.getState().isRunning;
-        fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/lb/toggle', {
+        fetch(`${getGatewayUrl()}/api/lb/toggle`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paused: nextPaused })
@@ -80,7 +79,7 @@ export function initLiveStoreBridge() {
         broadcastState();
       },
       setPaused: (paused) => {
-        fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/lb/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: Boolean(paused) }) }).catch(() => {});
+        fetch(`${getGatewayUrl()}/api/lb/toggle`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: Boolean(paused) }) }).catch(() => {});
         const s = useSimulationStore.getState();
         if (s.isRunning === Boolean(paused)) s.toggleSimulation();
         broadcastState();

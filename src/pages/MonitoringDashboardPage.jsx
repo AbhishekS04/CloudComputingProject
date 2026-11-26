@@ -57,8 +57,8 @@ const STATUS_NODES_DATA = [
   },
   {
     key: 'node-gw',
-    label: 'Azure VM 1 · Load Balancer Gateway',
-    sublabel: 'Pub: 127.0.0.1:5000 · Priv: 10.0.1.4 (VNet: 10.0.1.0/24)',
+    label: 'Azure LB-VM · Load Balancer Gateway',
+    sublabel: 'Pub: 20.244.34.101:5000 · Priv: 172.16.0.4 (Central India)',
     uptime: 100.0,
     incidents: [],
   },
@@ -552,7 +552,6 @@ export default function MonitoringDashboardPage() {
             <button
               type="button"
               data-cuelume-tap
-              data-cuelume-emphasis="subtle"
               onClick={triggerTelemetrySync}
               disabled={isSyncing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-black/[0.05] hover:bg-black/[0.09] dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-neutral-800 dark:text-neutral-100 border border-black/[0.06] dark:border-white/[0.08] transition-all active:scale-95 cursor-pointer disabled:opacity-60 whitespace-nowrap"

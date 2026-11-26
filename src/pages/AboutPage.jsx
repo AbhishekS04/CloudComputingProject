@@ -26,6 +26,7 @@ import {
   Users,
 } from 'reicon-react';
 import { DuotoneIcon } from '../components/ui/DuotoneIcon';
+import { BrandLogo } from '../components/ui/BrandLogo';
 
 const TOC_ITEMS = [
   { id: 'overview', label: 'Overview', depth: 0 },
@@ -41,11 +42,11 @@ const TOC_ITEMS = [
 
 const AZURE_NODES = [
   {
-    vm: 'VM 1',
+    vm: 'LB-VM',
     name: 'L7 Gateway / Load Balancer',
-    role: 'Reverse Proxy & Health Probes',
-    publicEndpoint: '127.0.0.1:5000',
-    privateIp: '10.0.1.4',
+    role: 'Online Azure Proxy & Health Probes',
+    publicEndpoint: '20.244.34.101:5000',
+    privateIp: '172.16.0.4',
     accent: 'text-amber-600 dark:text-amber-400',
     badge: 'Gateway',
   },
@@ -144,7 +145,7 @@ const TECH_STACK = [
     items: [
       { name: 'Python Flask Gateway', detail: 'L7 reverse proxy, active health checks & node drain API' },
       { name: 'Azure Virtual Machines', detail: 'Dedicated Central India VNet (10.0.1.0/24) backend fleet' },
-      { name: 'CLI Load Generator', detail: 'send_traffic.py supporting --rate, --stress & --no-lb modes' },
+      { name: 'Browser Traffic Engine', detail: 'sendTraffic.js dispatching bursts, stress tests & No-LB directly from UI' },
       { name: 'GitHub Actions CI', detail: 'Automated backend unit tests & health verification' },
     ],
   },
@@ -156,7 +157,7 @@ const TEAM_MEMBERS = [
     handle: '@AbhishekS04',
     initials: 'AS',
     role: 'Frontend Architecture, 3D/2D Visualizer & Motion Engineering',
-    bio: 'Designed the LoadFlow Studio visualizer, event-driven particle animation pipeline, monitoring charts, and interactive real-time Azure telemetry interface.',
+    bio: 'Designed the BIFROST Studio visualizer, event-driven particle animation pipeline, monitoring charts, and interactive real-time Azure telemetry interface.',
     highlights: [
       '3D Isometric & 2D SVG Topology Engines',
       'Event-Driven SSE Packet Visualizer',
@@ -216,7 +217,7 @@ export default function AboutPage() {
       <SystemDesignNavbar />
 
       {/* Mobile & Tablet Quick Navigation Strip */}
-      <div className="lg:hidden sticky top-14 z-30 border-b border-black/[0.06] dark:border-white/[0.08] bg-[#FAF7F0]/90 dark:bg-[#121212]/90 backdrop-blur-md">
+      <div className="lg:hidden sticky top-16 z-30 border-b border-black/[0.06] dark:border-white/[0.08] bg-[#FAF7F0]/90 dark:bg-[#121212]/90 backdrop-blur-md">
         <div className="max-w-[1380px] mx-auto px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {TOC_ITEMS.filter((item) => item.depth === 0).map((item) => (
             <button
@@ -231,7 +232,7 @@ export default function AboutPage() {
         </div>
       </div>
 
-      <main className="flex-1 w-full max-w-[1380px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <main className="flex-1 w-full max-w-[1380px] mx-auto px-4 sm:px-6 pt-8 pb-20 sm:py-12 sm:pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-[230px_minmax(0,1fr)] gap-10 xl:gap-14 items-start">
           {/* Left Sticky RailToc */}
           <aside className="hidden lg:block sticky top-24 self-start pl-1">
@@ -242,9 +243,12 @@ export default function AboutPage() {
           <div className="min-w-0 max-w-4xl space-y-14 sm:space-y-16">
             {/* 1. Overview */}
             <section id="overview" className="scroll-mt-24">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Cloud Computing · Distributed L7 Load Balancing Platform
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <BrandLogo className="w-10 h-10 sm:w-11 sm:h-11" />
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Cloud Computing · Distributed L7 Load Balancing Platform
+                </div>
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-neutral-900 dark:text-white leading-[1.15]">
@@ -252,10 +256,10 @@ export default function AboutPage() {
               </h1>
 
               <p className="mt-4 text-base sm:text-[17px] leading-relaxed text-neutral-600 dark:text-neutral-300">
-                <strong className="font-semibold text-neutral-900 dark:text-white">LoadFlow</strong> is an
+                <strong className="font-semibold text-neutral-900 dark:text-white">BIFROST</strong> is an
                 interactive cloud load balancing visualizer and telemetry suite built to make Layer 7 traffic
                 routing, health probing, and node failover observable in real time. Rather than relying solely on
-                static textbook diagrams, LoadFlow pairs a 60 FPS 3D/2D network canvas with live Python worker
+                static textbook diagrams, BIFROST pairs a 60 FPS 3D/2D network canvas with live Python worker
                 instances deployed on Microsoft Azure Virtual Machines.
               </p>
 
@@ -316,9 +320,9 @@ export default function AboutPage() {
                   Azure Central India Cluster Topology
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
-                  Traffic generated from <code className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] font-mono text-xs">send_traffic.py</code> enters the
-                  Flask L7 Gateway, which selects a healthy worker inside the <code className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] font-mono text-xs">10.0.1.0/24</code> virtual network,
-                  measures end-to-end RTT, and emits real-time events over Server-Sent Events (SSE).
+                  Traffic triggered directly from the <code className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] font-mono text-xs">sendTraffic.js</code> browser dispatcher enters the
+                  online Azure LB-VM gateway (<code className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] font-mono text-xs">20.244.34.101:5000</code>), which selects a healthy worker inside the virtual network,
+                  measures end-to-end RTT, and streams real-time events over Server-Sent Events (SSE).
                 </p>
 
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#191B1F]/90 shadow-subtle">
@@ -506,7 +510,7 @@ export default function AboutPage() {
             <section id="team" className="scroll-mt-24 pt-2 border-t border-black/[0.06] dark:border-white/[0.08]">
               <SectionHeader
                 eyebrow="04 · Team"
-                title="People Behind LoadFlow"
+                title="People Behind BIFROST"
                 subtitle="Cloud computing engineering, distributed system instrumentation, and interactive frontend design."
               />
 
@@ -621,10 +625,10 @@ export default function AboutPage() {
                   <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] p-3">
                     <div className="flex items-center gap-1.5 font-medium text-neutral-800 dark:text-neutral-200">
                       <DuotoneIcon icon={BrowserTerminal} size={15} className="text-amber-500" secondaryOpacity={0.24} />
-                      CLI Demo Scenarios
+                      Browser Traffic Scenarios
                     </div>
                     <p className="mt-1 font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      DEMO_COMMANDS.md & send_traffic.py
+                      src/lib/sendTraffic.js (In-Browser)
                     </p>
                   </div>
 
@@ -644,7 +648,7 @@ export default function AboutPage() {
                       Live Gateway Endpoint
                     </div>
                     <p className="mt-1 font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      127.0.0.1:5000 → 10.0.1.4
+                      20.244.34.101:5000 → 172.16.0.4
                     </p>
                   </div>
                 </div>

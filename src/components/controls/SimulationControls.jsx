@@ -2,6 +2,7 @@ import React from 'react';
 import { useSimulation } from '../../hooks/useSimulation';
 import { useServers } from '../../hooks/useServers';
 import { ALGORITHM_INFO } from '../../simulation/loadBalancingAlgorithms';
+import { SmoothDropdown } from '../ui/SmoothDropdown';
 import {
   Play,
   Pause,
@@ -106,17 +107,17 @@ export default function SimulationControls() {
         <span className="text-[11px] font-bold text-charcoal-400 uppercase tracking-wider font-mono hidden xl:inline-block">
           Algorithm:
         </span>
-        <select
+        <SmoothDropdown
           value={algorithm}
-          onChange={(e) => setAlgorithm(e.target.value)}
-          className="bg-white dark:bg-charcoal-800 border border-[#DDD6C6] dark:border-charcoal-700 rounded-xl px-3 py-1.5 text-xs font-bold text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
-        >
-          {Object.keys(ALGORITHM_INFO).map((key) => (
-            <option key={key} value={key}>
-              {ALGORITHM_INFO[key].name}
-            </option>
-          ))}
-        </select>
+          onChange={setAlgorithm}
+          ariaLabel="Routing algorithm"
+          placement="auto"
+          triggerClassName="bg-white dark:bg-charcoal-800 border-[#DDD6C6] dark:border-charcoal-700 font-bold"
+          options={Object.keys(ALGORITHM_INFO).map((key) => ({
+            value: key,
+            label: ALGORITHM_INFO[key].name,
+          }))}
+        />
       </div>
 
       {/* 4. Quick Server Add Button */}

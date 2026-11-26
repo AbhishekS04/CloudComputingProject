@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronDown,
-  ChevronRight,
   File,
   SidebarLeft,
   SidebarLeft2,
@@ -116,12 +116,16 @@ export default function CourseSidebar({
               {/* Module Accordion Header */}
               <button
                 onClick={() => toggleModule(mod.id)}
-                className="w-full flex items-center justify-between p-2 rounded-xl text-left text-xs font-bold text-charcoal-800 dark:text-cream-200 hover:bg-[#EBE6DA]/60 transition-colors"
+                className="w-full flex items-center justify-between p-2 rounded-xl text-left text-xs font-bold text-charcoal-800 dark:text-cream-200 hover:bg-[#EBE6DA]/60 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-charcoal-400 shrink-0">
-                    {isOpen ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />}
-                  </span>
+                  <motion.span
+                    animate={{ rotate: isOpen ? 0 : -90 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                    className="text-charcoal-400 shrink-0 inline-flex"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  </motion.span>
                   <span className="font-mono text-[11px] text-charcoal-500 shrink-0">{mod.number}.</span>
                   <span className="truncate">{mod.title}</span>
                 </div>
@@ -130,29 +134,43 @@ export default function CourseSidebar({
                 </span>
               </button>
 
-              {/* Lessons List inside Module */}
-              {isOpen && mod.lessons && (
-                <div className="pl-5 space-y-0.5 pt-0.5">
-                  {mod.lessons.map((lesson) => {
-                    const isActive = lesson.id === activeLessonId;
+              {/* Smooth Expanding Lessons List */}
+              <AnimatePresence initial={false}>
+                {isOpen && mod.lessons && (
+                  <motion.div
+                    key={`${mod.id}-lessons`}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{
+                      height: { type: 'spring', stiffness: 300, damping: 28 },
+                      opacity: { duration: 0.16 },
+                    }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-5 space-y-0.5 pt-0.5">
+                      {mod.lessons.map((lesson) => {
+                        const isActive = lesson.id === activeLessonId;
 
-                    return (
-                      <button
-                        key={lesson.id}
-                        onClick={() => onSelectLesson(lesson.id)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-left transition-all ${
-                          isActive
-                            ? 'bg-[#C5E5C9] text-[#1E3A24] font-bold shadow-xs border border-[#A3D2A7]'
-                            : 'text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA]/50 hover:text-charcoal-900'
-                        }`}
-                      >
-                        <File className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#1E3A24]' : 'text-charcoal-400'}`} aria-hidden="true" />
-                        <span className="truncate">{lesson.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                        return (
+                          <button
+                            key={lesson.id}
+                            onClick={() => onSelectLesson(lesson.id)}
+                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-left transition-all ${
+                              isActive
+                                ? 'bg-[#C5E5C9] text-[#1E3A24] font-bold shadow-xs border border-[#A3D2A7]'
+                                : 'text-charcoal-600 dark:text-cream-300 hover:bg-[#EBE6DA]/50 hover:text-charcoal-900'
+                            }`}
+                          >
+                            <File className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#1E3A24]' : 'text-charcoal-400'}`} aria-hidden="true" />
+                            <span className="truncate">{lesson.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}

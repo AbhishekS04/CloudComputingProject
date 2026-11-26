@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSimulation } from '../hooks/useSimulation';
 import { ALGORITHM_INFO } from '../simulation/loadBalancingAlgorithms';
+import { SmoothDropdown } from '../components/ui/SmoothDropdown';
 import {
   Slider,
   Database,
@@ -77,17 +78,19 @@ export default function SettingsPage() {
               <label className="font-semibold text-charcoal-700 dark:text-cream-200 block mb-1.5">
                 Default Routing Algorithm
               </label>
-              <select
+              <SmoothDropdown
                 value={algorithm}
-                onChange={(e) => setAlgorithm(e.target.value)}
-                className="w-full bg-cream-100 dark:bg-charcoal-900 border border-cream-300 dark:border-charcoal-700 rounded-xl px-3 py-2 font-medium text-charcoal-800 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-sage-500"
-              >
-                {Object.keys(ALGORITHM_INFO).map((k) => (
-                  <option key={k} value={k}>
-                    {ALGORITHM_INFO[k].name}
-                  </option>
-                ))}
-              </select>
+                onChange={setAlgorithm}
+                ariaLabel="Default Routing Algorithm"
+                placement="auto"
+                className="w-full"
+                triggerClassName="w-full bg-cream-100 dark:bg-charcoal-900 border-cream-300 dark:border-charcoal-700"
+                menuClassName="w-full"
+                options={Object.keys(ALGORITHM_INFO).map((k) => ({
+                  value: k,
+                  label: ALGORITHM_INFO[k].name,
+                }))}
+              />
             </div>
           </div>
         </div>
