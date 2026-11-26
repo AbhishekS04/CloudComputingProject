@@ -1760,7 +1760,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
       pktRoute[slot] = routeIdx;
       pktType[slot] = type;
       pktDir[slot] = dir;
-      pktU[slot] = dir === 1 ? 0.025 : 0.975;
+      pktU[slot] = dir === 1 ? 0.028 : 0.972;
       pktClientOrigin[slot] = originClientIdx;
       pktTargetSrv[slot] = targetSrv;
       pktFlags[slot] = flags;
@@ -2058,7 +2058,7 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
     function applyRequestRate(rps) {
       targetRPS = Math.max(1, Math.min(10000, Number(rps) || 12));
       if (metricRpsRef.current) {
-        metricRpsRef.current.textContent = rpsVal + " req/s";
+        metricRpsRef.current.textContent = `${targetRPS} req/s`;
       }
       rpsBtnRefs.current.forEach((b) => {
         if (!b) return;
@@ -2733,7 +2733,9 @@ export function LoadBalancerVisualizer({ theme, onThemeChange } = {}) {
 
     function renderLoop(now) {
       rafId = requestAnimationFrame(renderLoop);
-      const dt = Math.min((now - lastTime) * 0.001, 0.05);
+      const rawDt = (now - lastTime) * 0.001;
+      if (rawDt <= 0) return;
+      const dt = Math.min(rawDt, 0.05);
       lastTime = now;
 
       const nClients = STATE.clients.length;

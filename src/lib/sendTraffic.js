@@ -121,7 +121,8 @@ export async function sendOne({
   if (clientIp) payload.clientIp = clientIp;
 
   const t0 = performance.now();
-  const { signal: reqSignal, cleanup } = createTimeoutSignal(signal, 12000);
+  const safeDelaySec = Math.max(0, Number(delay) || 0);
+  const { signal: reqSignal, cleanup } = createTimeoutSignal(signal, 7000 + safeDelaySec * 1000);
 
   try {
     let targetUrl = `${cleanUrl}${primaryEndpoint}`;
@@ -156,6 +157,13 @@ export async function sendOne({
     const ok = resp.ok && (data.status === 'success' || 'message' in data || resp.status === 200);
     const failoverFrom = data.failover_from || null;
 
+    const rawRt = Number(data.response_time_ms);
+    const safeRt = Number.isFinite(rawRt) && rawRt > 0 ? rawRt : Math.round(elapsedMs);
+    const rawSrvExec = Number(data.server_exec_ms);
+    const safeSrvExec = Number.isFinite(rawSrvExec) ? rawSrvExec : undefined;
+    const rawLbDisp = Number(data.lb_dispatch_ms);
+    const safeLbDisp = Number.isFinite(rawLbDisp) ? rawLbDisp : undefined;
+
     // Synchronize directly with UI visualizer (deduplicated against SSE by request_id)
     simulationEngine.handleLiveRequestEvent({
       type: 'request',
@@ -167,9 +175,9 @@ export async function sendOne({
       client_ip: clientIp || '198.51.100.4',
       status: ok ? 'success' : 'error',
       status_code: resp.status,
-      response_time_ms: Number(data.response_time_ms || elapsedMs),
-      server_exec_ms: data.server_exec_ms,
-      lb_dispatch_ms: data.lb_dispatch_ms,
+      response_time_ms: safeRt,
+      server_exec_ms: safeSrvExec,
+      lb_dispatch_ms: safeLbDisp,
       failover_from: failoverFrom,
     });
 

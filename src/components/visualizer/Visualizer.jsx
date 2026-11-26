@@ -55,6 +55,44 @@ const ALGORITHMS = [
   { id: 'IP_HASH', label: 'IP Hash' },
 ];
 
+class VisualizerStageBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, message: error?.message || 'Visualizer render error' };
+  }
+
+  componentDidCatch() {
+    // Error captured by boundary UI so the control bar remains responsive
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[380px] sm:min-h-[520px] p-6 text-center gap-3">
+          <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            Visualizer recovered from a temporary glitch
+          </p>
+          <p className="text-xs font-mono text-neutral-500 dark:text-neutral-400 max-w-md">
+            {this.state.message}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, message: '' })}
+            className="h-8 px-3.5 rounded-xl bg-[#007AFF] hover:bg-[#0071E3] text-white text-xs font-semibold cursor-pointer"
+          >
+            Reload Stage
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /**
  * Visualizer
  * Master visualizer stage with docked full-width browser traffic dispatcher bar underneath.
@@ -89,6 +127,7 @@ export default function Visualizer() {
   const [delaySec, setDelaySec] = useState(0);
   const [noLbTarget, setNoLbTarget] = useState('random');
   const [activeTask, setActiveTask] = useState(null);
+  const [sendingSingle, setSendingSingle] = useState(false);
   const [progress, setProgress] = useState({ completed: 0, total: 0, ok: 0, fail: 0 });
   const [dispatchLogs, setDispatchLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
@@ -232,11 +271,16 @@ export default function Visualizer() {
       return;
     }
 
+    const isProxiedGateway = String(gatewayUrlState || '').startsWith('/');
+    const burstWorkers = isProxiedGateway
+      ? Math.min(8, parsedConcurrency, parsedCount)
+      : Math.min(parsedConcurrency, parsedCount);
+
     startTask('burst', (signal) =>
       runStressTest({
         url: gatewayUrlState,
         count: parsedCount,
-        concurrency: Math.min(parsedConcurrency, parsedCount),
+        concurrency: burstWorkers,
         delay: parsedDelay,
         label: 'BURST WAVE',
         signal,
@@ -251,14 +295,26 @@ export default function Visualizer() {
       simulationEngine.dispatchSingleRequest();
       return;
     }
+    if (sendingSingle) return;
+    setSendingSingle(true);
     const clientIp = CLIENT_IPS[Math.floor(Math.random() * CLIENT_IPS.length)];
-    await sendOne({
-      url: gatewayUrlState,
-      reqIdx: dispatchLogs.length + 1,
-      clientIp,
-      delay: parsedDelay,
-      onLog: appendLog,
-    });
+    try {
+      await sendOne({
+        url: gatewayUrlState,
+        reqIdx: dispatchLogs.length + 1,
+        clientIp,
+        delay: parsedDelay,
+        onLog: appendLog,
+      });
+    } catch (err) {
+      appendLog({
+        id: `single-err-${Date.now()}`,
+        level: 'error',
+        text: `Request failed: ${err?.message || 'Unexpected error'}`,
+      });
+    } finally {
+      setSendingSingle(false);
+    }
   };
 
   const handleToggleStream = () => {
@@ -336,23 +392,25 @@ export default function Visualizer() {
 
       {/* 1. Unobstructed Canvas Viewport */}
       <div className="relative w-full overflow-hidden rounded-2xl border border-[#DDD6C6] dark:border-charcoal-700 bg-[#FAF8F2] dark:bg-charcoal-900 shadow-subtle min-h-[380px] sm:min-h-[520px] lg:min-h-[640px]">
-        {visualizerMode === '3D' && (
-          <Visualizer3D
-            theme={isDarkMode ? 'dark' : 'light'}
-            onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
-            onSelectNode={setSelectedNode}
-            selectedNode={selectedNode}
-          />
-        )}
+        <VisualizerStageBoundary>
+          {visualizerMode === '3D' && (
+            <Visualizer3D
+              theme={isDarkMode ? 'dark' : 'light'}
+              onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
+              onSelectNode={setSelectedNode}
+              selectedNode={selectedNode}
+            />
+          )}
 
-        {visualizerMode === '2D' && (
-          <Visualizer2D
-            theme={isDarkMode ? 'dark' : 'light'}
-            onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
-            onSelectNode={setSelectedNode}
-            selectedNode={selectedNode}
-          />
-        )}
+          {visualizerMode === '2D' && (
+            <Visualizer2D
+              theme={isDarkMode ? 'dark' : 'light'}
+              onThemeChange={(nextTheme) => setDarkMode(nextTheme === 'dark')}
+              onSelectNode={setSelectedNode}
+              selectedNode={selectedNode}
+            />
+          )}
+        </VisualizerStageBoundary>
       </div>
 
       {/* 2. Minimal Docked Dispatcher & Telemetry Bar Under Visualizer */}
@@ -496,13 +554,13 @@ export default function Visualizer() {
             {/* Single Request */}
             <button
               type="button"
-              disabled={Boolean(activeTask)}
+              disabled={Boolean(activeTask) || sendingSingle}
               onClick={handleSingleRequest}
               className={chipBtnClass}
               title="Send 1 request from browser"
             >
-              <ArrowRight size={13} className="text-[#007AFF]" />
-              <span>1 Req</span>
+              <ArrowRight size={13} className={`text-[#007AFF] ${sendingSingle ? 'animate-pulse' : ''}`} />
+              <span>{sendingSingle ? 'Sending...' : '1 Req'}</span>
             </button>
           </div>
 

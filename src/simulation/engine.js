@@ -68,7 +68,9 @@ class SimulationEngine {
     this.intervalId = null;
     this.syncIntervalId = null;
     this.eventSource = null;
+    this.eventRetryTimer = null;
     this.bridgeSource = null;
+    this.isSyncing = false;
     this.lastBridgeEventAt = 0;
     this.tickRate = 120; // 120ms per engine tick
     this.accumulator = 0;
@@ -114,6 +116,10 @@ class SimulationEngine {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
     }
+    if (this.eventRetryTimer) {
+      clearTimeout(this.eventRetryTimer);
+      this.eventRetryTimer = null;
+    }
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
@@ -129,7 +135,7 @@ class SimulationEngine {
   }
 
   initBridgeStream() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !import.meta.env.DEV) return;
     if (this.bridgeSource) {
       this.bridgeSource.close();
       this.bridgeSource = null;
@@ -183,10 +189,18 @@ class SimulationEngine {
   initEventStream() {
     if (typeof window === 'undefined') return;
     const url = getGatewayUrl() || '';
+    if (this.eventRetryTimer) {
+      clearTimeout(this.eventRetryTimer);
+      this.eventRetryTimer = null;
+    }
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
+
+    // Serverless HTTPS proxy routes (/lb-api) cannot hold infinite idle SSE streams
+    // cleanly; live updates are handled by syncFromBackend() + direct sendOne() responses.
+    if (!url || url.startsWith('/')) return;
 
     try {
       this.eventSource = new EventSource(`${url}/api/stream`);
@@ -218,8 +232,9 @@ class SimulationEngine {
           this.eventSource.close();
           this.eventSource = null;
         }
-        setTimeout(() => {
-          if (!this.eventSource) {
+        this.eventRetryTimer = setTimeout(() => {
+          this.eventRetryTimer = null;
+          if (!this.eventSource && this.intervalId) {
             this.initEventStream();
           }
         }, 3000);
@@ -395,12 +410,16 @@ class SimulationEngine {
   async syncFromBackend() {
     const store = useSimulationStore.getState();
     const baseUrl = getGatewayUrl();
-    if (store.clusterMode !== 'live' || !baseUrl) return;
+    if (store.clusterMode !== 'live' || !baseUrl || this.isSyncing) return;
+
+    this.isSyncing = true;
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 4500);
 
     try {
       const [serversRes, statsRes] = await Promise.all([
-        fetch(`${baseUrl}/api/servers`, { cache: 'no-store' }),
-        fetch(`${baseUrl}/api/stats`, { cache: 'no-store' })
+        fetch(`${baseUrl}/api/servers`, { cache: 'no-store', signal: ctrl.signal }),
+        fetch(`${baseUrl}/api/stats`, { cache: 'no-store', signal: ctrl.signal })
       ]);
       if (!serversRes.ok || !statsRes.ok) {
         const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
@@ -423,7 +442,7 @@ class SimulationEngine {
       }
 
       const wasLbOffline = !useSimulationStore.getState().lbOnline;
-      if (wasLbOffline && !this.eventSource) {
+      if (wasLbOffline && !this.eventSource && !baseUrl.startsWith('/')) {
         this.initEventStream();
       }
 
@@ -466,6 +485,9 @@ class SimulationEngine {
           activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
         }
       }));
+    } finally {
+      clearTimeout(timeoutId);
+      this.isSyncing = false;
     }
   }
 
@@ -508,9 +530,11 @@ class SimulationEngine {
       return;
     }
 
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 5000);
     try {
       const resp = await fetch(`${baseUrl}/api/request`, {
-        signal: AbortSignal.timeout(3000),
+        signal: ctrl.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -540,6 +564,8 @@ class SimulationEngine {
           ...state.requestLogs.slice(0, 199)
         ]
       }));
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

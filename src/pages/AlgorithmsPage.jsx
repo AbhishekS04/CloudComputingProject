@@ -10,7 +10,7 @@ import {
   Play
 } from 'reicon-react';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+import { getGatewayUrl } from '../lib/gatewayConfig';
 
 export default function AlgorithmsPage() {
   const { algorithm, setAlgorithm } = useSimulation();
@@ -21,11 +21,12 @@ export default function AlgorithmsPage() {
   const [isDispatching, setIsDispatching] = useState(false);
 
   const handleTestDispatch = async () => {
-    if (BASE_URL) {
+    const baseUrl = getGatewayUrl();
+    if (baseUrl) {
       setIsDispatching(true);
       const t0 = performance.now();
       try {
-        const response = await fetch(`${BASE_URL}/api/request`, {
+        const response = await fetch(`${baseUrl}/api/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

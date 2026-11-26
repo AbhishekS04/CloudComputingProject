@@ -534,7 +534,7 @@ export default function Visualizer2D({
       eng.pktRoute[slot] = routeIdx;
       eng.pktType[slot] = type;
       eng.pktDir[slot] = dir;
-      eng.pktU[slot] = dir === 1 ? 0.02 : 0.98;
+      eng.pktU[slot] = dir === 1 ? 0.024 : 0.976;
       eng.pktOrigin[slot] = originClientIdx;
       eng.pktTargetSrv[slot] = targetSrv;
       eng.pktFlags[slot] = flags;
@@ -884,7 +884,9 @@ export default function Visualizer2D({
 
     const tick = (now) => {
       rafId = requestAnimationFrame(tick);
-      const dt = Math.min((now - lastTime) * 0.001, 0.05);
+      const rawDt = (now - lastTime) * 0.001;
+      if (rawDt <= 0) return;
+      const dt = Math.min(rawDt, 0.05);
       lastTime = now;
 
       const { targetRPS: rps, isPaused: paused } = stateRef.current;

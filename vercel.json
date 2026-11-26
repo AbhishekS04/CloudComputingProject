@@ -1,23 +1,15 @@
 {
   "rewrites": [
     {
-      "source": "/lb-api/:path*",
-      "destination": "http://20.244.34.101:5000/:path*"
+      "source": "/lb-api/(.*)",
+      "destination": "/api/proxy?target=lb&rest=$1"
     },
     {
-      "source": "/vm-api/server-1/:path*",
-      "destination": "http://52.172.229.225:5001/:path*"
+      "source": "/vm-api/(server-1|server-2|server-3)/(.*)",
+      "destination": "/api/proxy?target=$1&rest=$2"
     },
     {
-      "source": "/vm-api/server-2/:path*",
-      "destination": "http://20.193.245.71:5001/:path*"
-    },
-    {
-      "source": "/vm-api/server-3/:path*",
-      "destination": "http://52.172.255.132:5001/:path*"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!api/|lb-api/|vm-api/).*)",
       "destination": "/index.html"
     }
   ]

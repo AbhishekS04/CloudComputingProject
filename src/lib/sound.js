@@ -13,6 +13,22 @@ let lastDotInAt = 0;
 let lastDotOutAt = 0;
 const listeners = new Set();
 
+function safePlay(sound, options) {
+  try {
+    play(sound, options);
+  } catch {
+    // Web Audio errors must never disrupt UI clicks or animation frames
+  }
+}
+
+function safeUnlock() {
+  try {
+    return Promise.resolve(unlock()).catch(() => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
 function notifyListeners() {
   listeners.forEach((cb) => {
     try {
@@ -41,11 +57,15 @@ export async function toggleSound() {
       // ignore storage failure
     }
   }
-  setEnabled(soundEnabled);
+  try {
+    setEnabled(soundEnabled);
+  } catch {
+    // ignore audio engine error
+  }
   if (soundEnabled) {
-    const ok = await unlock();
+    const ok = await safeUnlock();
     if (ok) audioUnlocked = true;
-    play("toggle", { emphasis: "strong", volume: 1 });
+    safePlay("toggle", { emphasis: "strong", volume: 1 });
   }
   notifyListeners();
   return soundEnabled;
@@ -54,19 +74,28 @@ export async function toggleSound() {
 export function initSoundSystem() {
   if (typeof window === "undefined") return () => {};
 
-  setVolume(1.0);
-  setEnabled(soundEnabled);
+  try {
+    setVolume(1.0);
+    setEnabled(soundEnabled);
+  } catch {
+    // ignore audio setup failure
+  }
 
   const hadEmphasis = document.body?.hasAttribute("data-cuelume-emphasis");
   if (document.body && !hadEmphasis) {
     document.body.setAttribute("data-cuelume-emphasis", "strong");
   }
 
-  const unbindCuelume = bind();
+  let unbindCuelume = () => {};
+  try {
+    unbindCuelume = bind();
+  } catch {
+    unbindCuelume = () => {};
+  }
 
   const handleFirstGesture = () => {
     if (!soundEnabled || audioUnlocked) return;
-    unlock().then((ok) => {
+    safeUnlock().then((ok) => {
       if (ok) audioUnlocked = true;
     });
   };
@@ -81,11 +110,11 @@ export function initSoundSystem() {
     if (button.closest(MARKED_SELECTOR)) return;
 
     if (!audioUnlocked) {
-      unlock().then((ok) => {
+      safeUnlock().then((ok) => {
         if (ok) audioUnlocked = true;
       });
     }
-    play("tap", { emphasis: "strong", volume: 1 });
+    safePlay("tap", { emphasis: "strong", volume: 1 });
   };
 
   window.addEventListener("pointerdown", handleFirstGesture, { passive: true, capture: true });
@@ -93,7 +122,11 @@ export function initSoundSystem() {
   document.addEventListener("click", handleUnmarkedButtonClick, { passive: true });
 
   return () => {
-    unbindCuelume();
+    try {
+      unbindCuelume();
+    } catch {
+      // ignore
+    }
     if (document.body && !hadEmphasis) {
       document.body.removeAttribute("data-cuelume-emphasis");
     }
@@ -113,7 +146,7 @@ export function playDotIn(isHandshake = false) {
   if (now - lastDotInAt < 145) return;
   lastDotInAt = now;
 
-  play("tap", {
+  safePlay("tap", {
     emphasis: "normal",
     volume: isHandshake ? 0.42 : 0.62,
   });
@@ -129,7 +162,7 @@ export function playDotOut(isError = false) {
   if (now - lastDotOutAt < 165) return;
   lastDotOutAt = now;
 
-  play(isError ? "error" : "ready", {
+  safePlay(isError ? "error" : "ready", {
     emphasis: "normal",
     volume: isError ? 0.65 : 0.55,
   });
