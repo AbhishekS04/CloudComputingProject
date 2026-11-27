@@ -1,10 +1,13 @@
-﻿import React, { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+﻿import React, { useEffect, lazy, Suspense, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ReactLenis } from 'lenis/react';
 import 'lenis/dist/lenis.css';
 import 'skullet/styles.css';
 import { SkulletProvider } from 'skullet/react';
-import { RouteTransitionProvider } from './components/ui/VenetianBlindsPageTransition';
+// Temporary hold on Venetian Blinds page transition while evaluating Barba.js
+// import { RouteTransitionProvider } from './components/ui/VenetianBlindsPageTransition';
+import { BarbaPageTransition } from './components/ui/BarbaPageTransition';
+import SystemDesignNavbar from './components/layout/SystemDesignNavbar';
 import BlurFadeThemeTransition from './components/ui/BlurFadeThemeTransition';
 import { useSimulationStore } from './store/simulationStore';
 import MainPlatformPage from './pages/MainPlatformPage';
@@ -19,19 +22,42 @@ import { simulationEngine } from './simulation/engine';
 import { initSoundSystem } from './lib/sound';
 import { CustomScrollbar } from './components/ui/CustomScrollbar';
 
-const MonitoringDashboardPage = lazy(() => import('./pages/MonitoringDashboardPage'));
-const AboutPage = lazy(() => import('./pages/AboutPage'));
+const loadMonitoringDashboardPage = () => import('./pages/MonitoringDashboardPage');
+const loadAboutPage = () => import('./pages/AboutPage');
+
+const MonitoringDashboardPage = lazy(loadMonitoringDashboardPage);
+const AboutPage = lazy(loadAboutPage);
+
+const LEGACY_LAYOUT_PREFIXES = [
+  '/visualizer',
+  '/servers',
+  '/analytics',
+  '/algorithms',
+  '/logs',
+  '/settings',
+];
 
 function RouteChunkFallback() {
   return (
-    <div className="min-h-screen w-full bg-[#FAF7F0] dark:bg-[#121212]" aria-busy="true" />
+    <div className="flex-1 w-full bg-[#FAF7F0] dark:bg-[#121212]" aria-busy="true" />
   );
 }
 
 function AppRoutes() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const showPersistentNavbar = !LEGACY_LAYOUT_PREFIXES.some((prefix) =>
+    location.pathname.startsWith(prefix)
+  );
+
+  const preloadRoute = useCallback((pathname) => {
+    if (pathname === '/monitoring') return loadMonitoringDashboardPage();
+    if (pathname === '/about') return loadAboutPage();
+    return Promise.resolve();
+  }, []);
 
   return (
+    /* Temporary hold on Venetian Blinds transition while testing Barba.js
     <RouteTransitionProvider
       navigate={navigate}
       columns={20}
@@ -39,6 +65,14 @@ function AppRoutes() {
       staggerDelay={0.02}
       staggerType="center-out"
       origin="bottom"
+    >
+      ...
+    </RouteTransitionProvider>
+    */
+    <BarbaPageTransition
+      navigate={navigate}
+      preloadRoute={preloadRoute}
+      header={showPersistentNavbar ? <SystemDesignNavbar /> : null}
     >
       <Suspense fallback={<RouteChunkFallback />}>
         <Routes>
@@ -56,7 +90,7 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </RouteTransitionProvider>
+    </BarbaPageTransition>
   );
 }
 
@@ -107,8 +141,8 @@ export default function App() {
         >
           <BrowserRouter>
             <AppRoutes />
+            <CustomScrollbar />
           </BrowserRouter>
-          <CustomScrollbar />
         </SkulletProvider>
       </BlurFadeThemeTransition>
     </ReactLenis>

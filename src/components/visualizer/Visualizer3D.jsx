@@ -4,6 +4,10 @@ import { playDotIn, playDotOut } from '../../lib/sound';
 
 const IS_LIVE_BACKEND = true;
 
+// Persisted across SPA navigation (resets only on full website reload)
+let hasPlayedInitialDrop = false;
+const persistedNodeCoords = new Map();
+
 // ============================================================================
 // 1. TRUE 2:1 ISOMETRIC PROJECTION MATH
 // ============================================================================
@@ -21,6 +25,18 @@ function iso(u, v, z = 0) {
   return {
     x: ORIGIN_X + (u - v) * TILE_W,
     y: ORIGIN_Y + (u + v) * TILE_H - z,
+  };
+}
+
+/**
+ * Inverse projection: converts 2D SVG world coordinates (x, y) back to isometric (u, v) on z=0 plane.
+ */
+function invIso(x, y) {
+  const dx = (x - ORIGIN_X) / TILE_W;
+  const dy = (y - ORIGIN_Y) / TILE_H;
+  return {
+    u: (dx + dy) * 0.5,
+    v: (dy - dx) * 0.5,
   };
 }
 
@@ -43,64 +59,68 @@ const SERVER_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 export const THEMES = {
   light: {
-    gridLine: '#e2dac8',
-    shadow: 'rgba(156, 142, 118, 0.34)',
-    wireActive: '#23211e',
-    wireDashed: '#8e8678',
-    wireOffline: '#9e9687',
+    gridLine: '#e4dccb',
+    shadow: 'rgba(130, 116, 94, 0.28)',
+    wireActive: '#2e2b26',
+    wireDashed: '#8e8576',
+    wireOffline: '#a39a8b',
     portRingFill: '#fdfbf7',
 
-    lbTop0: '#fff9e6',
-    lbTop1: '#f5dc96',
-    lbWall0: '#f3d386',
-    lbWall48: '#e5bf69',
-    lbWall54: '#d7af56',
-    lbWall100: '#e3bd68',
+    // Solid Warm Honey-Amber Load Balancer
+    lbTop0: '#f6d573',
+    lbTop1: '#f6d573',
+    lbWall0: '#e2b74b',
+    lbWall48: '#e2b74b',
+    lbWall54: '#d3a53b',
+    lbWall100: '#e2b74b',
     lbStroke: '#23211e',
     lbCrease: 'rgba(35, 33, 30, 0.10)',
-    lbBevel: 'rgba(255, 255, 255, 0.90)',
+    lbBevel: 'rgba(255, 255, 255, 0.78)',
     lbIcon: '#23211e',
     lbTitle: '#23211e',
-    lbSubtitle: '#574c3a',
+    lbSubtitle: '#594210',
     lbHalo: '#d99b26',
 
-    srvTop0: '#f2f7ff',
-    srvTop1: '#c8defa',
-    srvWall0: '#bdd5f6',
-    srvWall48: '#a1bee8',
-    srvWall54: '#8da9d8',
-    srvWall100: '#9fbbe6',
-    srvStroke: '#23211e',
-    srvCrease: 'rgba(35, 33, 30, 0.10)',
-    srvBevel: 'rgba(255, 255, 255, 0.90)',
+    // Solid Crisp Sky-Periwinkle Servers
+    srvTop0: '#cde0fb',
+    srvTop1: '#cde0fb',
+    srvWall0: '#a9c7f2',
+    srvWall48: '#a9c7f2',
+    srvWall54: '#95b6e6',
+    srvWall100: '#a9c7f2',
+    srvStroke: '#1e293b',
+    srvCrease: 'rgba(30, 41, 59, 0.10)',
+    srvBevel: 'rgba(255, 255, 255, 0.80)',
     srvRackFill: '#ffffff',
-    srvRackStroke: '#23211e',
-    srvLedIdle: '#23211e',
-    srvLedFlash1: '#48b850',
-    srvLedFlash2: '#f08c65',
-    srvLedOffline: '#d84632',
-    srvTitle: '#23211e',
-    srvHalo: '#5887d8',
+    srvRackStroke: '#1e293b',
+    srvLedIdle: '#1e293b',
+    srvLedFlash1: '#22c55e',
+    srvLedFlash2: '#f97316',
+    srvLedOffline: '#ef4444',
+    srvTitle: '#0f172a',
+    srvSubtitle: '#334155',
+    srvHalo: '#3b82f6',
 
-    srvOffTop0: '#f3efe8',
-    srvOffTop1: '#dad3c7',
+    srvOffTop0: '#ece7de',
+    srvOffTop1: '#ece7de',
     srvOffWall0: '#d2cbc0',
-    srvOffWall50: '#b6aea2',
-    srvOffWall100: '#c5beb2',
-    srvOffStroke: '#23211e',
-    srvOffTitle: '#23211e',
-    srvOffRackFill: '#ffffff',
-    srvOffRackStroke: '#23211e',
+    srvOffWall50: '#c5beb2',
+    srvOffWall100: '#d2cbc0',
+    srvOffStroke: '#57534e',
+    srvOffTitle: '#64748b',
+    srvOffSubtitle: '#64748b',
+    srvOffRackFill: '#f8fafc',
+    srvOffRackStroke: '#64748b',
 
-    padTop0: '#f6f1e7',
-    padTop1: '#e8e0d2',
-    padWall0: '#e1d9c9',
-    padWall50: '#c6bcab',
-    padWall100: '#d6cebe',
+    padTop0: '#efe9dc',
+    padTop1: '#efe9dc',
+    padWall0: '#dbd2c1',
+    padWall50: '#cfc5b2',
+    padWall100: '#dbd2c1',
     padStroke: '#23211e',
-    padBevel: 'rgba(255, 255, 255, 0.92)',
+    padBevel: 'rgba(255, 255, 255, 0.82)',
 
-    lapShadow: 'rgba(145, 132, 112, 0.30)',
+    lapShadow: 'rgba(120, 108, 90, 0.24)',
     lapBaseRim: '#d5cdc0',
     lapDeck: '#f4efe4',
     lapStroke: '#23211e',
@@ -108,183 +128,185 @@ export const THEMES = {
     lapKeyStroke: '#9a9183',
     lapTrackpadFill: '#ebe5d8',
     lapTrackpadStroke: '#9a9183',
-    lapLid0: '#5c5751',
-    lapLid25: '#423e39',
-    lapLid100: '#2c2926',
+    lapLid0: '#4a453f',
+    lapLid25: '#3e3a35',
+    lapLid100: '#312e2a',
     lapBezelFill: '#2b2825',
     lapBezelStroke: '#23211e',
-    lapSpecular: 'rgba(255, 255, 255, 0.90)',
+    lapSpecular: 'rgba(255, 255, 255, 0.78)',
     lapViewport: '#fcfaf5',
     lapToolbar: '#eae3d5',
     lapUrl: '#ffffff',
-    lapHero: '#cec2f2',
-    lapHeroFlash: '#b9a6f2',
+    lapHero: '#818cf8',
+    lapHeroFlash: '#6366f1',
     lapSkeleton: '#d5cec0',
 
-    pillClientShadow: 'rgba(35, 33, 30, 0.12)',
-    pillServerShadow: 'rgba(35, 33, 30, 0.13)',
+    pillClientShadow: 'rgba(35, 33, 30, 0.10)',
+    pillServerShadow: 'rgba(35, 33, 30, 0.11)',
     pillHardShadow: '#23211e',
     pillBg: '#fdfbf7',
     pillOfflineBg: '#f5efe6',
     pillBorder: '#23211e',
-    pillText: '#23211e',
-    pillOfflineText: '#8c3022',
-    pillIcon: '#23211e',
-    pillGear: '#5c5549',
+    pillText: '#1e293b',
+    pillOfflineText: '#b91c1c',
+    pillIcon: '#334155',
+    pillGear: '#475569',
     pillGearHole: '#fdfbf7',
     pillTrack: '#e5dfd1',
-    pillToggleOn: '#78c67a',
-    pillToggleOff: '#e08070',
-    pillToggleOffRefresh: '#e28171',
-    pillToggleStroke: '#23211e',
-    pillToggleText: '#23211e',
-
-    pktReqFill: '#f08c65',
-    pktReqStroke: '#23211e',
-    pktResFill: '#78c67a',
-    pktResStroke: '#23211e',
-    pktHandFill: '#f6f1e6',
-    pktHandStroke: '#4f9d52',
-
-    lbArc: '#f08c65',
-    rippleReq: '#f08c65',
-    rippleRes: '#78c67a',
-    floorWaveBurst: '#e6b84e',
-    floorWaveOnline: '#6ec472',
-    floorWaveOffline: '#e06c58',
-
-    toastStroke: '#23211e',
-    toastOkBg: '#e9f7ea',
-    toastOkText: '#1d682d',
-    toastFailBg: '#fde7e3',
-    toastFailText: '#94291b',
-    toastModeBg: '#fff3d1',
-    toastModeText: '#23211e',
-  },
-  dark: {
-    gridLine: '#292533',
-    shadow: 'rgba(6, 5, 12, 0.62)',
-    wireActive: '#e8e1d5',
-    wireDashed: '#7d748a',
-    wireOffline: '#575063',
-    portRingFill: '#1b1822',
-
-    // Vivid Sunburst Golden Amber Load Balancer
-    lbTop0: '#ffe494',
-    lbTop1: '#f5b942',
-    lbWall0: '#eb9f28',
-    lbWall48: '#d98816',
-    lbWall54: '#c4750c',
-    lbWall100: '#d98816',
-    lbStroke: '#141218',
-    lbCrease: 'rgba(20, 18, 24, 0.18)',
-    lbBevel: 'rgba(255, 250, 225, 0.85)',
-    lbIcon: '#1f180a',
-    lbTitle: '#1f180a',
-    lbSubtitle: '#4a350c',
-    lbHalo: '#ffd166',
-
-    // Vivid Electric Periwinkle / Sky Blue Backend Servers
-    srvTop0: '#a8ccff',
-    srvTop1: '#6ca4f8',
-    srvWall0: '#588fe8',
-    srvWall48: '#4176d1',
-    srvWall54: '#3263ba',
-    srvWall100: '#4176d1',
-    srvStroke: '#141218',
-    srvCrease: 'rgba(20, 18, 24, 0.20)',
-    srvBevel: 'rgba(235, 246, 255, 0.80)',
-    srvRackFill: '#ffffff',
-    srvRackStroke: '#141218',
-    srvLedIdle: '#141218',
-    srvLedFlash1: '#22c55e',
-    srvLedFlash2: '#ff7b54',
-    srvLedOffline: '#ef4444',
-    srvTitle: '#0f1b33',
-    srvHalo: '#7cc0ff',
-
-    // Distinct Muted Slate Offline Servers
-    srvOffTop0: '#383442',
-    srvOffTop1: '#2b2733',
-    srvOffWall0: '#25222c',
-    srvOffWall50: '#1c1922',
-    srvOffWall100: '#211e28',
-    srvOffStroke: '#6b6378',
-    srvOffTitle: '#9e96ab',
-    srvOffRackFill: '#2b2733',
-    srvOffRackStroke: '#7d748c',
-
-    // Rich Slate-Plum Client Cushion Pads & Illuminated Laptops
-    padTop0: '#484154',
-    padTop1: '#363140',
-    padWall0: '#2e2938',
-    padWall50: '#211d29',
-    padWall100: '#282330',
-    padStroke: '#9185a6',
-    padBevel: 'rgba(235, 226, 255, 0.36)',
-
-    lapShadow: 'rgba(10, 8, 16, 0.50)',
-    lapBaseRim: '#322d3d',
-    lapDeck: '#524a60',
-    lapStroke: '#141218',
-    lapKeyFill: '#6b627c',
-    lapKeyStroke: '#2b2633',
-    lapTrackpadFill: '#5f566e',
-    lapTrackpadStroke: '#2b2633',
-    lapLid0: '#5e556e',
-    lapLid25: '#3b3445',
-    lapLid100: '#221e29',
-    lapBezelFill: '#18151d',
-    lapBezelStroke: '#a194b8',
-    lapSpecular: 'rgba(245, 238, 255, 0.68)',
-    lapViewport: '#272230',
-    lapToolbar: '#383244',
-    lapUrl: '#4d445c',
-    lapHero: '#a78bfa',
-    lapHeroFlash: '#c4b5fd',
-    lapSkeleton: '#615773',
-
-    // High-Contrast Colorful Pills
-    pillClientShadow: 'rgba(8, 7, 14, 0.45)',
-    pillServerShadow: 'rgba(8, 7, 14, 0.48)',
-    pillHardShadow: '#09080d',
-    pillBg: '#262230',
-    pillOfflineBg: '#1e1b24',
-    pillBorder: '#a194b8',
-    pillText: '#f7f3ff',
-    pillOfflineText: '#ff8577',
-    pillIcon: '#c4b5fd',
-    pillGear: '#c4b5fd',
-    pillGearHole: '#262230',
-    pillTrack: '#3d374a',
     pillToggleOn: '#4ade80',
     pillToggleOff: '#fb7185',
     pillToggleOffRefresh: '#fb7185',
-    pillToggleStroke: '#141218',
-    pillToggleText: '#141218',
+    pillToggleStroke: '#1e293b',
+    pillToggleText: '#0f172a',
 
-    // Luminous Packets & Effects
-    pktReqFill: '#ff7b54',
-    pktReqStroke: '#141218',
+    pktReqFill: '#f97316',
+    pktReqStroke: '#1e293b',
+    pktResFill: '#22c55e',
+    pktResStroke: '#1e293b',
+    pktHandFill: '#f8fafc',
+    pktHandStroke: '#0ea5e9',
+
+    lbArc: '#f59e0b',
+    rippleReq: '#f97316',
+    rippleRes: '#22c55e',
+    floorWaveBurst: '#f59e0b',
+    floorWaveOnline: '#22c55e',
+    floorWaveOffline: '#ef4444',
+
+    toastStroke: '#1e293b',
+    toastOkBg: '#dcfce7',
+    toastOkText: '#166534',
+    toastFailBg: '#fee2e2',
+    toastFailText: '#991b1b',
+    toastModeBg: '#fef3c7',
+    toastModeText: '#78350f',
+  },
+  dark: {
+    gridLine: '#232734',
+    shadow: 'rgba(4, 6, 12, 0.65)',
+    wireActive: '#8b95ad',
+    wireDashed: '#525a6e',
+    wireOffline: '#414757',
+    portRingFill: '#161922',
+
+    // Solid Matte Warm Gold Load Balancer
+    lbTop0: '#f3c35c',
+    lbTop1: '#f3c35c',
+    lbWall0: '#d49d35',
+    lbWall48: '#d49d35',
+    lbWall54: '#bf8a27',
+    lbWall100: '#d49d35',
+    lbStroke: '#111318',
+    lbCrease: 'rgba(17, 19, 24, 0.20)',
+    lbBevel: 'rgba(255, 248, 224, 0.52)',
+    lbIcon: '#1a1406',
+    lbTitle: '#1a1406',
+    lbSubtitle: '#4b360a',
+    lbHalo: '#f3c35c',
+
+    // Solid Matte Steel-Periwinkle Backend Servers (High-Contrast White Typography)
+    srvTop0: '#4b77cf',
+    srvTop1: '#4b77cf',
+    srvWall0: '#395fa8',
+    srvWall48: '#395fa8',
+    srvWall54: '#315293',
+    srvWall100: '#395fa8',
+    srvStroke: '#111318',
+    srvCrease: 'rgba(12, 18, 36, 0.25)',
+    srvBevel: 'rgba(219, 234, 254, 0.42)',
+    srvRackFill: '#f8fafc',
+    srvRackStroke: '#172542',
+    srvLedIdle: '#172542',
+    srvLedFlash1: '#22c55e',
+    srvLedFlash2: '#f97316',
+    srvLedOffline: '#ef4444',
+    srvTitle: '#ffffff',
+    srvSubtitle: '#dbeafe',
+    srvHalo: '#7aa7f7',
+
+    // Solid Matte Slate Offline Servers
+    srvOffTop0: '#2b303d',
+    srvOffTop1: '#2b303d',
+    srvOffWall0: '#20242e',
+    srvOffWall50: '#1c2029',
+    srvOffWall100: '#20242e',
+    srvOffStroke: '#485064',
+    srvOffTitle: '#94a3b8',
+    srvOffSubtitle: '#64748b',
+    srvOffRackFill: '#181b23',
+    srvOffRackStroke: '#525b70',
+
+    // Solid Matte Charcoal Client Pads & Crisp Slate Laptops
+    padTop0: '#272c39',
+    padTop1: '#272c39',
+    padWall0: '#1d212b',
+    padWall50: '#191d26',
+    padWall100: '#1d212b',
+    padStroke: '#434b60',
+    padBevel: 'rgba(203, 213, 225, 0.22)',
+
+    lapShadow: 'rgba(4, 6, 12, 0.50)',
+    lapBaseRim: '#1e222d',
+    lapDeck: '#373d4e',
+    lapStroke: '#111318',
+    lapKeyFill: '#4d556b',
+    lapKeyStroke: '#232734',
+    lapTrackpadFill: '#434a5e',
+    lapTrackpadStroke: '#232734',
+    lapLid0: '#495063',
+    lapLid25: '#3a4050',
+    lapLid100: '#2a2f3c',
+    lapBezelFill: '#14171f',
+    lapBezelStroke: '#646e87',
+    lapSpecular: 'rgba(226, 232, 240, 0.45)',
+    lapViewport: '#161922',
+    lapToolbar: '#242936',
+    lapUrl: '#373e50',
+    lapHero: '#7aa2f7',
+    lapHeroFlash: '#9dbbfb',
+    lapSkeleton: '#3f475b',
+
+    // Clean Solid Dark Pills
+    pillClientShadow: 'rgba(4, 6, 12, 0.42)',
+    pillServerShadow: 'rgba(4, 6, 12, 0.45)',
+    pillHardShadow: '#0b0d12',
+    pillBg: '#1c202b',
+    pillOfflineBg: '#1e191e',
+    pillBorder: '#434b60',
+    pillText: '#f1f5f9',
+    pillOfflineText: '#fda4af',
+    pillIcon: '#93c5fd',
+    pillGear: '#93c5fd',
+    pillGearHole: '#1c202b',
+    pillTrack: '#2d3343',
+    pillToggleOn: '#4ade80',
+    pillToggleOff: '#fb7185',
+    pillToggleOffRefresh: '#fb7185',
+    pillToggleStroke: '#111318',
+    pillToggleText: '#111318',
+
+    // Crisp Solid Packet Dots (Zero Glow)
+    pktReqFill: '#f97352',
+    pktReqStroke: '#111318',
     pktResFill: '#4ade80',
-    pktResStroke: '#141218',
-    pktHandFill: '#1e1b24',
-    pktHandStroke: '#38bdf8',
+    pktResStroke: '#111318',
+    pktHandFill: '#1c202b',
+    pktHandStroke: '#60a5fa',
 
-    lbArc: '#ff7b54',
-    rippleReq: '#ff7b54',
+    lbArc: '#f3c35c',
+    rippleReq: '#f97352',
     rippleRes: '#4ade80',
-    floorWaveBurst: '#ffd166',
+    floorWaveBurst: '#f3c35c',
     floorWaveOnline: '#4ade80',
     floorWaveOffline: '#fb7185',
 
-    toastStroke: '#141218',
+    toastStroke: '#111318',
     toastOkBg: '#4ade80',
-    toastOkText: '#0f2918',
+    toastOkText: '#0a2614',
     toastFailBg: '#fb7185',
-    toastFailText: '#2b0910',
-    toastModeBg: '#ffd166',
-    toastModeText: '#261a05',
+    toastFailText: '#330812',
+    toastModeBg: '#f3c35c',
+    toastModeText: '#261a04',
   },
 };
 
@@ -525,8 +547,9 @@ function createIsoDiamondBlockSVG({
   });
   bounceG.appendChild(haloRing);
 
+  const isServer = iconType === 'server';
   const iconG = createSVG('g', {
-    transform: `translate(${centerTop.x.toFixed(1)}, ${(centerTop.y - 14).toFixed(1)})`,
+    transform: `translate(${centerTop.x.toFixed(1)}, ${(centerTop.y - (isServer ? 22 : 24)).toFixed(1)}) scale(${isServer ? '0.88' : '0.88'})`,
   });
 
   let led1 = null;
@@ -634,42 +657,51 @@ function createIsoDiamondBlockSVG({
   }
   bounceG.appendChild(iconG);
 
+  const subColor = isGlobe
+    ? palette.lbSubtitle
+    : isOffline
+    ? (palette.srvOffSubtitle || palette.srvOffTitle)
+    : (palette.srvSubtitle || titleColor);
+
   const t1 = createSVG('text', {
     x: centerTop.x.toFixed(1),
-    y: (centerTop.y + 27).toFixed(1),
+    y: (centerTop.y + (isGlobe ? 11 : 17)).toFixed(1),
     'text-anchor': 'middle',
     fill: titleColor,
     'font-family': "'JetBrains Mono', monospace",
-    'font-size': subtitle ? '17px' : '18.5px',
+    'font-size': isGlobe ? '15.5px' : '16.5px',
     'font-weight': '800',
     'letter-spacing': '-0.02em',
   });
   t1.textContent = title1;
   bounceG.appendChild(t1);
 
-  const t2 = createSVG('text', {
-    x: centerTop.x.toFixed(1),
-    y: (centerTop.y + 47).toFixed(1),
-    'text-anchor': 'middle',
-    fill: titleColor,
-    'font-family': "'JetBrains Mono', monospace",
-    'font-size': subtitle ? '16px' : '18px',
-    'font-weight': '700',
-  });
-  t2.textContent = title2;
-  bounceG.appendChild(t2);
+  let t2 = null;
+  if (title2) {
+    t2 = createSVG('text', {
+      x: centerTop.x.toFixed(1),
+      y: (centerTop.y + (isGlobe ? 29 : 35)).toFixed(1),
+      'text-anchor': 'middle',
+      fill: titleColor,
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': isGlobe ? '14.5px' : '15.5px',
+      'font-weight': '700',
+    });
+    t2.textContent = title2;
+    bounceG.appendChild(t2);
+  }
 
   let subEl = null;
   if (subtitle) {
     subEl = createSVG('text', {
       x: centerTop.x.toFixed(1),
-      y: (centerTop.y + 67).toFixed(1),
+      y: (centerTop.y + (isGlobe ? 47 : title2 ? 52 : 35)).toFixed(1),
       'text-anchor': 'middle',
-      fill: palette.lbSubtitle,
+      fill: subColor,
       'font-family': "'JetBrains Mono', monospace",
-      'font-size': '11px',
-      'font-weight': '800',
-      'letter-spacing': '0.04em',
+      'font-size': isGlobe ? '10px' : '9.5px',
+      'font-weight': '700',
+      'letter-spacing': isGlobe ? '0.06em' : '0.01em',
     });
     subEl.textContent = subtitle;
     bounceG.appendChild(subEl);
@@ -1281,12 +1313,13 @@ const VISUALIZER_3D_STYLES = `
         .lb-iso-visualizer {
           position: relative;
           width: 100%;
-          min-height: 440px;
-          height: 470px;
+          min-height: 390px;
+          height: 420px;
           overflow: hidden;
-          background: radial-gradient(circle at 50% 48%, #faf6ed 0%, #f6f1e6 70%, #ebe2d0 100%);
+          background: #f6f1e6;
           font-family: 'JetBrains Mono', monospace;
           color: #23211e;
+          transition: background 0.3s ease;
         }
 
         @media (min-width: 640px) {
@@ -1306,8 +1339,8 @@ const VISUALIZER_3D_STYLES = `
           inset: 0;
           pointer-events: none;
           z-index: 2;
-          opacity: 0.25;
-          background-image: radial-gradient(rgba(115, 100, 78, 0.15) 0.75px, transparent 0.75px);
+          opacity: 0.22;
+          background-image: radial-gradient(rgba(115, 100, 78, 0.14) 0.75px, transparent 0.75px);
           background-size: 14px 14px;
         }
 
@@ -1316,13 +1349,9 @@ const VISUALIZER_3D_STYLES = `
           inset: 0;
           width: 100%;
           height: 100%;
-          cursor: grab;
+          cursor: default;
           touch-action: none;
           z-index: 5;
-        }
-
-        .lb-iso-visualizer .stage-container:active {
-          cursor: grabbing;
         }
 
         .lb-iso-visualizer .scene-svg {
@@ -1357,12 +1386,20 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer .metric-card {
-          background: rgba(253, 251, 247, 0.96);
-          border: 1.5px solid #c8c0af;
-          border-radius: 10px;
-          padding: 6px 13px;
+          background: rgba(253, 251, 247, 0.88);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(35, 33, 30, 0.12);
+          border-radius: 12px;
+          padding: 7px 13px;
           min-width: 112px;
-          box-shadow: 0 2px 5px rgba(35, 33, 30, 0.05);
+          box-shadow: 0 4px 14px rgba(35, 33, 30, 0.05);
+          transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .lb-iso-visualizer .metric-card:hover {
+          transform: translateY(-1px);
+          border-color: rgba(35, 33, 30, 0.22);
         }
 
         .lb-iso-visualizer .metric-card__header {
@@ -1372,13 +1409,13 @@ const VISUALIZER_3D_STYLES = `
           font-size: 9.5px;
           font-weight: 700;
           color: #7a7367;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.05em;
           text-transform: uppercase;
-          margin-bottom: 1px;
+          margin-bottom: 2px;
         }
 
         .lb-iso-visualizer .metric-card__value {
-          font-size: 15.5px;
+          font-size: 15px;
           font-weight: 800;
           color: #23211e;
           letter-spacing: -0.02em;
@@ -1386,7 +1423,7 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer .metric-card__value--green {
-          color: #217238;
+          color: #15803d;
         }
 
         .lb-iso-visualizer .hud-actions-row {
@@ -1398,35 +1435,35 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer .neo-btn {
-          background: #fdfbf7;
+          background: rgba(253, 251, 247, 0.92);
+          backdrop-filter: blur(10px);
           color: #23211e;
-          border: 2px solid #23211e;
+          border: 1px solid rgba(35, 33, 30, 0.16);
           border-radius: 10px;
-          padding: 6px 11px;
+          padding: 6px 12px;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 11.5px;
+          font-size: 11px;
           font-weight: 700;
           display: inline-flex;
           align-items: center;
           gap: 5px;
           cursor: pointer;
-          box-shadow: 0 2.5px 0 #23211e, 0 4px 8px rgba(35, 33, 30, 0.08);
-          transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.12s ease;
+          box-shadow: 0 2px 8px rgba(35, 33, 30, 0.07);
+          transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
         }
 
         .lb-iso-visualizer .neo-btn:hover {
-          background: #fff7e4;
+          background: #ffffff;
           transform: translateY(-1px);
-          box-shadow: 0 3.5px 0 #23211e, 0 6px 12px rgba(35, 33, 30, 0.12);
+          box-shadow: 0 4px 12px rgba(35, 33, 30, 0.12);
         }
 
         .lb-iso-visualizer .neo-btn:active {
-          transform: translateY(1.5px);
-          box-shadow: 0 1px 0 #23211e;
+          transform: translateY(0px) scale(0.97);
         }
 
         .lb-iso-visualizer .neo-btn--active {
-          background: #f3ce75;
+          background: #f5d376;
         }
 
         .lb-iso-visualizer .neo-btn--accent {
@@ -1441,10 +1478,9 @@ const VISUALIZER_3D_STYLES = `
           display: inline-flex;
           align-items: center;
           background: #fdfbf7;
-          border: 2px solid #23211e;
+          border: 1.5px solid #23211e;
           border-radius: 10px;
           overflow: hidden;
-          box-shadow: 0 2.5px 0 #23211e;
         }
 
         .lb-iso-visualizer .stepper-label {
@@ -1453,7 +1489,7 @@ const VISUALIZER_3D_STYLES = `
           font-weight: 800;
           color: #23211e;
           background: #f4eee1;
-          border-right: 1.5px solid #23211e;
+          border-right: 1px solid #23211e;
           display: inline-flex;
           align-items: center;
           gap: 5px;
@@ -1467,7 +1503,7 @@ const VISUALIZER_3D_STYLES = `
           color: #23211e;
           background: #fdfbf7;
           border: none;
-          border-right: 1.5px solid #23211e;
+          border-right: 1px solid #23211e;
           cursor: pointer;
           transition: background-color 0.12s ease;
         }
@@ -1488,10 +1524,9 @@ const VISUALIZER_3D_STYLES = `
         .lb-iso-visualizer .rps-group {
           display: inline-flex;
           background: #efe9dc;
-          border: 2px solid #23211e;
+          border: 1.5px solid #23211e;
           border-radius: 10px;
           overflow: hidden;
-          box-shadow: 0 2.5px 0 #23211e;
         }
 
         .lb-iso-visualizer .rps-btn {
@@ -1502,7 +1537,7 @@ const VISUALIZER_3D_STYLES = `
           color: #4d473e;
           background: transparent;
           border: none;
-          border-right: 1.5px solid #23211e;
+          border-right: 1px solid #23211e;
           cursor: pointer;
           transition: background-color 0.12s ease, color 0.12s ease;
         }
@@ -1528,8 +1563,8 @@ const VISUALIZER_3D_STYLES = `
           bottom: 14px;
           display: flex;
           align-items: center;
-          gap: 18px;
-          font-size: 12px;
+          gap: 16px;
+          font-size: 11.5px;
           font-weight: 600;
           color: #665f54;
           z-index: 25;
@@ -1543,24 +1578,24 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer .legend-dot {
-          width: 11px;
-          height: 11px;
+          width: 10px;
+          height: 10px;
           border-radius: 50%;
-          border: 2px solid #23211e;
+          border: 1.5px solid #23211e;
           display: inline-block;
         }
 
         .lb-iso-visualizer .legend-dot--req {
-          background: #f08c65;
+          background: #f97316;
         }
 
         .lb-iso-visualizer .legend-dot--res {
-          background: #78c67a;
+          background: #22c55e;
         }
 
         .lb-iso-visualizer .legend-dot--hand {
-          background: #f6f1e6;
-          border-color: #4f9d52;
+          background: #f8fafc;
+          border-color: #0ea5e9;
         }
 
         .lb-iso-visualizer .hud-zoom-controls {
@@ -1577,10 +1612,11 @@ const VISUALIZER_3D_STYLES = `
         .lb-iso-visualizer .zoom-pill {
           display: inline-flex;
           align-items: center;
-          background: #fdfbf7;
-          border: 2px solid #23211e;
+          background: rgba(253, 251, 247, 0.92);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(35, 33, 30, 0.16);
           border-radius: 10px;
-          box-shadow: 0 2.5px 0 #23211e;
+          box-shadow: 0 2px 8px rgba(35, 33, 30, 0.07);
           overflow: hidden;
         }
 
@@ -1597,7 +1633,7 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer .zoom-btn:hover:not(:disabled) {
-          background: #f5ecd7;
+          background: rgba(35, 33, 30, 0.06);
         }
 
         .lb-iso-visualizer .zoom-btn:disabled {
@@ -1613,27 +1649,64 @@ const VISUALIZER_3D_STYLES = `
           }
           .lb-iso-visualizer .hud-metrics-row {
             gap: 5px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            max-width: 100%;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding-bottom: 2px;
+          }
+          .lb-iso-visualizer .hud-metrics-row::-webkit-scrollbar {
+            display: none;
           }
           .lb-iso-visualizer .metric-card {
-            padding: 4px 8px;
-            min-width: 82px;
+            padding: 4px 9px;
+            min-width: auto;
+            flex-shrink: 0;
             border-radius: 8px;
           }
           .lb-iso-visualizer .metric-card__header {
-            font-size: 8px;
+            font-size: 7.5px;
+            gap: 3.5px;
           }
           .lb-iso-visualizer .metric-card__value {
-            font-size: 12px;
+            font-size: 11.5px;
           }
           .lb-iso-visualizer .hud-bottom-legend {
             left: 10px;
             bottom: 10px;
-            gap: 10px;
+            gap: 8px;
             font-size: 9.5px;
+          }
+          .lb-iso-visualizer .legend-dot {
+            width: 8px;
+            height: 8px;
           }
           .lb-iso-visualizer .hud-zoom-controls {
             right: 10px;
             bottom: 10px;
+            gap: 5px;
+          }
+          .lb-iso-visualizer .zoom-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+          }
+          .lb-iso-visualizer .zoom-readout {
+            padding: 4px 6px;
+            min-width: 42px;
+            font-size: 10px;
+          }
+          .lb-iso-visualizer .hud-fit-text-full {
+            display: none;
+          }
+          .lb-iso-visualizer .hud-fit-text-short {
+            display: inline;
+          }
+        }
+
+        @media (min-width: 640px) {
+          .lb-iso-visualizer .hud-fit-text-short {
+            display: none;
           }
         }
 
@@ -1641,57 +1714,78 @@ const VISUALIZER_3D_STYLES = `
           padding: 5px 9px;
           font-size: 11px;
           font-weight: 700;
-          border-left: 1.5px solid #23211e;
-          border-right: 1.5px solid #23211e;
+          border-left: 1px solid rgba(35, 33, 30, 0.12);
+          border-right: 1px solid rgba(35, 33, 30, 0.12);
           min-width: 54px;
           text-align: center;
           font-variant-numeric: tabular-nums;
           cursor: pointer;
         }
 
-        .lb-iso-visualizer .iso-interactive-node {
-          cursor: pointer;
+        .lb-iso-visualizer .icon-only-btn {
+          width: 30px;
+          height: 30px;
+          padding: 0 !important;
+          justify-content: center;
         }
 
-        /* Dark Mode Colorful Theme Overrides */
+        .lb-iso-visualizer .icon-only-btn:disabled {
+          opacity: 0.35;
+          cursor: default;
+          transform: none !important;
+        }
+
+        .lb-iso-visualizer .iso-interactive-node {
+          cursor: grab;
+        }
+
+        .lb-iso-visualizer .iso-interactive-node:active {
+          cursor: grabbing;
+        }
+
+        /* Clean Matte Dark Mode Overrides (Solid Colors, Zero Dot Glow) */
         .lb-iso-visualizer.lb-theme-dark {
-          background: radial-gradient(circle at 50% 48%, #221f2b 0%, #16141c 68%, #0e0d12 100%);
-          color: #f6f2ff;
+          background: #13161f;
+          color: #f8fafc;
         }
 
         .lb-iso-visualizer.lb-theme-dark .paper-grain {
-          opacity: 0.42;
-          background-image: radial-gradient(rgba(196, 181, 253, 0.11) 0.75px, transparent 0.75px);
+          opacity: 0.25;
+          background-image: radial-gradient(rgba(148, 163, 184, 0.10) 0.75px, transparent 0.75px);
         }
 
         .lb-iso-visualizer.lb-theme-dark .metric-card {
-          background: rgba(34, 30, 44, 0.96);
-          border-color: #463f57;
-          box-shadow: 0 2px 10px rgba(6, 5, 12, 0.4);
+          background: rgba(24, 28, 39, 0.88);
+          border-color: rgba(148, 163, 184, 0.14);
+          box-shadow: 0 4px 14px rgba(4, 6, 12, 0.35);
+        }
+
+        .lb-iso-visualizer.lb-theme-dark .metric-card:hover {
+          border-color: rgba(148, 163, 184, 0.26);
         }
 
         .lb-iso-visualizer.lb-theme-dark .metric-card__header {
-          color: #a99fc2;
+          color: #94a3b8;
         }
 
         .lb-iso-visualizer.lb-theme-dark .metric-card__value {
-          color: #f6f2ff;
+          color: #f8fafc;
         }
 
         .lb-iso-visualizer.lb-theme-dark #metric-dns {
-          color: #ffd166;
+          color: #f3c35c;
         }
 
         .lb-iso-visualizer.lb-theme-dark #metric-connect {
-          color: #7cc0ff;
+          color: #7aa2f7;
         }
 
         .lb-iso-visualizer.lb-theme-dark #metric-server {
-          color: #c4b5fd;
+          color: #a78bfa;
         }
 
         .lb-iso-visualizer.lb-theme-dark #metric-rps {
-          color: #ff9472;
+          color: #f97352;
         }
 
         .lb-iso-visualizer.lb-theme-dark .metric-card__value--green {
@@ -1699,98 +1793,32 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer.lb-theme-dark .neo-btn {
-          background: #262230;
-          color: #f6f2ff;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d, 0 4px 10px rgba(6, 5, 12, 0.4);
+          background: rgba(24, 28, 39, 0.90);
+          color: #e2e8f0;
+          border-color: rgba(148, 163, 184, 0.18);
+          box-shadow: 0 3px 10px rgba(4, 6, 12, 0.35);
         }
 
-        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover {
-          background: #332d40;
-          border-color: #a78bfa;
-          box-shadow: 0 3.5px 0 #09080d, 0 6px 14px rgba(6, 5, 12, 0.48);
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:hover:not(:disabled) {
+          background: #232939;
+          border-color: rgba(148, 163, 184, 0.34);
+          color: #ffffff;
         }
 
-        .lb-iso-visualizer.lb-theme-dark .neo-btn:active {
-          box-shadow: 0 1px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--active {
-          background: #fbbf24;
-          color: #141218;
-          border-color: #fde68a;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--active:hover {
-          background: #fcd34d;
-          color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent {
-          background: #472522;
-          color: #ffbaa8;
-          border-color: #e06c58;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .neo-btn--accent:hover {
-          background: #5c2e2a;
-          color: #ffd6cc;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-group {
-          background: #262230;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-label {
-          color: #f6f2ff;
-          background: #1d1a26;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn {
-          color: #f6f2ff;
-          background: #262230;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .stepper-btn:hover:not(:disabled) {
-          background: #a78bfa;
-          color: #141218;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-group {
-          background: #1d1a26;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn {
-          color: #b4a9cc;
-          border-right-color: #766b8c;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn:hover {
-          background: #2e293b;
-          color: #f6f2ff;
-        }
-
-        .lb-iso-visualizer.lb-theme-dark .rps-btn.active {
-          background: #fbbf24;
-          color: #141218;
+        .lb-iso-visualizer.lb-theme-dark .neo-btn:active:not(:disabled) {
+          transform: scale(0.97);
         }
 
         .lb-iso-visualizer.lb-theme-dark .hud-bottom-legend {
-          color: #b4a9cc;
+          color: #94a3b8;
         }
 
         .lb-iso-visualizer.lb-theme-dark .legend-dot {
-          border-color: #141218;
+          border-color: #111318;
         }
 
         .lb-iso-visualizer.lb-theme-dark .legend-dot--req {
-          background: #ff7b54;
+          background: #f97352;
         }
 
         .lb-iso-visualizer.lb-theme-dark .legend-dot--res {
@@ -1798,28 +1826,28 @@ const VISUALIZER_3D_STYLES = `
         }
 
         .lb-iso-visualizer.lb-theme-dark .legend-dot--hand {
-          background: #1e1b24;
-          border-color: #38bdf8;
+          background: #1c202b;
+          border-color: #60a5fa;
         }
 
         .lb-iso-visualizer.lb-theme-dark .zoom-pill {
-          background: #262230;
-          border-color: #766b8c;
-          box-shadow: 0 2.5px 0 #09080d;
+          background: rgba(24, 28, 39, 0.90);
+          border-color: rgba(148, 163, 184, 0.18);
+          box-shadow: 0 3px 10px rgba(4, 6, 12, 0.35);
         }
 
         .lb-iso-visualizer.lb-theme-dark .zoom-btn {
-          color: #f6f2ff;
+          color: #e2e8f0;
         }
 
-        .lb-iso-visualizer.lb-theme-dark .zoom-btn:hover {
-          background: #332d40;
+        .lb-iso-visualizer.lb-theme-dark .zoom-btn:hover:not(:disabled) {
+          background: rgba(148, 163, 184, 0.12);
         }
 
         .lb-iso-visualizer.lb-theme-dark .zoom-readout {
-          color: #f6f2ff;
-          border-left-color: #766b8c;
-          border-right-color: #766b8c;
+          color: #f8fafc;
+          border-left-color: rgba(148, 163, 184, 0.14);
+          border-right-color: rgba(148, 163, 184, 0.14);
         }
 `;
 
@@ -1882,6 +1910,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
   const btnZoomOutRef = useRef(null);
   const zoomReadoutRef = useRef(null);
   const btnFitRef = useRef(null);
+  const btnResetLayoutRef = useRef(null);
   const metricTotalReqsRef = useRef(null);
   const metricDispatchRef = useRef(null);
   const metricServerExecRef = useRef(null);
@@ -1988,15 +2017,32 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     let rrCounter = 0;
 
     const ROUTE_TABLES = [];
+    const wireGlows = [];
     const clientRouteIndices = [];
     const serverRouteIndices = [];
 
     const nodeBounces = new Map();
+    const nodeHovers = new Map();
+    let hoveredNodeId = null;
+    let draggingNodeInfo = null;
     const clientNodeRefs = new Map();
     const serverNodeRefs = new Map();
     let lbNodeRef = null;
     let lbSwitchingArcEl = null;
     let currentLbOnline = IS_LIVE_BACKEND ? useSimulationStore.getState().lbOnline : true;
+    let wiresGroupEl = null;
+    let blocksGroupEl = null;
+    let pillsGroupEl = null;
+
+    const introState = {
+      active: !hasPlayedInitialDrop,
+      elapsed: 0,
+      duration: 1.48,
+      items: [],
+      wireReveals: [],
+    };
+    const resetTargets = new Map();
+    const nodeDragHandlers = new Map();
 
     const SVG_PACKET_POOL_SIZE = 280;
     const svgPacketNodes = [];
@@ -2059,10 +2105,28 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       minZoom: 1.0,
       maxZoom: 3.5,
     };
+    const targetCamera = {
+      cx: 820,
+      cy: 485,
+      zoom: 1.0,
+    };
 
     let viewportW = stageContainer.clientWidth || window.innerWidth;
     let viewportH = stageContainer.clientHeight || window.innerHeight;
     let baseScale = 1.0;
+
+    function getCurrentViewBoxBounds() {
+      const effScale = baseScale * camera.zoom;
+      const vw = viewportW / effScale;
+      const vh = viewportH / effScale;
+      return {
+        vx: camera.cx - vw / 2,
+        vy: camera.cy - vh / 2,
+        vw,
+        vh,
+        effScale,
+      };
+    }
 
     function applyViewBox() {
       if (camera.zoom <= 1.001) {
@@ -2070,36 +2134,73 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         camera.cx = 820;
         camera.cy = 485;
       }
-      const effScale = baseScale * camera.zoom;
-      const vw = viewportW / effScale;
-      const vh = viewportH / effScale;
-      const vx = camera.cx - vw / 2;
-      const vy = camera.cy - vh / 2;
+      const { vx, vy, vw, vh } = getCurrentViewBoxBounds();
 
       svgEl.setAttribute('viewBox', `${vx.toFixed(3)} ${vy.toFixed(3)} ${vw.toFixed(3)} ${vh.toFixed(3)}`);
       if (zoomReadoutRef.current) {
-        zoomReadoutRef.current.textContent = `${Math.round(camera.zoom * 100)}%`;
+        zoomReadoutRef.current.textContent = `${Math.round(targetCamera.zoom * 100)}%`;
       }
       if (btnZoomOutRef.current) {
-        btnZoomOutRef.current.disabled = camera.zoom <= 1.001;
+        btnZoomOutRef.current.disabled = targetCamera.zoom <= 1.001;
       }
       if (btnZoomInRef.current) {
-        btnZoomInRef.current.disabled = camera.zoom >= camera.maxZoom - 0.01;
+        btnZoomInRef.current.disabled = targetCamera.zoom >= camera.maxZoom - 0.01;
       }
-      stageContainer.style.cursor = camera.zoom > 1.01 ? 'grab' : 'default';
+      if (!draggingNodeInfo) {
+        stageContainer.style.cursor = targetCamera.zoom > 1.01 ? 'grab' : 'default';
+      }
     }
 
     function syncViewportSize() {
       viewportW = stageContainer.clientWidth || window.innerWidth;
       viewportH = stageContainer.clientHeight || window.innerHeight;
-      baseScale = Math.min(viewportW / 1540, viewportH / 920);
+      const fitW = viewportW < 640 ? 1200 : 1480;
+      const fitH = viewportW < 640 ? 740 : 890;
+      baseScale = Math.min(viewportW / fitW, viewportH / fitH);
       applyViewBox();
     }
 
+    function syncResetLayoutBtn() {
+      if (btnResetLayoutRef.current) {
+        btnResetLayoutRef.current.disabled = persistedNodeCoords.size === 0 && resetTargets.size === 0;
+      }
+    }
+
+    function getDefaultNodePosition(nodeId) {
+      if (nodeId === 'lb') return { u: 0, v: 0 };
+      const nC = STATE.clients.length;
+      const cIdx = STATE.clients.findIndex((c) => c.id === nodeId);
+      if (cIdx !== -1) {
+        const clientSpacingU = nC <= 3 ? 3.5 : nC === 4 ? 3.15 : nC === 5 ? 2.75 : 2.4;
+        const cMid = (nC - 1) / 2;
+        return { u: (cIdx - cMid) * clientSpacingU, v: -5.85 };
+      }
+      const nS = STATE.servers.length;
+      const sIdx = STATE.servers.findIndex((s) => s.id === nodeId);
+      if (sIdx !== -1) {
+        const serverSpacingU = nS <= 3 ? 3.7 : nS === 4 ? 3.2 : 2.8;
+        const sMid = (nS - 1) / 2;
+        return { u: (sIdx - sMid) * serverSpacingU, v: 5.85 };
+      }
+      return { u: 0, v: 0 };
+    }
+
+    function resetNodesSmoothly() {
+      persistedNodeCoords.clear();
+      const allNodes = [STATE.loadBalancer, ...STATE.clients, ...STATE.servers];
+      allNodes.forEach((node) => {
+        const def = getDefaultNodePosition(node.id);
+        if (Math.hypot(node.u - def.u, node.v - def.v) > 0.01) {
+          resetTargets.set(node.id, { node, targetU: def.u, targetV: def.v });
+        }
+      });
+      syncResetLayoutBtn();
+    }
+
     function resetCameraFit() {
-      camera.cx = 820,
-      camera.cy = 485;
-      camera.zoom = 1.0;
+      targetCamera.cx = 820;
+      targetCamera.cy = 485;
+      targetCamera.zoom = 1.0;
       applyViewBox();
     }
 
@@ -2170,20 +2271,48 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       }
     }
 
+    function getLiveNodeDelta(node) {
+      if (!node || node._buildU === undefined) return { dx: 0, dy: 0 };
+      const du = node.u - node._buildU;
+      const dv = node.v - node._buildV;
+      return {
+        dx: (du - dv) * TILE_W,
+        dy: (du + dv) * TILE_H,
+      };
+    }
+
+    function getLiveNodeTopCenter(nodeId) {
+      if (nodeId === 'lb' && lbNodeRef) {
+        const d = getLiveNodeDelta(STATE.loadBalancer);
+        return { x: lbNodeRef.centerTop.x + d.dx, y: lbNodeRef.centerTop.y + d.dy };
+      }
+      if (serverNodeRefs.has(nodeId)) {
+        const sRef = serverNodeRefs.get(nodeId);
+        const d = getLiveNodeDelta(sRef.srv);
+        return { x: sRef.block.centerTop.x + d.dx, y: sRef.block.centerTop.y + d.dy };
+      }
+      return { x: ORIGIN_X, y: ORIGIN_Y };
+    }
+
     function triggerLBSwitchingArc(inPortPt, outPortPt) {
       if (!lbSwitchingArcEl || !lbNodeRef) return;
+      const dLb = getLiveNodeDelta(STATE.loadBalancer);
       const c = lbNodeRef.centerTop;
-      const p1x = c.x + (inPortPt.x - c.x) * 0.55;
-      const p1y = c.y + (inPortPt.y - c.y) * 0.55;
-      const p2x = c.x + (outPortPt.x - c.x) * 0.55;
-      const p2y = c.y + (outPortPt.y - c.y) * 0.55;
+      const inLocalX = inPortPt.x - dLb.dx;
+      const inLocalY = inPortPt.y - dLb.dy;
+      const outLocalX = outPortPt.x - dLb.dx;
+      const outLocalY = outPortPt.y - dLb.dy;
+      const p1x = c.x + (inLocalX - c.x) * 0.55;
+      const p1y = c.y + (inLocalY - c.y) * 0.55;
+      const p2x = c.x + (outLocalX - c.x) * 0.55;
+      const p2y = c.y + (outLocalY - c.y) * 0.55;
 
       lbSwitchingArcEl.setAttribute(
         'd',
         `M ${p1x.toFixed(1)} ${p1y.toFixed(1)} Q ${c.x.toFixed(1)} ${(c.y - 12).toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)}`
       );
       lbSwitchingArcEl.setAttribute('opacity', '0.92');
-      lbSwitchingArcEl._fadeAge = 0.28;
+      lbSwitchingArcEl._fadeAge = 0.30;
     }
 
     function triggerNodeImpact(nodeId, portPt, rippleColor = palette.rippleReq, toastText = null) {
@@ -2193,19 +2322,19 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         b = { offset: 0, vel: 0, flash: 0, lastTrigger: 0, lastToast: 0 };
         nodeBounces.set(nodeId, b);
       }
-      if (now - b.lastTrigger > 75) {
-        b.vel = 62;
+      if (now - b.lastTrigger > 70) {
+        b.vel = 68;
         b.flash = 1.0;
         b.lastTrigger = now;
         if (portPt) {
-          spawnPortRipple(portPt.x, portPt.y, rippleColor, nodeId === 'lb' ? 20 : 17);
+          spawnPortRipple(portPt.x, portPt.y, rippleColor, nodeId === 'lb' ? 21 : 18);
         }
-        if (toastText && now - b.lastToast > 550 && serverNodeRefs.has(nodeId)) {
+        if (toastText && now - b.lastToast > 520 && serverNodeRefs.has(nodeId)) {
           b.lastToast = now;
-          const sRef = serverNodeRefs.get(nodeId);
+          const liveTop = getLiveNodeTopCenter(nodeId);
           spawnMacroToast(
-            sRef.block.centerTop.x,
-            sRef.block.centerTop.y - 38,
+            liveTop.x,
+            liveTop.y - 38,
             toastText,
             palette.toastOkBg,
             palette.toastOkText
@@ -2214,9 +2343,33 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       }
     }
 
-    function updateMacroAndSpringAnimations(dt) {
-      const stiffness = 430;
-      const damping = 23;
+    function pulseWireGlow(routeIdx, colorHex = palette.wireGlow) {
+      const wg = wireGlows[routeIdx];
+      if (!wg) return;
+      wg.intensity = 1.0;
+      wg.el.setAttribute('stroke', colorHex);
+    }
+
+    function updateMacroAndSpringAnimations(dt, nowMs = performance.now()) {
+      const stiffness = 420;
+      const damping = 22;
+      const hoverRate = 1 - Math.exp(-15 * dt);
+
+      // Smooth hover & drag lift interpolation for every node
+      const allHoverIds = ['lb', ...STATE.clients.map((c) => c.id), ...STATE.servers.map((s) => s.id)];
+      allHoverIds.forEach((nodeId) => {
+        const isDragged = draggingNodeInfo && draggingNodeInfo.id === nodeId;
+        const isHovered = hoveredNodeId === nodeId;
+        const targetLift = isDragged ? -11 : isHovered ? -4.5 : 0;
+        const targetGlow = isDragged ? 0.95 : isHovered ? 0.55 : 0;
+        let hv = nodeHovers.get(nodeId);
+        if (!hv) {
+          hv = { lift: 0, glow: 0 };
+          nodeHovers.set(nodeId, hv);
+        }
+        hv.lift += (targetLift - hv.lift) * hoverRate;
+        hv.glow += (targetGlow - hv.glow) * hoverRate;
+      });
 
       nodeBounces.forEach((b, nodeId) => {
         if (Math.abs(b.offset) < 0.02 && Math.abs(b.vel) < 0.1 && b.flash <= 0.01) {
@@ -2229,31 +2382,57 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         const force = -stiffness * b.offset - damping * b.vel;
         b.vel += force * dt;
         b.offset += b.vel * dt;
-        b.flash = Math.max(0, b.flash - dt * 3.5);
+        b.flash = Math.max(0, b.flash - dt * 3.2);
+      });
 
-        if (nodeId === 'lb' && lbNodeRef) {
-          lbNodeRef.bounceG.setAttribute('transform', `translate(0, ${b.offset.toFixed(2)})`);
-          lbNodeRef.haloRing.setAttribute('opacity', (b.flash * 0.65).toFixed(2));
-        } else if (serverNodeRefs.has(nodeId)) {
-          const sRef = serverNodeRefs.get(nodeId);
-          sRef.block.bounceG.setAttribute('transform', `translate(0, ${b.offset.toFixed(2)})`);
-          sRef.block.haloRing.setAttribute('opacity', (b.flash * 0.7).toFixed(2));
-          if (sRef.block.led1 && sRef.srv.healthy) {
-            const ledCol = b.flash > 0.35 ? palette.srvLedFlash1 : palette.srvLedIdle;
-            sRef.block.led1.setAttribute('fill', ledCol);
-            sRef.block.led2.setAttribute('fill', b.flash > 0.55 ? palette.srvLedFlash2 : palette.srvLedIdle);
-          }
-        } else if (clientNodeRefs.has(nodeId)) {
-          const cRef = clientNodeRefs.get(nodeId);
-          cRef.laptop.bounceG.setAttribute('transform', `translate(0, ${(b.offset * 0.55).toFixed(2)})`);
-          if (cRef.laptop.heroBannerPath) {
-            cRef.laptop.heroBannerPath.setAttribute(
-              'fill',
-              b.flash > 0.35 ? palette.lapHeroFlash : palette.lapHero
-            );
-          }
+      // Apply combined bounce + hover lift transforms smoothly
+      if (lbNodeRef && (!introState || !introState.active)) {
+        const b = nodeBounces.get('lb');
+        const hv = nodeHovers.get('lb');
+        const dy = (b ? b.offset : 0) + (hv ? hv.lift : 0);
+        const flash = b ? b.flash : 0;
+        const idleBreath = currentLbOnline && !isPaused ? 0.14 + 0.08 * Math.sin(nowMs * 0.0032) : 0;
+        const haloOp = Math.max(flash * 0.72, hv ? hv.glow * 0.55 : 0, idleBreath);
+        lbNodeRef.bounceG.setAttribute('transform', `translate(0, ${dy.toFixed(2)})`);
+        lbNodeRef.haloRing.setAttribute('opacity', haloOp.toFixed(2));
+      }
+
+      STATE.servers.forEach((srv) => {
+        if (introState && introState.active) return;
+        const sRef = serverNodeRefs.get(srv.id);
+        if (!sRef) return;
+        const b = nodeBounces.get(srv.id);
+        const hv = nodeHovers.get(srv.id);
+        const dy = (b ? b.offset : 0) + (hv ? hv.lift : 0);
+        const flash = b ? b.flash : 0;
+        const haloOp = Math.max(flash * 0.75, hv ? hv.glow * 0.55 : 0);
+        sRef.block.bounceG.setAttribute('transform', `translate(0, ${dy.toFixed(2)})`);
+        sRef.block.haloRing.setAttribute('opacity', haloOp.toFixed(2));
+        if (sRef.block.led1 && sRef.srv.healthy) {
+          const ledCol = flash > 0.35 ? palette.srvLedFlash1 : palette.srvLedIdle;
+          sRef.block.led1.setAttribute('fill', ledCol);
+          sRef.block.led2.setAttribute('fill', flash > 0.55 ? palette.srvLedFlash2 : palette.srvLedIdle);
         }
       });
+
+      STATE.clients.forEach((client) => {
+        if (introState && introState.active) return;
+        const cRef = clientNodeRefs.get(client.id);
+        if (!cRef) return;
+        const b = nodeBounces.get(client.id);
+        const hv = nodeHovers.get(client.id);
+        const dy = (b ? b.offset * 0.55 : 0) + (hv ? hv.lift * 0.85 : 0);
+        const flash = b ? b.flash : 0;
+        cRef.laptop.bounceG.setAttribute('transform', `translate(0, ${dy.toFixed(2)})`);
+        if (cRef.laptop.heroBannerPath) {
+          cRef.laptop.heroBannerPath.setAttribute(
+            'fill',
+            flash > 0.30 ? palette.lapHeroFlash : palette.lapHero
+          );
+        }
+      });
+
+      // Decay active wire glow overlays removed — clean solid wires
 
       if (lbSwitchingArcEl && lbSwitchingArcEl._fadeAge > 0) {
         lbSwitchingArcEl._fadeAge = Math.max(0, lbSwitchingArcEl._fadeAge - dt);
@@ -2477,13 +2656,18 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     }
 
     function computePlanarManifoldLayout() {
+      const savedLb = persistedNodeCoords.get('lb');
+      STATE.loadBalancer.u = savedLb ? savedLb.u : 0;
+      STATE.loadBalancer.v = savedLb ? savedLb.v : 0;
+
       const nC = STATE.clients.length;
       const clientSpacingU = nC <= 3 ? 3.5 : nC === 4 ? 3.15 : nC === 5 ? 2.75 : 2.4;
       const cMid = (nC - 1) / 2;
 
       STATE.clients.forEach((c, idx) => {
-        c.u = (idx - cMid) * clientSpacingU;
-        c.v = -5.85;
+        const saved = persistedNodeCoords.get(c.id);
+        c.u = saved ? saved.u : (idx - cMid) * clientSpacingU;
+        c.v = saved ? saved.v : -5.85;
       });
 
       const nS = STATE.servers.length;
@@ -2491,8 +2675,9 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       const sMid = (nS - 1) / 2;
 
       STATE.servers.forEach((s, idx) => {
-        s.u = (idx - sMid) * serverSpacingU;
-        s.v = 5.85;
+        const saved = persistedNodeCoords.get(s.id);
+        s.u = saved ? saved.u : (idx - sMid) * serverSpacingU;
+        s.v = saved ? saved.v : 5.85;
       });
 
       if (countClientsRef.current) {
@@ -2524,8 +2709,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         refs.block.wallPath.setAttribute('stroke', nextBlockStroke);
 
         const nextTitleColor = srv.healthy ? palette.srvTitle : palette.srvOffTitle;
+        const nextSubColor = srv.healthy ? (palette.srvSubtitle || palette.srvTitle) : (palette.srvOffSubtitle || palette.srvOffTitle);
         refs.block.t1?.setAttribute('fill', nextTitleColor);
         refs.block.t2?.setAttribute('fill', nextTitleColor);
+        refs.block.subEl?.setAttribute('fill', nextSubColor);
 
         const nextRackFill = srv.healthy ? palette.srvRackFill : palette.srvOffRackFill;
         const nextRackStroke = srv.healthy ? palette.srvRackStroke : palette.srvOffRackStroke;
@@ -2559,9 +2746,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
         spawnIsometricFloorWave(srv.u, srv.v, srv.healthy ? palette.floorWaveOnline : palette.floorWaveOffline);
         const failLabel = srv.status === 'failed' ? 'CRASHED • FAILOVER' : 'FAILOVER • REROUTING';
+        const liveSrvTop = getLiveNodeTopCenter(srv.id);
         spawnMacroToast(
-          refs.block.centerTop.x,
-          refs.block.centerTop.y - 42,
+          liveSrvTop.x,
+          liveSrvTop.y - 42,
           srv.healthy ? `${srv.name.toUpperCase()} ONLINE` : failLabel,
           srv.healthy ? palette.toastOkBg : palette.toastFailBg,
           srv.healthy ? palette.toastOkText : palette.toastFailText
@@ -2620,9 +2808,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           STATE.loadBalancer.v,
           currentLbOnline ? palette.floorWaveOnline : palette.floorWaveOffline
         );
+        const liveLbTop = getLiveNodeTopCenter('lb');
         spawnMacroToast(
-          lbNodeRef.centerTop.x,
-          lbNodeRef.centerTop.y - 44,
+          liveLbTop.x,
+          liveLbTop.y - 44,
           currentLbOnline ? 'LOAD BALANCER ONLINE' : 'LOAD BALANCER OFFLINE',
           currentLbOnline ? palette.toastOkBg : palette.toastFailBg,
           currentLbOnline ? palette.toastOkText : palette.toastFailText
@@ -2640,9 +2829,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
       if (lbNodeRef && lbNodeRef.subEl && currentLbOnline) {
         lbNodeRef.subEl.textContent = algo;
+        const liveLbTop = getLiveNodeTopCenter('lb');
         spawnMacroToast(
-          lbNodeRef.centerTop.x,
-          lbNodeRef.centerTop.y - 44,
+          liveLbTop.x,
+          liveLbTop.y - 44,
           `MODE: ${algo}`,
           palette.toastModeBg,
           palette.toastModeText
@@ -2683,14 +2873,15 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
     function triggerBurstWaveMacro() {
       if (isPaused) togglePause();
-      spawnIsometricFloorWave(0, 0, palette.floorWaveBurst);
+      spawnIsometricFloorWave(STATE.loadBalancer.u, STATE.loadBalancer.v, palette.floorWaveBurst);
       for (let i = 0; i < STATE.clients.length; i++) {
         spawnPacket(clientRouteIndices[i], STATE.clients[i].dashed ? 2 : 0, 1, 1.12, i, true);
       }
       if (lbNodeRef) {
+        const liveLbTop = getLiveNodeTopCenter('lb');
         spawnMacroToast(
-          lbNodeRef.centerTop.x,
-          lbNodeRef.centerTop.y - 46,
+          liveLbTop.x,
+          liveLbTop.y - 46,
           '⚡ BURST WAVE',
           palette.toastModeBg,
           palette.toastModeText
@@ -2827,6 +3018,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       ROUTE_TABLES.length = 0;
       clientRouteIndices.length = 0;
       serverRouteIndices.length = 0;
+      nodeDragHandlers.clear();
+      wiresGroupEl = wiresG;
+      blocksGroupEl = blocksG;
+      pillsGroupEl = pillsG;
 
       const lb = STATE.loadBalancer;
       const nClients = STATE.clients.length;
@@ -2834,16 +3029,64 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       const cMid = (nClients - 1) / 2;
       const sMid = (nServers - 1) / 2;
 
+      const clampVal = (val, minV, maxV) => Math.max(minV, Math.min(maxV, val));
+
+      const computeSmartConnectionPts = (
+        fromU,
+        fromV,
+        fromHalf,
+        toU,
+        toV,
+        toHalf,
+        fromPortSpread = 0,
+        toPortSpread = 0,
+        elbowRatio = 0.5
+      ) => {
+        const du = toU - fromU;
+        const dv = toV - fromV;
+        const gap = 0.14;
+
+        if (Math.abs(dv) >= Math.abs(du) * 0.68) {
+          const signV = dv >= 0 ? 1 : -1;
+          const startU = fromU + clampVal(fromPortSpread, -fromHalf * 0.62, fromHalf * 0.62);
+          const startV = fromV + signV * (fromHalf + gap);
+          const endU = toU + clampVal(toPortSpread, -toHalf * 0.62, toHalf * 0.62);
+          const endV = toV - signV * (toHalf + gap);
+          const turnV = startV + (endV - startV) * clampVal(elbowRatio, 0.22, 0.78);
+          if (Math.abs(startU - endU) < 0.04) {
+            return [iso(startU, startV), iso(endU, endV)];
+          }
+          return [iso(startU, startV), iso(startU, turnV), iso(endU, turnV), iso(endU, endV)];
+        } else {
+          const signU = du >= 0 ? 1 : -1;
+          const startU = fromU + signU * (fromHalf + gap);
+          const startV = fromV + clampVal(fromPortSpread, -fromHalf * 0.62, fromHalf * 0.62);
+          const endU = toU - signU * (toHalf + gap);
+          const endV = toV + clampVal(toPortSpread, -toHalf * 0.62, toHalf * 0.62);
+          const turnU = startU + (endU - startU) * clampVal(elbowRatio, 0.22, 0.78);
+          if (Math.abs(startV - endV) < 0.04) {
+            return [iso(startU, startV), iso(endU, endV)];
+          }
+          return [iso(startU, startV), iso(turnU, startV), iso(turnU, endV), iso(endU, endV)];
+        }
+      };
+
+      const updateDockElement = (dock, tipPt, fromPt) => {
+        const angle = Math.atan2(tipPt.y - fromPt.y, tipPt.x - fromPt.x) * (180 / Math.PI);
+        dock.portRing.setAttribute('cx', tipPt.x.toFixed(2));
+        dock.portRing.setAttribute('cy', tipPt.y.toFixed(2));
+        dock.arrow.setAttribute(
+          'transform',
+          `translate(${tipPt.x.toFixed(2)}, ${tipPt.y.toFixed(2)}) rotate(${angle.toFixed(2)})`
+        );
+      };
+
       const maxClientDist = Math.max(1, cMid);
       STATE.clients.forEach((client, idx) => {
         const distFromCenter = Math.abs(idx - cMid);
         const portU = (idx - cMid) * 0.46;
-        const startU = client.u;
-        const startV = client.v + 1.28;
-        const endV = lb.v - lb.halfSize - 0.14;
-        const turnV = -3.85 + (distFromCenter / maxClientDist) * 1.35;
-
-        const pts2D = [iso(startU, startV), iso(startU, turnV), iso(portU, turnV), iso(portU, endV)];
+        const elbowRatio = 0.28 + (distFromCenter / maxClientDist) * 0.36;
+        const pts2D = computeSmartConnectionPts(client.u, client.v, 1.14, lb.u, lb.v, lb.halfSize, 0, portU, elbowRatio);
 
         const routeData = buildRounded2DPathAndTable(pts2D, 28);
         const routeIdx = ROUTE_TABLES.length;
@@ -2855,7 +3098,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           d: routeData.svgPath,
           fill: 'none',
           stroke: strokeCol,
-          'stroke-width': '2.65',
+          'stroke-width': '2.45',
           'stroke-linecap': 'round',
         });
         if (client.dashed) {
@@ -2872,18 +3115,27 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         const startDock = createArrowheadAndDockSVG(pts2D[0], pts2D[1], strokeCol, palette.portRingFill);
         wiresG.appendChild(endDock.group);
         wiresG.appendChild(startDock.group);
+
+        client._wireRefs = {
+          routeIdx,
+          portU,
+          elbowRatio,
+          wirePath: pathEl,
+          endDock,
+          startDock,
+          arrowEnd: endDock.arrow,
+          ringEnd: endDock.portRing,
+          arrowStart: startDock.arrow,
+          ringStart: startDock.portRing,
+        };
       });
 
       const maxServerDist = Math.max(1, sMid);
       STATE.servers.forEach((srv, idx) => {
         const distFromCenter = Math.abs(idx - sMid);
         const portU = (idx - sMid) * 0.5;
-        const startV = lb.v + lb.halfSize + 0.14;
-        const endU = srv.u;
-        const endV = srv.v - srv.halfSize - 0.14;
-        const turnV = 3.55 - (distFromCenter / maxServerDist) * 1.2;
-
-        const pts2D = [iso(portU, startV), iso(portU, turnV), iso(endU, turnV), iso(endU, endV)];
+        const elbowRatio = 0.68 - (distFromCenter / maxServerDist) * 0.34;
+        const pts2D = computeSmartConnectionPts(lb.u, lb.v, lb.halfSize, srv.u, srv.v, srv.halfSize, portU, 0, elbowRatio);
 
         const routeData = buildRounded2DPathAndTable(pts2D, 28);
         const routeIdx = ROUTE_TABLES.length;
@@ -2895,7 +3147,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           d: routeData.svgPath,
           fill: 'none',
           stroke: strokeCol,
-          'stroke-width': '2.65',
+          'stroke-width': '2.45',
           'stroke-linecap': 'round',
         });
         if (!srv.healthy) {
@@ -2914,13 +3166,65 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         wiresG.appendChild(startDock.group);
 
         srv._wireRefs = {
+          routeIdx,
+          portU,
+          elbowRatio,
           wirePath,
+          endDock,
+          startDock,
           arrowEnd: endDock.arrow,
           ringEnd: endDock.portRing,
           arrowStart: startDock.arrow,
           ringStart: startDock.portRing,
         };
       });
+
+      const refreshClientWire = (client) => {
+        const w = client._wireRefs;
+        if (!w) return;
+        const pts2D = computeSmartConnectionPts(
+          client.u,
+          client.v,
+          1.14,
+          lb.u,
+          lb.v,
+          lb.halfSize,
+          0,
+          w.portU,
+          w.elbowRatio
+        );
+        const nextRoute = buildRounded2DPathAndTable(pts2D, 28);
+        Object.assign(ROUTE_TABLES[w.routeIdx], nextRoute);
+        w.wirePath.setAttribute('d', nextRoute.svgPath);
+        updateDockElement(w.endDock, pts2D[pts2D.length - 1], pts2D[pts2D.length - 2]);
+        updateDockElement(w.startDock, pts2D[0], pts2D[1]);
+      };
+
+      const refreshServerWire = (srv) => {
+        const w = srv._wireRefs;
+        if (!w) return;
+        const pts2D = computeSmartConnectionPts(
+          lb.u,
+          lb.v,
+          lb.halfSize,
+          srv.u,
+          srv.v,
+          srv.halfSize,
+          w.portU,
+          0,
+          w.elbowRatio
+        );
+        const nextRoute = buildRounded2DPathAndTable(pts2D, 28);
+        Object.assign(ROUTE_TABLES[w.routeIdx], nextRoute);
+        w.wirePath.setAttribute('d', nextRoute.svgPath);
+        updateDockElement(w.endDock, pts2D[pts2D.length - 1], pts2D[pts2D.length - 2]);
+        updateDockElement(w.startDock, pts2D[0], pts2D[1]);
+      };
+
+      const refreshAllWires = () => {
+        STATE.clients.forEach(refreshClientWire);
+        STATE.servers.forEach(refreshServerWire);
+      };
 
       for (let i = 0; i < SVG_RIPPLE_POOL_SIZE; i++) {
         const el = createSVG('ellipse', {
@@ -2941,16 +3245,98 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         const el = createSVG('circle', {
           cx: '0',
           cy: '0',
-          r: '6.4',
+          r: '6.0',
           fill: palette.pktReqFill,
           stroke: palette.pktReqStroke,
-          'stroke-width': '2.35',
+          'stroke-width': '2.1',
           display: 'none',
         });
         packetsG.appendChild(el);
         svgPacketNodes.push(el);
-        svgPacketMeta.push({ disp: false, type: 0, r: '6.4' });
+        svgPacketMeta.push({ disp: false, type: -1, r: '6.0' });
       }
+
+      const sortAllNodesByDepth = () => {
+        if (!blocksGroupEl || !shadowsG) return;
+        const entries = [];
+        STATE.clients.forEach((c) => {
+          const ref = clientNodeRefs.get(c.id);
+          if (ref) entries.push({ depth: c.u + c.v, group: ref.laptop.group, shadow: ref.laptop.shadowPath });
+        });
+        if (lbNodeRef) {
+          entries.push({ depth: lb.u + lb.v, group: lbNodeRef.group, shadow: lbNodeRef.shadowPath });
+        }
+        STATE.servers.forEach((s) => {
+          const ref = serverNodeRefs.get(s.id);
+          if (ref) entries.push({ depth: s.u + s.v, group: ref.block.group, shadow: ref.block.shadowPath });
+        });
+        entries.sort((a, b) => a.depth - b.depth);
+        entries.forEach((item) => {
+          shadowsG.appendChild(item.shadow);
+          blocksGroupEl.appendChild(item.group);
+        });
+      };
+
+      const makeNodeInteractive = ({ nodeObj, groupEl, shadowEl, pillEl, onMove, onClick }) => {
+        nodeObj._buildU = nodeObj.u;
+        nodeObj._buildV = nodeObj.v;
+
+        const applyDragTransform = () => {
+          const du = nodeObj.u - nodeObj._buildU;
+          const dv = nodeObj.v - nodeObj._buildV;
+          const tx = (du - dv) * TILE_W;
+          const ty = (du + dv) * TILE_H;
+          const tr = Math.abs(tx) < 0.05 && Math.abs(ty) < 0.05 ? '' : `translate(${tx.toFixed(2)}, ${ty.toFixed(2)})`;
+          if (tr) {
+            groupEl.setAttribute('transform', tr);
+            shadowEl.setAttribute('transform', tr);
+            pillEl?.setAttribute('transform', `${pillEl._baseTransform || ''} ${tr}`.trim());
+          } else {
+            groupEl.removeAttribute('transform');
+            shadowEl.removeAttribute('transform');
+            if (pillEl?._baseTransform) {
+              pillEl.setAttribute('transform', pillEl._baseTransform);
+            }
+          }
+        };
+
+        nodeDragHandlers.set(nodeObj.id, { applyDragTransform, onMove });
+
+        groupEl.addEventListener('pointerenter', () => {
+          if (!draggingNodeInfo) hoveredNodeId = nodeObj.id;
+        });
+        groupEl.addEventListener('pointerleave', () => {
+          if (hoveredNodeId === nodeObj.id) hoveredNodeId = null;
+        });
+
+        groupEl.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          resetTargets.delete(nodeObj.id);
+          const rect = stageContainer.getBoundingClientRect();
+          const { vx, vy, vw, vh } = getCurrentViewBoxBounds();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          const worldX = vx + (mx / viewportW) * vw;
+          const worldY = vy + (my / viewportH) * vh;
+          const pointerIso = invIso(worldX, worldY);
+
+          draggingNodeInfo = {
+            id: nodeObj.id,
+            nodeObj,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            offsetU: nodeObj.u - pointerIso.u,
+            offsetV: nodeObj.v - pointerIso.v,
+            moved: false,
+            applyDragTransform,
+            onMove,
+            onClick,
+          };
+          hoveredNodeId = nodeObj.id;
+          stageContainer.style.cursor = 'grabbing';
+        });
+      };
 
       const clientsSorted = STATE.clients.map((c, idx) => ({ client: c, idx, depth: c.u + c.v }));
       clientsSorted.sort((a, b) => a.depth - b.depth);
@@ -2963,9 +3349,6 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           scale,
           palette,
         });
-        laptopObj.group.addEventListener('click', () => {
-          spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
-        });
         shadowsG.appendChild(laptopObj.shadowPath);
         blocksG.appendChild(laptopObj.group);
 
@@ -2976,10 +3359,20 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           text: client.label,
           palette,
         });
+        clientPill.group._baseTransform = clientPill.group.getAttribute('transform') || '';
         clientPill.group.addEventListener('click', () => {
           spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
         });
         pillsG.appendChild(clientPill.group);
+
+        makeNodeInteractive({
+          nodeObj: client,
+          groupEl: laptopObj.group,
+          shadowEl: laptopObj.shadowPath,
+          pillEl: clientPill.group,
+          onMove: () => refreshClientWire(client),
+          onClick: () => spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx),
+        });
 
         clientNodeRefs.set(client.id, { laptop: laptopObj, pill: clientPill });
       });
@@ -3001,14 +3394,19 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       });
       shadowsG.appendChild(lbNodeRef.shadowPath);
       blocksG.appendChild(lbNodeRef.group);
-      lbNodeRef.group.style.cursor = 'pointer';
-      lbNodeRef.group.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (IS_LIVE_BACKEND) {
-          useSimulationStore.getState().toggleSimulation();
-        } else {
-          togglePause();
-        }
+      makeNodeInteractive({
+        nodeObj: lb,
+        groupEl: lbNodeRef.group,
+        shadowEl: lbNodeRef.shadowPath,
+        pillEl: null,
+        onMove: refreshAllWires,
+        onClick: () => {
+          if (IS_LIVE_BACKEND) {
+            useSimulationStore.getState().toggleSimulation();
+          } else {
+            togglePause();
+          }
+        },
       });
       lbSwitchingArcEl = createSVG('path', {
         d: '',
@@ -3026,7 +3424,6 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       serversSorted.sort((a, b) => a.depth - b.depth);
 
       serversSorted.forEach(({ srv, idx }) => {
-        const nameParts = srv.name.split(' ');
         const srvBlock = createIsoDiamondBlockSVG({
           id: `node-${srv.id}`,
           u: srv.u,
@@ -3037,13 +3434,12 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           topGradId: srv.healthy ? 'srv-top-grad' : 'srv-off-top-grad',
           wallGradId: srv.healthy ? 'srv-wall-grad' : 'srv-off-wall-grad',
           iconType: 'server',
-          title1: nameParts[0],
-          title2: nameParts[1] || '',
+          title1: srv.name,
+          title2: '',
           subtitle: srv.publicIp || srv.ip || '',
           isOffline: !srv.healthy,
           palette,
         });
-        srvBlock.group.addEventListener('click', () => toggleServerHealth(idx));
         shadowsG.appendChild(srvBlock.shadowPath);
         blocksG.appendChild(srvBlock.group);
 
@@ -3054,11 +3450,21 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           srv,
           palette,
         });
+        metricPill.group._baseTransform = metricPill.group.getAttribute('transform') || '';
         metricPill.group.addEventListener('click', (e) => {
           e.stopPropagation();
           toggleServerHealth(idx);
         });
         pillsG.appendChild(metricPill.group);
+
+        makeNodeInteractive({
+          nodeObj: srv,
+          groupEl: srvBlock.group,
+          shadowEl: srvBlock.shadowPath,
+          pillEl: metricPill.group,
+          onMove: () => refreshServerWire(srv),
+          onClick: () => toggleServerHealth(idx),
+        });
 
         serverNodeRefs.set(srv.id, {
           srv,
@@ -3067,6 +3473,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           wireRefs: srv._wireRefs,
         });
       });
+
+      sortAllNodesByDepth();
+
+      // Store depth sorter for live dragging
+      svgEl._sortNodesByDepth = sortAllNodesByDepth;
 
       for (let i = 0; i < SVG_TOAST_POOL_SIZE; i++) {
         const g = createSVG('g', { display: 'none' });
@@ -3097,6 +3508,132 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
       refreshServerPillsUI();
       setLoadBalancerOnline(currentLbOnline, false);
+      syncResetLayoutBtn();
+
+      // Setup first-load-only sequential drop-in + wire-draw entrance animation
+      // 1) LB drops first  2) Clients & Servers drop  3) Lines draw smoothly from Client/Server -> LB
+      if (introState.active) {
+        introState.items = [];
+        introState.wireReveals = [];
+        pillsG.setAttribute('opacity', '0');
+
+        if (lbNodeRef) {
+          lbNodeRef.bounceG.setAttribute('transform', 'translate(0, -175)');
+          lbNodeRef.bounceG.setAttribute('opacity', '0');
+          lbNodeRef.shadowPath.setAttribute('opacity', '0');
+          introState.items.push({
+            id: 'lb',
+            bounceG: lbNodeRef.bounceG,
+            shadowPath: lbNodeRef.shadowPath,
+            u: lb.u,
+            v: lb.v,
+            delay: 0.02,
+            duration: 0.44,
+            dropDist: 175,
+            landed: false,
+          });
+        }
+        STATE.clients.forEach((c, idx) => {
+          const ref = clientNodeRefs.get(c.id);
+          if (!ref) return;
+          ref.laptop.bounceG.setAttribute('transform', 'translate(0, -150)');
+          ref.laptop.bounceG.setAttribute('opacity', '0');
+          ref.laptop.shadowPath.setAttribute('opacity', '0');
+          introState.items.push({
+            id: c.id,
+            bounceG: ref.laptop.bounceG,
+            shadowPath: ref.laptop.shadowPath,
+            u: c.u,
+            v: c.v,
+            delay: 0.36 + idx * 0.055,
+            duration: 0.45,
+            dropDist: 150,
+            landed: false,
+          });
+
+          if (c._wireRefs) {
+            const w = c._wireRefs;
+            const rLen = (ROUTE_TABLES[w.routeIdx]?.totalLen || 400) + 12;
+            const maskId = `wire-reveal-c-${idx}`;
+            const maskEl = createSVG('mask', { id: maskId, maskUnits: 'userSpaceOnUse' });
+            const maskPath = createSVG('path', {
+              d: ROUTE_TABLES[w.routeIdx].svgPath,
+              fill: 'none',
+              stroke: 'white',
+              'stroke-width': '18',
+              'stroke-linecap': 'round',
+              'stroke-dasharray': `${rLen.toFixed(1)} ${rLen.toFixed(1)}`,
+              'stroke-dashoffset': rLen.toFixed(1),
+            });
+            maskEl.appendChild(maskPath);
+            defs.appendChild(maskEl);
+            w.wirePath.setAttribute('mask', `url(#${maskId})`);
+            w.startDock.group.setAttribute('opacity', '0');
+            w.endDock.group.setAttribute('opacity', '0');
+            introState.wireReveals.push({
+              wirePath: w.wirePath,
+              maskEl,
+              maskPath,
+              len: rLen,
+              dirSign: 1, // positive dashoffset draws start (Client) -> end (LB)
+              delay: 0.78 + idx * 0.05,
+              duration: 0.46,
+              originDock: w.startDock.group,
+              lbDock: w.endDock.group,
+            });
+          }
+        });
+        STATE.servers.forEach((s, idx) => {
+          const ref = serverNodeRefs.get(s.id);
+          if (!ref) return;
+          ref.block.bounceG.setAttribute('transform', 'translate(0, -155)');
+          ref.block.bounceG.setAttribute('opacity', '0');
+          ref.block.shadowPath.setAttribute('opacity', '0');
+          introState.items.push({
+            id: s.id,
+            bounceG: ref.block.bounceG,
+            shadowPath: ref.block.shadowPath,
+            u: s.u,
+            v: s.v,
+            delay: 0.40 + idx * 0.065,
+            duration: 0.46,
+            dropDist: 155,
+            landed: false,
+          });
+
+          if (s._wireRefs) {
+            const w = s._wireRefs;
+            const rLen = (ROUTE_TABLES[w.routeIdx]?.totalLen || 400) + 12;
+            const maskId = `wire-reveal-s-${idx}`;
+            const maskEl = createSVG('mask', { id: maskId, maskUnits: 'userSpaceOnUse' });
+            const maskPath = createSVG('path', {
+              d: ROUTE_TABLES[w.routeIdx].svgPath,
+              fill: 'none',
+              stroke: 'white',
+              'stroke-width': '18',
+              'stroke-linecap': 'round',
+              'stroke-dasharray': `${rLen.toFixed(1)} ${rLen.toFixed(1)}`,
+              'stroke-dashoffset': (-rLen).toFixed(1),
+            });
+            maskEl.appendChild(maskPath);
+            defs.appendChild(maskEl);
+            w.wirePath.setAttribute('mask', `url(#${maskId})`);
+            w.endDock.group.setAttribute('opacity', '0');
+            w.startDock.group.setAttribute('opacity', '0');
+            introState.wireReveals.push({
+              wirePath: w.wirePath,
+              maskEl,
+              maskPath,
+              len: rLen,
+              dirSign: -1, // negative dashoffset draws end (Server) -> start (LB)
+              delay: 0.82 + idx * 0.055,
+              duration: 0.46,
+              originDock: w.endDock.group,
+              lbDock: w.startDock.group,
+            });
+          }
+        });
+      }
     }
 
     engineApiRef.current = {
@@ -3105,6 +3642,8 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         if (normalized === currentThemeMode) return;
         currentThemeMode = normalized;
         palette = THEMES[currentThemeMode];
+        introState.active = false;
+        hasPlayedInitialDrop = true;
         // Rebuild vector scene with new theme palette without clearing live packets or camera state
         buildCompleteSVGScene();
         applyViewBox();
@@ -3182,11 +3721,16 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     const onAddServer = () => addBackendServer();
     const onRemoveServer = () => removeBackendServer();
     const onZoomIn = () => {
-      camera.zoom = Math.min(camera.maxZoom, camera.zoom * 1.25);
+      targetCamera.zoom = Math.min(camera.maxZoom, targetCamera.zoom * 1.25);
       applyViewBox();
     };
     const onZoomOut = () => {
-      camera.zoom = Math.max(camera.minZoom, camera.zoom / 1.25);
+      targetCamera.zoom = Math.max(camera.minZoom, targetCamera.zoom / 1.25);
+      if (targetCamera.zoom <= 1.001) {
+        targetCamera.zoom = 1.0;
+        targetCamera.cx = 820;
+        targetCamera.cy = 485;
+      }
       applyViewBox();
     };
 
@@ -3201,6 +3745,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     const zoomOutEl = btnZoomOutRef.current;
     const zoomReadoutEl = zoomReadoutRef.current;
     const fitEl = btnFitRef.current;
+    const resetLayoutEl = btnResetLayoutRef.current;
 
     addClientEl?.addEventListener('click', onAddClient);
     removeClientEl?.addEventListener('click', onRemoveClient);
@@ -3213,6 +3758,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     zoomOutEl?.addEventListener('click', onZoomOut);
     zoomReadoutEl?.addEventListener('click', resetCameraFit);
     fitEl?.addEventListener('click', resetCameraFit);
+    resetLayoutEl?.addEventListener('click', resetNodesSmoothly);
 
     const rpsHandlers = [];
     rpsBtnRefs.current.forEach((btn) => {
@@ -3222,18 +3768,30 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       rpsHandlers.push({ btn, handler });
     });
 
+    let zoomCooldownUntil = 0;
+
     const onWheel = (e) => {
-      // At 100% default fit, scrolling down lets Lenis scroll the page naturally
-      if (e.deltaY > 0 && camera.zoom <= 1.001) {
+      const now = performance.now();
+      const isZoomedIn = targetCamera.zoom > 1.001;
+      const isZoomInIntent = e.deltaY < 0 || e.ctrlKey;
+
+      // Keep Lenis page scroll active ONLY when resting at 100% fit and deliberately scrolling down
+      if (!isZoomInIntent && !isZoomedIn && now >= zoomCooldownUntil) {
         return;
       }
-      // At 100% scrolling up while Ctrl/pinch isn't pressed? Let user zoom in smoothly ONLY if zoomed or pinching/scrolling inside stage
+
       e.preventDefault();
-      const effScaleBefore = baseScale * camera.zoom;
+      e.stopPropagation();
+
+      if (!isZoomedIn && e.deltaY > 0 && !e.ctrlKey) {
+        return;
+      }
+
+      const effScaleBefore = baseScale * targetCamera.zoom;
       const vwBefore = viewportW / effScaleBefore;
       const vhBefore = viewportH / effScaleBefore;
-      const vxBefore = camera.cx - vwBefore / 2;
-      const vyBefore = camera.cy - vhBefore / 2;
+      const vxBefore = targetCamera.cx - vwBefore / 2;
+      const vyBefore = targetCamera.cy - vhBefore / 2;
 
       const rect = stageContainer.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -3242,20 +3800,21 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       const worldY = vyBefore + (my / viewportH) * vhBefore;
 
       const zoomFactor = Math.exp(-e.deltaY * 0.0014);
-      camera.zoom = Math.min(camera.maxZoom, Math.max(camera.minZoom, camera.zoom * zoomFactor));
+      targetCamera.zoom = Math.min(camera.maxZoom, Math.max(camera.minZoom, targetCamera.zoom * zoomFactor));
 
-      if (camera.zoom <= 1.001) {
-        camera.zoom = 1.0;
-        camera.cx = 820;
-        camera.cy = 485;
+      if (targetCamera.zoom <= 1.001) {
+        targetCamera.zoom = 1.0;
+        targetCamera.cx = 820;
+        targetCamera.cy = 485;
+        zoomCooldownUntil = now + 260;
       } else {
-        const effScaleAfter = baseScale * camera.zoom;
+        const effScaleAfter = baseScale * targetCamera.zoom;
         const vwAfter = viewportW / effScaleAfter;
         const vhAfter = viewportH / effScaleAfter;
         const vxAfter = worldX - (mx / viewportW) * vwAfter;
         const vyAfter = worldY - (my / viewportH) * vhAfter;
-        camera.cx = vxAfter + vwAfter / 2;
-        camera.cy = vyAfter + vhAfter / 2;
+        targetCamera.cx = vxAfter + vwAfter / 2;
+        targetCamera.cy = vyAfter + vhAfter / 2;
       }
 
       applyViewBox();
@@ -3270,33 +3829,77 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     let dragStartCY = 0;
 
     const onPointerDown = (e) => {
-      if (e.button !== 0 || camera.zoom <= 1.01) return;
+      if (e.button !== 0 || draggingNodeInfo || targetCamera.zoom <= 1.01) return;
       isDragging = true;
       stageContainer.style.cursor = 'grabbing';
       dragStartX = e.clientX;
       dragStartY = e.clientY;
-      dragStartCX = camera.cx;
-      dragStartCY = camera.cy;
+      dragStartCX = targetCamera.cx;
+      dragStartCY = targetCamera.cy;
     };
 
     const onPointerMove = (e) => {
+      if (draggingNodeInfo) {
+        const distPx = Math.hypot(e.clientX - draggingNodeInfo.startClientX, e.clientY - draggingNodeInfo.startClientY);
+        if (!draggingNodeInfo.moved && distPx > 5) {
+          draggingNodeInfo.moved = true;
+        }
+        if (draggingNodeInfo.moved) {
+          const rect = stageContainer.getBoundingClientRect();
+          const { vx, vy, vw, vh } = getCurrentViewBoxBounds();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          const worldX = vx + (mx / viewportW) * vw;
+          const worldY = vy + (my / viewportH) * vh;
+          const ptrIso = invIso(worldX, worldY);
+          const nextU = Math.max(-10, Math.min(10, ptrIso.u + draggingNodeInfo.offsetU));
+          const nextV = Math.max(-9.5, Math.min(9.5, ptrIso.v + draggingNodeInfo.offsetV));
+          draggingNodeInfo.nodeObj.u = nextU;
+          draggingNodeInfo.nodeObj.v = nextV;
+          persistedNodeCoords.set(draggingNodeInfo.id, { u: nextU, v: nextV });
+          syncResetLayoutBtn();
+          draggingNodeInfo.applyDragTransform();
+          draggingNodeInfo.onMove?.();
+          svgEl._sortNodesByDepth?.();
+        }
+        return;
+      }
+
       if (!isDragging) return;
-      const effScale = baseScale * camera.zoom;
+      const effScale = baseScale * targetCamera.zoom;
       const dx = (e.clientX - dragStartX) / effScale;
       const dy = (e.clientY - dragStartY) / effScale;
-      camera.cx = dragStartCX - dx;
-      camera.cy = dragStartCY - dy;
-      applyViewBox();
+      targetCamera.cx = dragStartCX - dx;
+      targetCamera.cy = dragStartCY - dy;
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e) => {
+      if (draggingNodeInfo) {
+        const info = draggingNodeInfo;
+        draggingNodeInfo = null;
+        stageContainer.style.cursor = targetCamera.zoom > 1.01 ? 'grab' : 'default';
+        if (!info.moved) {
+          info.onClick?.(e);
+        } else {
+          // Gentle cushion settle bounce on drop
+          let b = nodeBounces.get(info.id);
+          if (!b) {
+            b = { offset: 0, vel: 0, flash: 0, lastTrigger: 0, lastToast: 0 };
+            nodeBounces.set(info.id, b);
+          }
+          b.vel = 48;
+          b.flash = 0.65;
+        }
+        return;
+      }
       isDragging = false;
-      stageContainer.style.cursor = camera.zoom > 1.01 ? 'grab' : 'default';
+      stageContainer.style.cursor = targetCamera.zoom > 1.01 ? 'grab' : 'default';
     };
 
     stageContainer.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
     window.addEventListener('resize', syncViewportSize);
 
     // Expose programmatic API on window
@@ -3349,10 +3952,117 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       const dt = Math.min(rawDt, 0.05);
       lastTime = now;
 
+      // Damped silky camera pan & zoom interpolation
+      const camDiff =
+        Math.abs(targetCamera.zoom - camera.zoom) +
+        Math.abs(targetCamera.cx - camera.cx) * 0.01 +
+        Math.abs(targetCamera.cy - camera.cy) * 0.01;
+      if (camDiff > 0.0005) {
+        const camLerp = 1 - Math.exp(-15 * dt);
+        camera.zoom += (targetCamera.zoom - camera.zoom) * camLerp;
+        camera.cx += (targetCamera.cx - camera.cx) * camLerp;
+        camera.cy += (targetCamera.cy - camera.cy) * camLerp;
+        if (Math.abs(targetCamera.zoom - camera.zoom) < 0.0005) camera.zoom = targetCamera.zoom;
+        if (Math.abs(targetCamera.cx - camera.cx) < 0.05) camera.cx = targetCamera.cx;
+        if (Math.abs(targetCamera.cy - camera.cy) < 0.05) camera.cy = targetCamera.cy;
+        applyViewBox();
+      }
+
+      // Smooth reset-to-default node positions animation
+      if (resetTargets.size > 0) {
+        const lerpAmt = 1 - Math.exp(-13 * dt);
+        let movedAny = false;
+        resetTargets.forEach((entry, id) => {
+          const { node, targetU, targetV } = entry;
+          node.u += (targetU - node.u) * lerpAmt;
+          node.v += (targetV - node.v) * lerpAmt;
+          if (Math.hypot(targetU - node.u, targetV - node.v) < 0.008) {
+            node.u = targetU;
+            node.v = targetV;
+            resetTargets.delete(id);
+          }
+          const h = nodeDragHandlers.get(id);
+          h?.applyDragTransform();
+          h?.onMove?.();
+          movedAny = true;
+        });
+        if (movedAny) {
+          svgEl._sortNodesByDepth?.();
+          if (resetTargets.size === 0) {
+            syncResetLayoutBtn();
+          }
+        }
+      }
+
+      // First-load-only sequential entrance:
+      // 1) LB drops down first  2) Clients & Servers drop  3) Lines draw Client/Server -> LB
+      if (introState.active) {
+        introState.elapsed += dt;
+        if (introState.elapsed > 0.20) {
+          hasPlayedInitialDrop = true;
+        }
+        const eT = introState.elapsed;
+        introState.items.forEach((item) => {
+          const dur = item.duration || 0.45;
+          const localP = Math.max(0, Math.min(1, (eT - item.delay) / dur));
+          const easeCubic = 1 - Math.pow(1 - localP, 3.2);
+          const settleBounce = Math.sin(localP * Math.PI) * (1 - localP) * 0.045;
+          const progress = Math.min(1.03, easeCubic + settleBounce);
+          const yOff = -item.dropDist * (1 - progress);
+          item.bounceG.setAttribute('transform', `translate(0, ${yOff.toFixed(1)})`);
+          item.bounceG.setAttribute('opacity', Math.min(1, localP * 3.0).toFixed(2));
+          item.shadowPath.setAttribute('opacity', Math.pow(localP, 1.5).toFixed(2));
+          if (!item.landed && localP >= 0.96) {
+            item.landed = true;
+            if (item.id === 'lb') {
+              spawnIsometricFloorWave(item.u, item.v, palette.floorWaveBurst);
+            }
+          }
+        });
+
+        // Draw wires smoothly from Clients/Servers toward Load Balancer
+        introState.wireReveals.forEach((wr) => {
+          const wP = Math.max(0, Math.min(1, (eT - wr.delay) / wr.duration));
+          const wEase = 1 - Math.pow(1 - wP, 2.4);
+          const offsetVal = wr.dirSign * wr.len * (1 - wEase);
+          wr.maskPath.setAttribute('stroke-dashoffset', offsetVal.toFixed(1));
+          const originOp = Math.max(0, Math.min(1, wP * 5));
+          const lbOp = Math.max(0, Math.min(1, (wP - 0.80) / 0.20));
+          wr.originDock.setAttribute('opacity', originOp.toFixed(2));
+          wr.lbDock.setAttribute('opacity', lbOp.toFixed(2));
+        });
+
+        if (pillsGroupEl) {
+          const pP = Math.max(0, Math.min(1, (eT - 0.72) / 0.44));
+          const pEase = 1 - Math.pow(1 - pP, 3);
+          pillsGroupEl.setAttribute('opacity', pEase.toFixed(2));
+          pillsGroupEl.setAttribute('transform', `translate(0, ${(8 * (1 - pEase)).toFixed(1)})`);
+        }
+
+        if (eT >= introState.duration) {
+          introState.active = false;
+          introState.items.forEach((item) => {
+            item.bounceG.setAttribute('transform', 'translate(0, 0)');
+            item.bounceG.removeAttribute('opacity');
+            item.shadowPath.removeAttribute('opacity');
+          });
+          introState.wireReveals.forEach((wr) => {
+            wr.wirePath.removeAttribute('mask');
+            wr.originDock.removeAttribute('opacity');
+            wr.lbDock.removeAttribute('opacity');
+            wr.maskEl.remove();
+          });
+          introState.wireReveals = [];
+          pillsGroupEl?.removeAttribute('opacity');
+          pillsGroupEl?.removeAttribute('transform');
+        }
+      }
+
       const nClients = STATE.clients.length;
 
+      updateMacroAndSpringAnimations(dt, now);
+
       if (!isPaused) {
-        updateMacroAndSpringAnimations(dt);
 
         const currentMode = useSimulationStore.getState().clusterMode;
         const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
@@ -3555,10 +4265,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         const idxPool = renderedCount++;
         const circleEl = svgPacketNodes[idxPool];
         const meta = svgPacketMeta[idxPool];
+
         circleEl.setAttribute('cx', px.toFixed(1));
         circleEl.setAttribute('cy', py.toFixed(1));
 
-        const rStr = scale === 1.0 ? '6.4' : (6.4 * scale).toFixed(1);
+        const rStr = scale === 1.0 ? '6.0' : (6.0 * scale).toFixed(1);
         if (meta.r !== rStr) {
           meta.r = rStr;
           circleEl.setAttribute('r', rStr);
@@ -3567,19 +4278,20 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         const pType = pktType[i];
         if (meta.type !== pType) {
           meta.type = pType;
-          if (pType === 0) {
-            circleEl.setAttribute('fill', palette.pktReqFill);
-            circleEl.setAttribute('stroke', palette.pktReqStroke);
-          } else if (pType === 1) {
-            circleEl.setAttribute('fill', palette.pktResFill);
-            circleEl.setAttribute('stroke', palette.pktResStroke);
+          let fillCol = palette.pktReqFill;
+          let strokeCol = palette.pktReqStroke;
+          if (pType === 1) {
+            fillCol = palette.pktResFill;
+            strokeCol = palette.pktResStroke;
           } else if (pType === 3) {
-            circleEl.setAttribute('fill', '#ef4444');
-            circleEl.setAttribute('stroke', '#7f1d1d');
-          } else {
-            circleEl.setAttribute('fill', palette.pktHandFill);
-            circleEl.setAttribute('stroke', palette.pktHandStroke);
+            fillCol = '#ef4444';
+            strokeCol = '#7f1d1d';
+          } else if (pType !== 0) {
+            fillCol = palette.pktHandFill;
+            strokeCol = palette.pktHandStroke;
           }
+          circleEl.setAttribute('fill', fillCol);
+          circleEl.setAttribute('stroke', strokeCol);
         }
         if (!meta.disp) {
           meta.disp = true;
@@ -3678,11 +4390,13 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       zoomOutEl?.removeEventListener('click', onZoomOut);
       zoomReadoutEl?.removeEventListener('click', resetCameraFit);
       fitEl?.removeEventListener('click', resetCameraFit);
+      resetLayoutEl?.removeEventListener('click', resetNodesSmoothly);
       rpsHandlers.forEach(({ btn, handler }) => btn.removeEventListener('click', handler));
       stageContainer.removeEventListener('wheel', onWheel);
       stageContainer.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('resize', syncViewportSize);
       engineApiRef.current = null;
     };
@@ -3794,7 +4508,20 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
             ref={btnFitRef}
             style={{ padding: '5px 11px', fontSize: '11px' }}
           >
-            Fit View
+            <span className="hud-fit-text-full">Fit View</span>
+            <span className="hud-fit-text-short">Fit</span>
+          </button>
+          <button
+            type="button"
+            className="neo-btn icon-only-btn"
+            ref={btnResetLayoutRef}
+            title="Reset boxes to default positions"
+            aria-label="Reset boxes to default positions"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
           </button>
         </div>
       </div>

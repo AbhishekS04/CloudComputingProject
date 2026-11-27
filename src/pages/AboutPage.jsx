@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import SystemDesignNavbar from '../components/layout/SystemDesignNavbar';
 import { ProgressiveBlur } from '@/components/ui/progressive-blur';
 import { BrandLogo } from '../components/ui/BrandLogo';
 import BlurScrollReveal from '../components/ui/BlurScrollReveal';
@@ -96,9 +95,7 @@ export default function AboutPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-[#FAF7F0] dark:bg-[#121212] text-neutral-800 dark:text-neutral-100 font-sans transition-colors duration-200">
-      <SystemDesignNavbar />
-
+    <div className="flex flex-col flex-1 min-h-[calc(100vh-4rem)] w-full bg-[#FAF7F0] dark:bg-[#121212] text-neutral-800 dark:text-neutral-100 font-sans transition-colors duration-200">
       {/* ══════════ HERO — BlurScrollReveal ══════════ */}
       <section className="w-full pt-16 sm:pt-24 pb-4 px-4 flex flex-col items-center text-center">
         {/* eyebrow */}

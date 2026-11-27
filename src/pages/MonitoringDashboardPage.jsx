@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, memo } from 'react';
 import { Skeleton } from 'skullet/react';
-import SystemDesignNavbar from '../components/layout/SystemDesignNavbar';
 import LazyTelemetrySection from '../components/monitoring/LazyTelemetrySection';
 import { ChartCardSkeleton, KpiCardSkeleton } from '../components/monitoring/MonitoringSkeletons';
 import { ProgressiveBlur } from '@/components/ui/progressive-blur';
@@ -438,11 +437,8 @@ export default function MonitoringDashboardPage() {
   const edgeGatewayPayload = useMemo(() => ({ vip: '203.0.113.7:443' }), []);
 
   return (
-    <div className="flex flex-col min-h-screen w-full overflow-x-clip bg-[#FAF7F0] dark:bg-[#121212] text-neutral-800 dark:text-neutral-100 font-sans transition-colors duration-200">
-      {/* 1. Global Navigation Bar */}
-      <SystemDesignNavbar />
-
-      {/* 2. Main Dashboard Body */}
+    <div className="flex flex-col flex-1 min-h-[calc(100vh-4rem)] w-full overflow-x-clip bg-[#FAF7F0] dark:bg-[#121212] text-neutral-800 dark:text-neutral-100 font-sans transition-colors duration-200">
+      {/* Main Dashboard Body */}
       <main className="flex-1 w-full max-w-[1380px] mx-auto px-3 sm:px-6 pt-5 sm:pt-6 pb-16 sm:pb-20 space-y-5">
         {/* SECTION A: KPI STAT CARDS (1-by-1 sweep stagger right after transition) */}
         <SectionKpiGrid routeSettled={routeSettled} syncKey={syncKey} />

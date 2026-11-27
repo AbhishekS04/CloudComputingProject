@@ -862,11 +862,25 @@ const Visualizer2D = memo(function Visualizer2D({
   const vbX = camera.cx - vbW / 2;
   const vbY = camera.cy - vbH / 2;
 
+  const zoomCooldownRef = useRef(0);
+  const wheelHandlerRef = useRef(null);
+
   const handleWheel = (e) => {
-    if (e.deltaY > 0 && camera.zoom <= 1.001) {
+    const now = performance.now();
+    const isZoomedIn = camera.zoom > 1.001;
+    const isZoomInIntent = e.deltaY < 0 || e.ctrlKey;
+
+    if (!isZoomInIntent && !isZoomedIn && now >= zoomCooldownRef.current) {
       return;
     }
+
     e.preventDefault();
+    e.stopPropagation();
+
+    if (!isZoomedIn && e.deltaY > 0 && !e.ctrlKey) {
+      return;
+    }
+
     const rect = stageRef.current ? stageRef.current.getBoundingClientRect() : { left: 0, top: 0 };
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -874,6 +888,7 @@ const Visualizer2D = memo(function Visualizer2D({
     const worldY = vbY + (mouseY / viewport.h) * vbH;
     const nextZoom = Math.min(3.5, Math.max(1.0, camera.zoom * Math.exp(-e.deltaY * 0.0014)));
     if (nextZoom <= 1.001) {
+      zoomCooldownRef.current = now + 260;
       setCamera({ cx: 760, cy: 455, zoom: 1.0 });
       return;
     }
@@ -887,6 +902,16 @@ const Visualizer2D = memo(function Visualizer2D({
       zoom: nextZoom
     });
   };
+
+  wheelHandlerRef.current = handleWheel;
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return undefined;
+    const listener = (e) => wheelHandlerRef.current?.(e);
+    el.addEventListener('wheel', listener, { passive: false });
+    return () => el.removeEventListener('wheel', listener);
+  }, []);
 
   const handlePointerDown = (e) => {
     if (e.button !== 0 || camera.zoom <= 1.01) return;
@@ -1575,7 +1600,6 @@ const Visualizer2D = memo(function Visualizer2D({
          ===================================================================== */}
       <div
         ref={stageRef}
-        onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing touch-none z-[5]"
       >

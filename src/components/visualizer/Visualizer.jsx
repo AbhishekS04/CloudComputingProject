@@ -1157,6 +1157,7 @@ export default function Visualizer() {
 
                 <div
                   ref={logBoxRef}
+                  data-lenis-prevent
                   className="max-h-40 overflow-y-auto px-3 py-2 space-y-1 font-mono text-[10.5px] leading-relaxed"
                 >
                   {dispatchLogs.length === 0 ? (

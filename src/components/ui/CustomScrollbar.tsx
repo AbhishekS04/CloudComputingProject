@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 
 /**
  * Custom overlay vertical scrollbar that replaces the default browser right-side scrollbar.
  * Supports smooth drag scrubbing and click-to-jump without taking layout width.
  */
 export function CustomScrollbar() {
+  const { pathname } = useLocation();
   const trackRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<number | null>(null);
   const dragRef = useRef({ active: false, startY: 0, startScrollTop: 0 });
@@ -81,7 +83,7 @@ export function CustomScrollbar() {
       window.removeEventListener('resize', scheduleMeasure);
       ro.disconnect();
     };
-  }, [measure]);
+  }, [pathname, measure]);
 
   const handleTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!trackRef.current) return;
@@ -144,8 +146,8 @@ export function CustomScrollbar() {
       className={`fixed right-1 sm:right-1.5 top-[72px] bottom-3 z-[70] w-2.5 sm:w-3 flex justify-end transition-opacity duration-300 pointer-events-none sm:pointer-events-auto ${
         metrics.scrollable
           ? isActive || isHovered
-            ? 'opacity-100'
-            : 'opacity-45'
+            ? 'opacity-75'
+            : 'opacity-[0.16]'
           : 'opacity-0 pointer-events-none'
       }`}
     >
@@ -160,7 +162,7 @@ export function CustomScrollbar() {
         }}
         className={`rounded-full transition-[width,background-color] duration-150 cursor-grab active:cursor-grabbing ${
           isHovered || isActive ? 'w-[5px] sm:w-[6px]' : 'w-[3px] sm:w-[4px]'
-        } bg-charcoal-700/45 hover:bg-charcoal-900/75 dark:bg-white/30 dark:hover:bg-white/60 shadow-2xs`}
+        } bg-charcoal-800/35 hover:bg-charcoal-900/65 dark:bg-white/25 dark:hover:bg-white/55 shadow-2xs`}
       />
     </div>
   );
