@@ -60,7 +60,7 @@ export default function BlurFadeThemeTransition({
         ? "dark"
         : "light";
     }
-    return "light";
+    return "dark";
   });
   const [isAnimating, setIsAnimating] = useState(false);
 

@@ -5,6 +5,16 @@ import { ALGORITHM_INFO, algorithmManager } from '../simulation/loadBalancingAlg
 import { calculateServerLatency } from '../utils/calculations';
 import { getGatewayUrl } from '../lib/gatewayConfig';
 
+const initDefaultDarkMode = () => {
+  if (typeof document === 'undefined') return true;
+  const root = document.documentElement;
+  if (!root.hasAttribute('data-theme') && !root.classList.contains('dark')) {
+    root.classList.add('dark');
+    root.setAttribute('data-theme', 'dark');
+  }
+  return root.classList.contains('dark');
+};
+
 export const useSimulationStore = create((set, get) => ({
   // Core simulation state
   isRunning: true,
@@ -15,7 +25,7 @@ export const useSimulationStore = create((set, get) => ({
   algorithm: 'ROUND_ROBIN',
   visualizerMode: '3D', // '2D' | '3D'
   selectedNode: { type: 'lb', id: 'load-balancer' }, // Default selection
-  isDarkMode: typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false,
+  isDarkMode: initDefaultDarkMode(),
 
   // Infrastructure
   servers: DEFAULT_SERVERS,

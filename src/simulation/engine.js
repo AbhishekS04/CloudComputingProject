@@ -83,6 +83,8 @@ class SimulationEngine {
     this.deltaFlushTimer = null;
     this.seenRequestIds = new Set();
     this.unsubscribeGateway = null;
+    this.syncFailCount = 0;        // consecutive sync failure counter
+    this.OFFLINE_THRESHOLD = 3;    // mark offline only after 3 consecutive failures
   }
 
   start() {
@@ -90,7 +92,7 @@ class SimulationEngine {
     this.lastSecondTime = Date.now();
 
     this.syncFromBackend();
-    this.syncIntervalId = setInterval(() => this.syncFromBackend(), 1500);
+    this.syncIntervalId = setInterval(() => this.syncFromBackend(), 2500);
     this.initEventStream();
     this.initBridgeStream();
     if (!this.unsubscribeGateway) {
@@ -416,8 +418,9 @@ class SimulationEngine {
     if (store.clusterMode !== 'live' || !baseUrl || this.isSyncing) return;
 
     this.isSyncing = true;
+    // Increased timeout: 12s gives Azure VM more room under load
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+    const timeoutId = setTimeout(() => ctrl.abort(), 12000);
 
     try {
       const [serversRes, statsRes] = await Promise.all([
@@ -425,25 +428,31 @@ class SimulationEngine {
         fetch(`${baseUrl}/api/stats`, { cache: 'no-store', signal: ctrl.signal })
       ]);
       if (!serversRes.ok || !statsRes.ok) {
-        const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
-        useSimulationStore.setState((state) => ({
-          lbOnline: false,
-          servers: bridgeActive
-            ? state.servers
-            : state.servers.map((s) => ({
-                ...s,
-                activeConnections: 0,
-                cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
-              })),
-          metrics: {
-            ...state.metrics,
-            currentRps: bridgeActive ? state.metrics.currentRps : 0,
-            activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
-          }
-        }));
+        this.syncFailCount = (this.syncFailCount || 0) + 1;
+        // Only flip OFFLINE after OFFLINE_THRESHOLD consecutive failures
+        if (this.syncFailCount >= this.OFFLINE_THRESHOLD) {
+          const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
+          useSimulationStore.setState((state) => ({
+            lbOnline: false,
+            servers: bridgeActive
+              ? state.servers
+              : state.servers.map((s) => ({
+                  ...s,
+                  activeConnections: 0,
+                  cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
+                })),
+            metrics: {
+              ...state.metrics,
+              currentRps: bridgeActive ? state.metrics.currentRps : 0,
+              activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
+            }
+          }));
+        }
         return;
       }
 
+      // Success — reset failure counter immediately
+      this.syncFailCount = 0;
       const wasLbOffline = !useSimulationStore.getState().lbOnline;
       if (wasLbOffline && !this.eventSource && !baseUrl.startsWith('/')) {
         this.initEventStream();
@@ -473,22 +482,26 @@ class SimulationEngine {
         };
       });
     } catch (err) {
-      const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
-      useSimulationStore.setState((state) => ({
-        lbOnline: false,
-        servers: bridgeActive
-          ? state.servers
-          : state.servers.map((s) => ({
-              ...s,
-              activeConnections: 0,
-              cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
-            })),
-        metrics: {
-          ...state.metrics,
-          currentRps: bridgeActive ? state.metrics.currentRps : 0,
-          activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
-        }
-      }));
+      this.syncFailCount = (this.syncFailCount || 0) + 1;
+      // Only mark OFFLINE after OFFLINE_THRESHOLD consecutive failures (transient jitter ignored)
+      if (this.syncFailCount >= this.OFFLINE_THRESHOLD) {
+        const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
+        useSimulationStore.setState((state) => ({
+          lbOnline: false,
+          servers: bridgeActive
+            ? state.servers
+            : state.servers.map((s) => ({
+                ...s,
+                activeConnections: 0,
+                cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
+              })),
+          metrics: {
+            ...state.metrics,
+            currentRps: bridgeActive ? state.metrics.currentRps : 0,
+            activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
+          }
+        }));
+      }
     } finally {
       clearTimeout(timeoutId);
       this.isSyncing = false;

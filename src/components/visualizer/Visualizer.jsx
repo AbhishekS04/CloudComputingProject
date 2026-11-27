@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSimulationStore } from '../../store/simulationStore';
+import { useTrafficRunnerStore } from '../../store/trafficRunnerStore';
 import { simulationEngine } from '../../simulation/engine';
 import {
   getGatewayUrl,
@@ -122,43 +123,42 @@ export default function Visualizer() {
   const [editingGateway, setEditingGateway] = useState(false);
   const [gatewayDraft, setGatewayDraft] = useState(() => getGatewayUrl());
 
-  // Browser Traffic Dispatcher state (powered by src/lib/sendTraffic.js — no terminal script)
-  const [reqCount, setReqCount] = useState(30);
-  const [streamRate, setStreamRate] = useState(5);
-  const [concurrency, setConcurrency] = useState(20);
-  const [delaySec, setDelaySec] = useState(0);
-  const [noLbTarget, setNoLbTarget] = useState('random');
-  const [activeTask, setActiveTask] = useState(null);
-  const [sendingSingle, setSendingSingle] = useState(false);
-  const [progress, setProgress] = useState({ completed: 0, total: 0, ok: 0, fail: 0 });
-  const [dispatchLogs, setDispatchLogs] = useState([]);
-  const [showLogs, setShowLogs] = useState(false);
+  // Browser Traffic Dispatcher state (persisted in Zustand store across page navigation)
+  const reqCount = useTrafficRunnerStore((state) => state.reqCount);
+  const setReqCount = useTrafficRunnerStore((state) => state.setReqCount);
+  const streamRate = useTrafficRunnerStore((state) => state.streamRate);
+  const setStreamRate = useTrafficRunnerStore((state) => state.setStreamRate);
+  const concurrency = useTrafficRunnerStore((state) => state.concurrency);
+  const setConcurrency = useTrafficRunnerStore((state) => state.setConcurrency);
+  const delaySec = useTrafficRunnerStore((state) => state.delaySec);
+  const setDelaySec = useTrafficRunnerStore((state) => state.setDelaySec);
+  const noLbTarget = useTrafficRunnerStore((state) => state.noLbTarget);
+  const setNoLbTarget = useTrafficRunnerStore((state) => state.setNoLbTarget);
+  const activeTask = useTrafficRunnerStore((state) => state.activeTask);
+  const sendingSingle = useTrafficRunnerStore((state) => state.sendingSingle);
+  const setSendingSingle = useTrafficRunnerStore((state) => state.setSendingSingle);
+  const progress = useTrafficRunnerStore((state) => state.progress);
+  const dispatchLogs = useTrafficRunnerStore((state) => state.dispatchLogs);
+  const showLogs = useTrafficRunnerStore((state) => state.showLogs);
+  const setShowLogs = useTrafficRunnerStore((state) => state.setShowLogs);
+  const appendLog = useTrafficRunnerStore((state) => state.appendLog);
+  const queueProgress = useTrafficRunnerStore((state) => state.queueProgress);
+  const clearConsole = useTrafficRunnerStore((state) => state.clearConsole);
+  const stopActiveTask = useTrafficRunnerStore((state) => state.stopActiveTask);
+  const startTask = useTrafficRunnerStore((state) => state.startTask);
+
   const [scenariosOpen, setScenariosOpen] = useState(false);
   const [scenariosFlipUp, setScenariosFlipUp] = useState(true);
   const [scenariosAlignRight, setScenariosAlignRight] = useState(true);
 
-  const abortCtrlRef = useRef(null);
   const logBoxRef = useRef(null);
   const scenariosRef = useRef(null);
-  const pendingLogsRef = useRef([]);
-  const pendingProgressRef = useRef(null);
-  const flushRafRef = useRef(null);
 
   useEffect(() => {
     return subscribeGatewayChange((nextUrl) => {
       setGatewayUrlState(nextUrl);
       setGatewayDraft(nextUrl);
     });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      abortCtrlRef.current?.abort();
-      if (flushRafRef.current !== null) {
-        cancelAnimationFrame(flushRafRef.current);
-        flushRafRef.current = null;
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -203,99 +203,6 @@ export default function Visualizer() {
   const parsedConcurrency = Math.max(1, Math.min(60, Number(concurrency) || 10));
   const parsedDelay = Math.max(0, Math.min(5, Number(delaySec) || 0));
 
-  const flushUiUpdates = useCallback(() => {
-    if (flushRafRef.current !== null) {
-      cancelAnimationFrame(flushRafRef.current);
-      flushRafRef.current = null;
-    }
-    if (pendingLogsRef.current.length > 0) {
-      const queued = pendingLogsRef.current;
-      pendingLogsRef.current = [];
-      setDispatchLogs((prev) => [...prev, ...queued].slice(-80));
-    }
-    if (pendingProgressRef.current !== null) {
-      const nextProg = pendingProgressRef.current;
-      pendingProgressRef.current = null;
-      setProgress(nextProg);
-    }
-  }, []);
-
-  const scheduleUiFlush = useCallback(() => {
-    if (flushRafRef.current !== null) return;
-    flushRafRef.current = requestAnimationFrame(() => {
-      flushRafRef.current = null;
-      flushUiUpdates();
-    });
-  }, [flushUiUpdates]);
-
-  const appendLog = useCallback(
-    (entry) => {
-      pendingLogsRef.current.push(entry);
-      if (pendingLogsRef.current.length > 80) {
-        pendingLogsRef.current = pendingLogsRef.current.slice(-80);
-      }
-      scheduleUiFlush();
-    },
-    [scheduleUiFlush]
-  );
-
-  const queueProgress = useCallback(
-    (next) => {
-      pendingProgressRef.current = next;
-      scheduleUiFlush();
-    },
-    [scheduleUiFlush]
-  );
-
-  const clearConsole = () => {
-    pendingLogsRef.current = [];
-    pendingProgressRef.current = null;
-    if (flushRafRef.current !== null) {
-      cancelAnimationFrame(flushRafRef.current);
-      flushRafRef.current = null;
-    }
-    setDispatchLogs([]);
-    if (!activeTask) {
-      setProgress({ completed: 0, total: 0, ok: 0, fail: 0 });
-    }
-  };
-
-  const stopActiveTask = () => {
-    abortCtrlRef.current?.abort();
-    abortCtrlRef.current = null;
-    setActiveTask(null);
-  };
-
-  const startTask = (taskName, runner, { openConsole = false } = {}) => {
-    stopActiveTask();
-    pendingLogsRef.current = [];
-    pendingProgressRef.current = null;
-    const ctrl = new AbortController();
-    abortCtrlRef.current = ctrl;
-    setActiveTask(taskName);
-    if (openConsole) setShowLogs(true);
-    setProgress({ completed: 0, total: 0, ok: 0, fail: 0 });
-
-    Promise.resolve()
-      .then(() => runner(ctrl.signal))
-      .catch((err) => {
-        if (err?.name !== 'AbortError') {
-          appendLog({
-            id: `err-${Date.now()}`,
-            level: 'error',
-            text: `Task error: ${err?.message || 'Unexpected error'}`,
-          });
-        }
-      })
-      .finally(() => {
-        flushUiUpdates();
-        if (abortCtrlRef.current === ctrl) {
-          abortCtrlRef.current = null;
-          setActiveTask(null);
-        }
-      });
-  };
-
   const handleThemeChange = useCallback(
     (nextTheme) => setDarkMode(nextTheme === 'dark'),
     [setDarkMode]
@@ -330,11 +237,27 @@ export default function Visualizer() {
   };
 
   const handleBurst = () => {
+    if (activeTask === 'burst') {
+      stopActiveTask();
+      return;
+    }
+
     if (clusterMode === 'dummy') {
       if (!isRunning) toggleSimulation();
-      for (let i = 0; i < Math.min(parsedCount, 200); i++) {
-        setTimeout(() => simulationEngine.dispatchSingleRequest(), i * 20);
-      }
+      const totalDummy = Math.min(parsedCount, 200);
+      startTask('burst', async (signal) => {
+        for (let i = 0; i < totalDummy; i++) {
+          if (signal.aborted) break;
+          simulationEngine.dispatchSingleRequest();
+          await new Promise((resolve) => {
+            const t = setTimeout(resolve, 20);
+            signal.addEventListener('abort', () => {
+              clearTimeout(t);
+              resolve();
+            }, { once: true });
+          });
+        }
+      });
       return;
     }
 
@@ -638,16 +561,29 @@ export default function Visualizer() {
               </button>
             </div>
 
-            {/* Standalone Burst Button (where Stream was) */}
+            {/* Standalone Burst / In-place Stop Button */}
             <button
               type="button"
-              disabled={Boolean(activeTask)}
+              disabled={Boolean(activeTask && activeTask !== 'burst')}
               onClick={handleBurst}
-              title={`Send Burst of ${parsedCount} requests`}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#007AFF] hover:bg-[#0071E3] active:bg-[#0062C4] text-white text-[11px] sm:text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-45 whitespace-nowrap"
+              title={activeTask === 'burst' ? 'Stop active burst' : `Send Burst of ${parsedCount} requests`}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-white text-[11px] sm:text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-45 whitespace-nowrap ${
+                activeTask === 'burst'
+                  ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800'
+                  : 'bg-[#007AFF] hover:bg-[#0071E3] active:bg-[#0062C4]'
+              }`}
             >
-              <Flash size={13} weight="Filled" />
-              <span>Burst</span>
+              {activeTask === 'burst' ? (
+                <>
+                  <Stop size={12} weight="Filled" />
+                  <span>Stop</span>
+                </>
+              ) : (
+                <>
+                  <Flash size={13} weight="Filled" />
+                  <span>Burst</span>
+                </>
+              )}
             </button>
 
             {/* Single Request */}
@@ -946,8 +882,8 @@ export default function Visualizer() {
               </>
             )}
 
-            {/* Global Abort Button when any task is active */}
-            {activeTask && activeTask !== 'stream' && (
+            {/* Global Abort Button when a scenario task is active */}
+            {activeTask && activeTask !== 'stream' && activeTask !== 'burst' && (
               <button
                 type="button"
                 onClick={stopActiveTask}
