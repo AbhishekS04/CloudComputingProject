@@ -709,167 +709,184 @@ function createIsoDiamondBlockSVG({
 
   let meter = null;
   if (isServer) {
-    const leftWallCenter = iso(u, v + halfSize, height * 0.49);
-    const rightWallCenter = iso(u + halfSize, v, height * 0.49);
-    const bezelStroke = isOffline ? '#7f1d1d' : '#263248';
-    const bezelFill = '#0c1220';
+    const leftWallCenter = iso(u, v + halfSize, height * 0.50);
+    const rightWallCenter = iso(u + halfSize, v, height * 0.50);
+    const isDarkWall = palette.srvWall0 === '#395fa8';
+    const wallVentFill = isOffline
+      ? isDarkWall
+        ? '#302026'
+        : '#b5afa6'
+      : isDarkWall
+      ? '#1b479e'
+      : '#7699cf';
+    const wallVentHighlight = isOffline
+      ? 'rgba(255,200,200,0.14)'
+      : isDarkWall
+      ? 'rgba(191, 219, 254, 0.25)'
+      : 'rgba(255, 255, 255, 0.45)';
+    const socketColor = isDarkWall ? '#0d172c' : '#1e293b';
 
-    // 1. Front-Left Wall: Integrated Real-Time CPU & Request Meter (flush isometric plane)
+    // 1. Front-Left Wall: Silkscreened Live Telemetry + Machined Cooling Vents + Socketed Load LEDs
     const leftMeterG = createSVG('g', {
       transform: `translate(${leftWallCenter.x.toFixed(2)}, ${leftWallCenter.y.toFixed(2)}) skewY(26.565)`,
     });
 
-    const bezelRect = createSVG('rect', {
-      x: -49,
-      y: -15,
-      width: 98,
-      height: 30,
-      rx: 5.5,
-      fill: bezelFill,
-      stroke: bezelStroke,
-      'stroke-width': '1.6',
-    });
-    leftMeterG.appendChild(bezelRect);
-
-    leftMeterG.appendChild(
-      createSVG('line', {
-        x1: -44,
-        y1: -13.6,
-        x2: 44,
-        y2: -13.6,
-        stroke: 'rgba(255, 255, 255, 0.12)',
-        'stroke-width': '1',
-        'stroke-linecap': 'round',
-      })
-    );
-
-    const gearWrap = createSVG('g', { transform: 'translate(-39, -5.2) scale(0.68)' });
+    const gearHoleColor = isDarkWall ? '#274787' : '#8eb1e6';
+    const gearWrap = createSVG('g', { transform: 'translate(-47, -7.2) scale(0.58)' });
     const gearPath = createSVG('path', {
       class: 'svg-gear-spin',
       d: 'M -2 -7.2 L 2 -7.2 L 2.6 -5.0 L 4.6 -4.0 L 6.6 -5.0 L 8.2 -2.4 L 6.4 -0.8 L 6.4 0.8 L 8.2 2.4 L 6.6 5.0 L 4.6 4.0 L 2.6 5.0 L 2 7.2 L -2 7.2 L -2.6 5.0 L -4.6 4.0 L -6.6 5.0 L -8.2 2.4 L -6.4 0.8 L -6.4 -0.8 L -8.2 -2.4 L -6.6 -5.0 L -4.6 -4.0 L -2.6 -5.0 Z',
-      fill: '#93c5fd',
+      fill: palette.srvSubtitle,
     });
     gearWrap.appendChild(gearPath);
-    gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: bezelFill }));
+    const gearHole = createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: gearHoleColor });
+    gearWrap.appendChild(gearHole);
     leftMeterG.appendChild(gearWrap);
 
     const cpuText = createSVG('text', {
-      x: -30,
-      y: -1.8,
+      x: -38,
+      y: -4.0,
       'text-anchor': 'start',
-      fill: '#f8fafc',
+      fill: palette.srvTitle,
       'font-family': "'JetBrains Mono', monospace",
-      'font-size': '10px',
+      'font-size': '9.6px',
       'font-weight': '800',
     });
     cpuText.textContent = '0%';
     leftMeterG.appendChild(cpuText);
 
     const reqText = createSVG('text', {
-      x: 44,
-      y: -2.0,
+      x: 52,
+      y: -4.2,
       'text-anchor': 'end',
-      fill: '#93c5fd',
+      fill: palette.srvSubtitle,
       'font-family': "'JetBrains Mono', monospace",
-      'font-size': '8.5px',
+      'font-size': '8.4px',
       'font-weight': '700',
     });
     reqText.textContent = '0 req';
     leftMeterG.appendChild(reqText);
 
-    const trackW = 86;
-    const trackX = -43;
-    leftMeterG.appendChild(
-      createSVG('rect', {
-        x: trackX,
-        y: 3.8,
-        width: trackW,
-        height: 6.5,
-        rx: 3.25,
-        fill: '#182235',
-      })
-    );
-
-    const fillRect = createSVG('rect', {
-      class: 'srv-meter-fill',
-      x: trackX,
-      y: 3.8,
-      width: 6,
-      height: 6.5,
-      rx: 3.25,
-      fill: '#4ade80',
+    // 3 Machined Cooling Vent Louvers cut into the left side of the front-left chassis wall
+    const leftVentSlots = [2.0, 6.2, 10.4].map((vy) => {
+      const slot = createSVG('rect', {
+        x: -52,
+        y: vy - 1.1,
+        width: 34,
+        height: 2.2,
+        rx: 1.1,
+        fill: wallVentFill,
+      });
+      const lip = createSVG('line', {
+        x1: -51,
+        y1: vy + 1.3,
+        x2: -19,
+        y2: vy + 1.3,
+        stroke: wallVentHighlight,
+        'stroke-width': '0.75',
+      });
+      leftMeterG.appendChild(slot);
+      leftMeterG.appendChild(lip);
+      return { slot, lip };
     });
-    leftMeterG.appendChild(fillRect);
 
-    [-21.5, 0, 21.5].forEach((tx) => {
+    // 7 Socketed Circular Hardware Load LEDs built flush into the server wall
+    const ledCount = 7;
+    const ledSegments = [];
+    for (let sIdx = 0; sIdx < ledCount; sIdx++) {
+      const cx = -7 + sIdx * 9.3;
+      const cy = 6.2;
       leftMeterG.appendChild(
-        createSVG('line', {
-          x1: tx,
-          y1: 3.8,
-          x2: tx,
-          y2: 10.3,
-          stroke: bezelFill,
-          'stroke-width': '1',
-          opacity: '0.65',
+        createSVG('circle', {
+          cx,
+          cy,
+          r: 3.1,
+          fill: socketColor,
         })
       );
-    });
+      const seg = createSVG('circle', {
+        cx,
+        cy,
+        r: 1.9,
+        fill: '#1c2f52',
+      });
+      leftMeterG.appendChild(seg);
+      ledSegments.push(seg);
+    }
 
     bounceG.appendChild(leftMeterG);
 
-    // 2. Front-Right Wall: Integrated Load Equalizer Bars + ON/OFF Status Switch
+    // 2. Front-Right Wall: Machined Chassis Cooling Vents + Socketed Status LEDs + Power Rocker
     const rightStatusG = createSVG('g', {
       transform: `translate(${rightWallCenter.x.toFixed(2)}, ${rightWallCenter.y.toFixed(2)}) skewY(-26.565)`,
     });
 
-    const rightBezelRect = createSVG('rect', {
-      x: -43,
-      y: -13,
-      width: 86,
-      height: 26,
-      rx: 5.5,
-      fill: bezelFill,
-      stroke: bezelStroke,
-      'stroke-width': '1.6',
+    const ventSlots = [-7.5, -2.5, 2.5, 7.5].map((vy) => {
+      const slot = createSVG('rect', {
+        x: -44,
+        y: vy - 1.2,
+        width: 35,
+        height: 2.4,
+        rx: 1.2,
+        fill: wallVentFill,
+      });
+      const lip = createSVG('line', {
+        x1: -43,
+        y1: vy + 1.4,
+        x2: -10,
+        y2: vy + 1.4,
+        stroke: wallVentHighlight,
+        'stroke-width': '0.8',
+      });
+      rightStatusG.appendChild(slot);
+      rightStatusG.appendChild(lip);
+      return { slot, lip };
     });
-    rightStatusG.appendChild(rightBezelRect);
 
-    const signalBars = [
-      { x: -34, h: 6 },
-      { x: -28, h: 10 },
-      { x: -22, h: 14 },
-    ].map(({ x, h }) => {
-      const bar = createSVG('rect', {
-        x,
-        y: 7 - h,
-        width: 3.8,
-        height: h,
-        rx: 1.5,
+    // 2 Vertical Socketed Status LEDs matching the LB chassis look
+    const signalBars = [-4.2, 3.8].map((cy) => {
+      rightStatusG.appendChild(
+        createSVG('circle', { cx: -1, cy, r: 3.0, fill: socketColor })
+      );
+      const led = createSVG('circle', {
+        cx: -1,
+        cy,
+        r: 1.9,
         fill: '#4ade80',
       });
-      rightStatusG.appendChild(bar);
-      return bar;
+      rightStatusG.appendChild(led);
+      return led;
     });
 
+    // Flush hardware socket + ON/OFF rocker switch
+    rightStatusG.appendChild(
+      createSVG('rect', {
+        x: 6.5,
+        y: -8.5,
+        width: 39,
+        height: 17,
+        rx: 4,
+        fill: socketColor,
+      })
+    );
+
     const toggleBg = createSVG('rect', {
-      x: -10,
-      y: -8.5,
-      width: 45,
-      height: 17,
-      rx: 8.5,
+      x: 8,
+      y: -7,
+      width: 36,
+      height: 14,
+      rx: 3,
       fill: isOffline ? palette.pillToggleOff : palette.pillToggleOn,
-      stroke: '#0b0d12',
-      'stroke-width': '1.4',
     });
     rightStatusG.appendChild(toggleBg);
 
     const toggleText = createSVG('text', {
-      x: 12.5,
-      y: 3.2,
+      x: 26,
+      y: 3.0,
       'text-anchor': 'middle',
       fill: palette.pillToggleText,
       'font-family': "'JetBrains Mono', monospace",
-      'font-size': '9.5px',
+      'font-size': '8.8px',
       'font-weight': '800',
     });
     toggleText.textContent = isOffline ? 'OFF' : 'ON';
@@ -878,180 +895,171 @@ function createIsoDiamondBlockSVG({
     bounceG.appendChild(rightStatusG);
 
     meter = {
-      bezelRect,
-      rightBezelRect,
-      fillRect,
+      ledSegments,
+      leftVentSlots,
+      ventSlots,
       cpuText,
       reqText,
       gearPath,
-      trackW,
+      gearHole,
       signalBars,
       toggleBg,
       toggleText,
+      isDarkWall,
     };
   }
 
   let lbLights = null;
   if (isGlobe) {
-    const leftWallCenter = iso(u, v + halfSize, height * 0.49);
-    const rightWallCenter = iso(u + halfSize, v, height * 0.49);
-    const housingFill = '#140f08';
-    const housingStroke = '#4a3518';
+    const leftWallCenter = iso(u, v + halfSize, height * 0.50);
+    const rightWallCenter = iso(u + halfSize, v, height * 0.50);
 
-    // Top-deck corner status LEDs (clear of text & globe)
-    const deckCorners = [
-      iso(u - halfSize * 0.68, v - halfSize * 0.68, height),
-      iso(u + halfSize * 0.68, v - halfSize * 0.68, height),
-      iso(u - halfSize * 0.68, v + halfSize * 0.68, height),
-      iso(u + halfSize * 0.68, v + halfSize * 0.68, height),
-    ];
-    const cornerDots = deckCorners.map((pt, cIdx) => {
-      const dot = createSVG('circle', {
-        cx: pt.x.toFixed(1),
-        cy: pt.y.toFixed(1),
-        r: 2.3,
-        fill: cIdx % 2 === 0 ? '#4ade80' : '#38bdf8',
-      });
-      bounceG.appendChild(dot);
-      return dot;
-    });
-
-    // 1. Front-Left LB Wall: L7 Proxy Hardware LEDs & Link Activity Bank
+    // 1. Front-Left LB Wall: Machined Chassis Cooling Vents + Recessed Status LED Matrix (no sticker plate)
     const lbLeftG = createSVG('g', {
       transform: `translate(${leftWallCenter.x.toFixed(2)}, ${leftWallCenter.y.toFixed(2)}) skewY(26.565)`,
     });
-    const leftHousing = createSVG('rect', {
-      x: -54,
-      y: -14.5,
-      width: 108,
-      height: 29,
-      rx: 5.5,
-      fill: housingFill,
-      stroke: housingStroke,
-      'stroke-width': '1.6',
-    });
-    lbLeftG.appendChild(leftHousing);
 
+    const leftVentSlots = [-8.0, -3.0, 2.0, 7.0].map((vy) => {
+      const slot = createSVG('rect', {
+        x: -54,
+        y: vy - 1.3,
+        width: 64,
+        height: 2.6,
+        rx: 1.3,
+        fill: '#8c5a08',
+      });
+      const lip = createSVG('line', {
+        x1: -53,
+        y1: vy + 1.5,
+        x2: 9,
+        y2: vy + 1.5,
+        stroke: 'rgba(255, 244, 204, 0.28)',
+        'stroke-width': '0.8',
+      });
+      lbLeftG.appendChild(slot);
+      lbLeftG.appendChild(lip);
+      return { slot, lip };
+    });
+
+    // Subtle divider louver groove between vents and LED array
     lbLeftG.appendChild(
       createSVG('line', {
-        x1: -48,
-        y1: -13.1,
-        x2: 48,
-        y2: -13.1,
-        stroke: 'rgba(255, 215, 130, 0.16)',
+        x1: 16,
+        y1: -11,
+        x2: 16,
+        y2: 11,
+        stroke: 'rgba(120, 72, 10, 0.35)',
         'stroke-width': '1',
-        'stroke-linecap': 'round',
       })
     );
 
-    const statusDot = createSVG('circle', { cx: -43, cy: -5.2, r: 2.6, fill: '#4ade80' });
-    lbLeftG.appendChild(statusDot);
-
-    const proxyTag = createSVG('text', {
-      x: -36,
-      y: -2.2,
-      'text-anchor': 'start',
-      fill: '#fde68a',
-      'font-family': "'JetBrains Mono', monospace",
-      'font-size': '8.8px',
-      'font-weight': '800',
-      'letter-spacing': '0.04em',
-    });
-    proxyTag.textContent = 'L7 PROXY';
-    lbLeftG.appendChild(proxyTag);
-
-    const activeStateText = createSVG('text', {
-      x: 47,
-      y: -2.2,
-      'text-anchor': 'end',
-      fill: '#4ade80',
-      'font-family': "'JetBrains Mono', monospace",
-      'font-size': '8.2px',
-      'font-weight': '800',
-    });
-    activeStateText.textContent = 'ACTIVE';
-    lbLeftG.appendChild(activeStateText);
-
-    const portBaseColors = ['#4ade80', '#38bdf8', '#fbbf24', '#a3e635', '#60a5fa', '#34d399'];
+    // 2x3 Hardware Status LED Matrix in recessed individual circular bezels directly on the wall
+    const portBaseColors = ['#4ade80', '#38bdf8', '#fbbf24', '#4ade80', '#38bdf8', '#34d399'];
     const portLeds = portBaseColors.map((col, idx) => {
-      const px = -46 + idx * 16;
+      const colIdx = idx % 3;
+      const rowIdx = Math.floor(idx / 3);
+      const cx = 25 + colIdx * 12.5;
+      const cy = rowIdx === 0 ? -5.0 : 5.0;
+
+      // Recessed dark socket ring
       lbLeftG.appendChild(
-        createSVG('rect', {
-          x: px,
-          y: 3.2,
-          width: 12,
-          height: 5.8,
-          rx: 2,
-          fill: '#221a10',
+        createSVG('circle', {
+          cx,
+          cy,
+          r: 3.3,
+          fill: '#1a1207',
         })
       );
-      const led = createSVG('rect', {
-        x: px + 1,
-        y: 4.1,
-        width: 10,
-        height: 4,
-        rx: 1.5,
+      // Inner LED jewel
+      const led = createSVG('circle', {
+        cx,
+        cy,
+        r: 2.0,
         fill: col,
-        opacity: '0.88',
+        opacity: '0.9',
       });
       lbLeftG.appendChild(led);
-      return { el: led, baseColor: col };
+      return { el: led, linkEl: null, baseColor: col };
     });
     bounceG.appendChild(lbLeftG);
 
-    // 2. Front-Right LB Wall: Hardware Vent Grille + LIVE Switch Badge
+    // 2. Front-Right LB Wall: Machined Chassis Cooling Louvers + Hardware Power Switch
     const lbRightG = createSVG('g', {
       transform: `translate(${rightWallCenter.x.toFixed(2)}, ${rightWallCenter.y.toFixed(2)}) skewY(-26.565)`,
     });
     const rightHousing = createSVG('rect', {
-      x: -48,
-      y: -13.5,
-      width: 96,
-      height: 27,
-      rx: 5.5,
-      fill: housingFill,
-      stroke: housingStroke,
-      'stroke-width': '1.6',
+      x: -44,
+      y: -12,
+      width: 40,
+      height: 24,
+      rx: 2,
+      fill: 'none',
+      stroke: 'none',
     });
     lbRightG.appendChild(rightHousing);
 
-    for (let vIdx = 0; vIdx < 4; vIdx++) {
-      lbRightG.appendChild(
-        createSVG('rect', {
-          x: -39,
-          y: -7.5 + vIdx * 4.4,
-          width: 24,
-          height: 2.2,
-          rx: 1.1,
-          fill: '#2b2114',
-        })
-      );
-    }
+    const rightVentSlots = [-7.5, -2.5, 2.5, 7.5].map((vy) => {
+      const slot = createSVG('rect', {
+        x: -44,
+        y: vy - 1.2,
+        width: 36,
+        height: 2.5,
+        rx: 1.2,
+        fill: '#8c5a08',
+      });
+      const lip = createSVG('line', {
+        x1: -43,
+        y1: vy + 1.5,
+        x2: -9,
+        y2: vy + 1.5,
+        stroke: 'rgba(255, 244, 204, 0.25)',
+        'stroke-width': '0.8',
+      });
+      lbRightG.appendChild(slot);
+      lbRightG.appendChild(lip);
+      return { slot, lip };
+    });
 
-    const hbLed1 = createSVG('circle', { cx: -7, cy: -5, r: 2.2, fill: '#fbbf24' });
-    const hbLed2 = createSVG('circle', { cx: -7, cy: 4, r: 2.2, fill: '#38bdf8' });
+    const hbLed1 = createSVG('circle', { cx: -1, cy: -4.2, r: 2.1, fill: '#4ade80' });
+    const hbLed2 = createSVG('circle', { cx: -1, cy: 3.8, r: 2.1, fill: '#38bdf8' });
+    lbRightG.appendChild(
+      createSVG('circle', { cx: -1, cy: -4.2, r: 3.1, fill: '#1a1207' })
+    );
+    lbRightG.appendChild(
+      createSVG('circle', { cx: -1, cy: 3.8, r: 3.1, fill: '#1a1207' })
+    );
     lbRightG.appendChild(hbLed1);
     lbRightG.appendChild(hbLed2);
 
+    // Flush hardware socket + LIVE / DOWN rocker
+    lbRightG.appendChild(
+      createSVG('rect', {
+        x: 6,
+        y: -8.5,
+        width: 39,
+        height: 17,
+        rx: 4,
+        fill: '#1a1207',
+      })
+    );
+
     const livePillBg = createSVG('rect', {
-      x: 2,
-      y: -8.5,
-      width: 39,
-      height: 17,
-      rx: 8.5,
+      x: 7.5,
+      y: -7,
+      width: 36,
+      height: 14,
+      rx: 3,
       fill: '#4ade80',
-      stroke: '#0f172a',
-      'stroke-width': '1.4',
     });
     lbRightG.appendChild(livePillBg);
 
     const livePillText = createSVG('text', {
-      x: 21.5,
-      y: 3.1,
+      x: 25.5,
+      y: 3.0,
       'text-anchor': 'middle',
       fill: '#0f172a',
       'font-family': "'JetBrains Mono', monospace",
-      'font-size': '9px',
+      'font-size': '8.8px',
       'font-weight': '800',
     });
     livePillText.textContent = 'LIVE';
@@ -1059,12 +1067,10 @@ function createIsoDiamondBlockSVG({
     bounceG.appendChild(lbRightG);
 
     lbLights = {
-      leftHousing,
-      rightHousing,
-      statusDot,
-      activeStateText,
+      leftVentSlots,
+      rightVentSlots,
       portLeds,
-      cornerDots,
+      cornerDots: [],
       hbLed1,
       hbLed2,
       livePillBg,
@@ -1123,7 +1129,7 @@ function buildRoundedQuadPath(pts, radius = 6) {
   return `${d} Z`;
 }
 
-function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, label = '', palette = THEMES.light }) {
+function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, palette = THEMES.light }) {
   const padHalfS = 1.24 * scale;
   const padCornerR = 0.36 * scale;
   const padH = 20 * scale;
@@ -1171,10 +1177,8 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, label = '', palette 
   );
 
   const padTopCenter = iso(u, v, padH);
-  // Nudge laptop slightly back on the pad deck so the front flat pad surface cleanly holds the client plaque
-  const laptopAnchor = iso(u - 0.14 * scale, v - 0.14 * scale, padH);
   const laptopG = createSVG('g', {
-    transform: `translate(${laptopAnchor.x.toFixed(2)}, ${laptopAnchor.y.toFixed(2)}) scale(${scale})`,
+    transform: `translate(${padTopCenter.x.toFixed(2)}, ${padTopCenter.y.toFixed(2)}) scale(${scale})`,
   });
   bounceG.appendChild(laptopG);
 
@@ -1346,65 +1350,6 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, label = '', palette 
 
   laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.65, 0.70, 0.72, 1.6), fill: palette.lapSkeleton }));
   laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.76, 0.56, 0.83, 1.6), fill: palette.lapSkeleton }));
-
-  // Integrated Client Nameplate lying 100% flat on the isometric pad top surface
-  if (label) {
-    const plaqueAnchor = iso(u, v + 0.72 * scale, padH);
-    const plaqueW = Math.min(114, Math.max(96, label.length * 6.5 + 28));
-    const plaqueHw = plaqueW / 2;
-    const plaqueG = createSVG('g', {
-      transform: `translate(${plaqueAnchor.x.toFixed(2)}, ${plaqueAnchor.y.toFixed(2)}) scale(${scale}) matrix(0.94, 0.47, -0.82, 0.41, 0, 0)`,
-    });
-
-    plaqueG.appendChild(
-      createSVG('rect', {
-        x: -plaqueHw,
-        y: -10.5,
-        width: plaqueW,
-        height: 21,
-        rx: 5.5,
-        fill: palette.pillBg,
-        stroke: palette.pillBorder,
-        'stroke-width': '1.6',
-      })
-    );
-
-    const iconG = createSVG('g', { transform: `translate(${-plaqueHw + 12}, 0) scale(0.76)` });
-    iconG.appendChild(
-      createSVG('circle', {
-        cx: 0,
-        cy: -2.8,
-        r: 3.1,
-        fill: 'none',
-        stroke: palette.pillIcon,
-        'stroke-width': '2.1',
-      })
-    );
-    iconG.appendChild(
-      createSVG('path', {
-        d: 'M -5.2 5.4 C -5.2 2.0 -2.8 0.7 0 0.7 C 2.8 0.7 5.2 2.0 5.2 5.4',
-        fill: 'none',
-        stroke: palette.pillIcon,
-        'stroke-width': '2.1',
-        'stroke-linecap': 'round',
-      })
-    );
-    plaqueG.appendChild(iconG);
-
-    const labelEl = createSVG('text', {
-      x: 7,
-      y: 3.6,
-      'text-anchor': 'middle',
-      fill: palette.pillText,
-      'font-family': "'JetBrains Mono', monospace",
-      'font-size': '10px',
-      'font-weight': '800',
-    });
-    labelEl.textContent = label;
-    plaqueG.appendChild(labelEl);
-
-    bounceG.appendChild(plaqueG);
-  }
 
   return { shadowPath, group: outerG, bounceG, heroBannerPath, padTopCenter };
 }
@@ -2935,51 +2880,77 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         if (srv._lastPillKey === pillKey) return;
         srv._lastPillKey = pillKey;
         const {
-          bezelRect,
-          rightBezelRect,
-          fillRect,
+          ledSegments,
+          leftVentSlots,
+          ventSlots,
           cpuText,
           reqText,
           gearPath,
-          trackW,
+          gearHole,
           signalBars,
           toggleBg,
           toggleText,
+          isDarkWall,
         } = refs.pill;
 
         if (!srv.healthy) {
-          bezelRect.setAttribute('stroke', '#7f1d1d');
-          rightBezelRect.setAttribute('stroke', '#7f1d1d');
-          fillRect.setAttribute('width', '0');
+          const offVentFill = isDarkWall ? '#302026' : '#b5afa6';
+          const offVentLip = 'rgba(255,200,200,0.14)';
+          const offSocketLed = '#3a2229';
+
+          ledSegments?.forEach((seg) => seg.setAttribute('fill', offSocketLed));
+          leftVentSlots?.forEach(({ slot, lip }) => {
+            slot.setAttribute('fill', offVentFill);
+            lip.setAttribute('stroke', offVentLip);
+          });
+          ventSlots?.forEach(({ slot, lip }) => {
+            slot.setAttribute('fill', offVentFill);
+            lip.setAttribute('stroke', offVentLip);
+          });
           cpuText.textContent = srv.status === 'failed' ? 'CRASHED' : 'OFFLINE';
-          cpuText.setAttribute('fill', '#fda4af');
+          cpuText.setAttribute('fill', palette.pillOfflineText);
           reqText.textContent = `${srv.totalRequests || 0} req`;
-          reqText.setAttribute('fill', '#fca5a5');
+          reqText.setAttribute('fill', palette.srvOffSubtitle || palette.pillOfflineText);
           gearPath.setAttribute('fill', '#f87171');
+          gearHole?.setAttribute('fill', isDarkWall ? '#20242e' : '#c5beb2');
           gearPath.classList.add('svg-gear-paused');
-          signalBars?.forEach((bar) => bar.setAttribute('fill', '#33222b'));
+          signalBars?.forEach((led) => led.setAttribute('fill', '#fb7185'));
           toggleBg.setAttribute('fill', palette.pillToggleOffRefresh);
           toggleText.textContent = 'OFF';
         } else {
           const cpuVal = Math.max(0, Math.min(100, Math.round(srv.cpu || 0)));
           const barColor = cpuVal > 78 ? '#fb7185' : cpuVal > 58 ? '#f59e0b' : '#4ade80';
-          const w = Math.max(4, (cpuVal / 100) * trackW);
+          const totalLeds = ledSegments?.length || 7;
+          const litCount = Math.max(1, Math.round((cpuVal / 100) * totalLeds));
+          const onVentFill = isDarkWall ? '#1b479e' : '#7699cf';
+          const onVentLip = isDarkWall ? 'rgba(191, 219, 254, 0.25)' : 'rgba(255, 255, 255, 0.45)';
+          const unlitLed = isDarkWall ? '#1e3259' : '#334155';
 
-          bezelRect.setAttribute('stroke', '#263248');
-          rightBezelRect.setAttribute('stroke', '#263248');
-          fillRect.setAttribute('width', w.toFixed(1));
-          fillRect.setAttribute('fill', barColor);
+          ledSegments?.forEach((seg, sIdx) => {
+            const segColor = sIdx >= 6 ? '#fb7185' : sIdx >= 4 ? '#f59e0b' : '#4ade80';
+            seg.setAttribute('fill', sIdx < litCount ? segColor : unlitLed);
+          });
+          leftVentSlots?.forEach(({ slot, lip }) => {
+            slot.setAttribute('fill', onVentFill);
+            lip.setAttribute('stroke', onVentLip);
+          });
+          ventSlots?.forEach(({ slot, lip }) => {
+            slot.setAttribute('fill', onVentFill);
+            lip.setAttribute('stroke', onVentLip);
+          });
+
           cpuText.textContent = `${cpuVal}%`;
-          cpuText.setAttribute('fill', '#f8fafc');
+          cpuText.setAttribute('fill', palette.srvTitle);
           reqText.textContent = `${srv.totalRequests || 0} req`;
-          reqText.setAttribute('fill', '#93c5fd');
-          gearPath.setAttribute('fill', '#93c5fd');
+          reqText.setAttribute('fill', palette.srvSubtitle || palette.srvTitle);
+          gearPath.setAttribute('fill', palette.srvSubtitle || palette.srvTitle);
+          gearHole?.setAttribute('fill', isDarkWall ? '#274787' : '#8eb1e6');
           gearPath.classList.remove('svg-gear-paused');
 
-          const activeBars = cpuVal >= 72 ? 3 : cpuVal >= 42 ? 2 : 1;
-          signalBars?.forEach((bar, bIdx) => {
-            bar.setAttribute('fill', bIdx < activeBars ? barColor : '#1e293b');
-          });
+          if (signalBars?.length >= 2) {
+            signalBars[0].setAttribute('fill', barColor);
+            signalBars[1].setAttribute('fill', cpuVal >= 45 ? '#fbbf24' : '#38bdf8');
+          }
 
           toggleBg.setAttribute('fill', palette.pillToggleOn);
           toggleText.textContent = 'ON';
@@ -3136,21 +3107,23 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
       if (lbNodeRef.lbLights) {
         const lights = lbNodeRef.lbLights;
-        lights.leftHousing.setAttribute('stroke', currentLbOnline ? '#4a3518' : '#7f1d1d');
-        lights.rightHousing.setAttribute('stroke', currentLbOnline ? '#4a3518' : '#7f1d1d');
-        lights.statusDot.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fb7185');
-        lights.activeStateText.textContent = currentLbOnline ? 'ACTIVE' : 'OFFLINE';
-        lights.activeStateText.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fda4af');
+        const ventFill = currentLbOnline ? '#8c5a08' : '#302026';
+        const ventLip = currentLbOnline ? 'rgba(255, 244, 204, 0.28)' : 'rgba(255, 200, 200, 0.14)';
+        lights.leftVentSlots?.forEach(({ slot, lip }) => {
+          slot.setAttribute('fill', ventFill);
+          lip.setAttribute('stroke', ventLip);
+        });
+        lights.rightVentSlots?.forEach(({ slot, lip }) => {
+          slot.setAttribute('fill', ventFill);
+          lip.setAttribute('stroke', ventLip);
+        });
         lights.livePillBg.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fb7185');
         lights.livePillText.textContent = currentLbOnline ? 'LIVE' : 'DOWN';
         lights.portLeds.forEach((p) => {
           p.el.setAttribute('fill', currentLbOnline ? p.baseColor : '#57242c');
-          p.el.setAttribute('opacity', currentLbOnline ? '0.88' : '0.55');
+          p.el.setAttribute('opacity', currentLbOnline ? '0.9' : '0.45');
         });
-        lights.cornerDots.forEach((dot, cIdx) => {
-          dot.setAttribute('fill', currentLbOnline ? (cIdx % 2 === 0 ? '#4ade80' : '#38bdf8') : '#fb7185');
-        });
-        lights.hbLed1.setAttribute('fill', currentLbOnline ? '#fbbf24' : '#fb7185');
+        lights.hbLed1.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fb7185');
         lights.hbLed2.setAttribute('fill', currentLbOnline ? '#38bdf8' : '#fb7185');
       }
 
@@ -3699,22 +3672,34 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           u: client.u,
           v: client.v,
           scale,
-          label: client.label,
           palette,
         });
         shadowsG.appendChild(laptopObj.shadowPath);
         blocksG.appendChild(laptopObj.group);
 
+        const pillPos = iso(client.u - 0.15, client.v - 1.85, 16);
+        const clientPill = createClientLabelPillSVG({
+          cx: pillPos.x,
+          cy: pillPos.y,
+          text: client.label,
+          palette,
+        });
+        clientPill.group._baseTransform = clientPill.group.getAttribute('transform') || '';
+        clientPill.group.addEventListener('click', () => {
+          spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
+        });
+        pillsG.appendChild(clientPill.group);
+
         makeNodeInteractive({
           nodeObj: client,
           groupEl: laptopObj.group,
           shadowEl: laptopObj.shadowPath,
-          pillEl: null,
+          pillEl: clientPill.group,
           onMove: () => refreshClientWire(client),
           onClick: () => spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx),
         });
 
-        clientNodeRefs.set(client.id, { laptop: laptopObj, pill: null });
+        clientNodeRefs.set(client.id, { laptop: laptopObj, pill: clientPill });
       });
 
       lbNodeRef = createIsoDiamondBlockSVG({
@@ -4155,6 +4140,65 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       dragStartCY = targetCamera.cy;
     };
 
+    const getNodeCollisionRadius = (nodeId) => {
+      if (nodeId === 'lb') return 1.54;
+      if (nodeId.startsWith('srv-')) return 1.40;
+      return 1.20;
+    };
+
+    const resolveNonOverlappingIsoPosition = (activeId, desiredU, desiredV, fallbackU, fallbackV) => {
+      let candU = Math.max(-10, Math.min(10, desiredU));
+      let candV = Math.max(-9.5, Math.min(9.5, desiredV));
+      const myR = getNodeCollisionRadius(activeId);
+
+      const obstacles = [];
+      if (STATE.loadBalancer.id !== activeId) {
+        obstacles.push({ u: STATE.loadBalancer.u, v: STATE.loadBalancer.v, r: getNodeCollisionRadius(STATE.loadBalancer.id) });
+      }
+      STATE.clients.forEach((c) => {
+        if (c.id !== activeId) obstacles.push({ u: c.u, v: c.v, r: getNodeCollisionRadius(c.id) });
+      });
+      STATE.servers.forEach((s) => {
+        if (s.id !== activeId) obstacles.push({ u: s.u, v: s.v, r: getNodeCollisionRadius(s.id) });
+      });
+
+      // Push dragged box smoothly outside any colliding boxes so nodes never overlap
+      for (let pass = 0; pass < 4; pass++) {
+        let adjusted = false;
+        for (let i = 0; i < obstacles.length; i++) {
+          const ob = obstacles[i];
+          const minSep = myR + ob.r;
+          const du = candU - ob.u;
+          const dv = candV - ob.v;
+          const absU = Math.abs(du);
+          const absV = Math.abs(dv);
+          if (absU < minSep && absV < minSep) {
+            const penU = minSep - absU;
+            const penV = minSep - absV;
+            if (penU < penV) {
+              candU = ob.u + (du >= 0 ? minSep : -minSep);
+            } else {
+              candV = ob.v + (dv >= 0 ? minSep : -minSep);
+            }
+            candU = Math.max(-10, Math.min(10, candU));
+            candV = Math.max(-9.5, Math.min(9.5, candV));
+            adjusted = true;
+          }
+        }
+        if (!adjusted) break;
+      }
+
+      // If cornered between multiple boxes, reject invalid step cleanly
+      const stillColliding = obstacles.some((ob) => {
+        const minSep = myR + ob.r - 0.02;
+        return Math.abs(candU - ob.u) < minSep && Math.abs(candV - ob.v) < minSep;
+      });
+      if (stillColliding) {
+        return { u: fallbackU, v: fallbackV };
+      }
+      return { u: candU, v: candV };
+    };
+
     const onPointerMove = (e) => {
       if (draggingNodeInfo) {
         const distPx = Math.hypot(e.clientX - draggingNodeInfo.startClientX, e.clientY - draggingNodeInfo.startClientY);
@@ -4169,8 +4213,15 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           const worldX = vx + (mx / viewportW) * vw;
           const worldY = vy + (my / viewportH) * vh;
           const ptrIso = invIso(worldX, worldY);
-          const nextU = Math.max(-10, Math.min(10, ptrIso.u + draggingNodeInfo.offsetU));
-          const nextV = Math.max(-9.5, Math.min(9.5, ptrIso.v + draggingNodeInfo.offsetV));
+          const resolved = resolveNonOverlappingIsoPosition(
+            draggingNodeInfo.id,
+            ptrIso.u + draggingNodeInfo.offsetU,
+            ptrIso.v + draggingNodeInfo.offsetV,
+            draggingNodeInfo.nodeObj.u,
+            draggingNodeInfo.nodeObj.v
+          );
+          const nextU = resolved.u;
+          const nextV = resolved.v;
           draggingNodeInfo.nodeObj.u = nextU;
           draggingNodeInfo.nodeObj.v = nextV;
           persistedNodeCoords.set(draggingNodeInfo.id, { u: nextU, v: nextV });
