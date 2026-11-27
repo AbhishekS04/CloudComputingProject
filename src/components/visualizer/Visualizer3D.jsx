@@ -707,6 +707,371 @@ function createIsoDiamondBlockSVG({
     bounceG.appendChild(subEl);
   }
 
+  let meter = null;
+  if (isServer) {
+    const leftWallCenter = iso(u, v + halfSize, height * 0.49);
+    const rightWallCenter = iso(u + halfSize, v, height * 0.49);
+    const bezelStroke = isOffline ? '#7f1d1d' : '#263248';
+    const bezelFill = '#0c1220';
+
+    // 1. Front-Left Wall: Integrated Real-Time CPU & Request Meter (flush isometric plane)
+    const leftMeterG = createSVG('g', {
+      transform: `translate(${leftWallCenter.x.toFixed(2)}, ${leftWallCenter.y.toFixed(2)}) skewY(26.565)`,
+    });
+
+    const bezelRect = createSVG('rect', {
+      x: -49,
+      y: -15,
+      width: 98,
+      height: 30,
+      rx: 5.5,
+      fill: bezelFill,
+      stroke: bezelStroke,
+      'stroke-width': '1.6',
+    });
+    leftMeterG.appendChild(bezelRect);
+
+    leftMeterG.appendChild(
+      createSVG('line', {
+        x1: -44,
+        y1: -13.6,
+        x2: 44,
+        y2: -13.6,
+        stroke: 'rgba(255, 255, 255, 0.12)',
+        'stroke-width': '1',
+        'stroke-linecap': 'round',
+      })
+    );
+
+    const gearWrap = createSVG('g', { transform: 'translate(-39, -5.2) scale(0.68)' });
+    const gearPath = createSVG('path', {
+      class: 'svg-gear-spin',
+      d: 'M -2 -7.2 L 2 -7.2 L 2.6 -5.0 L 4.6 -4.0 L 6.6 -5.0 L 8.2 -2.4 L 6.4 -0.8 L 6.4 0.8 L 8.2 2.4 L 6.6 5.0 L 4.6 4.0 L 2.6 5.0 L 2 7.2 L -2 7.2 L -2.6 5.0 L -4.6 4.0 L -6.6 5.0 L -8.2 2.4 L -6.4 0.8 L -6.4 -0.8 L -8.2 -2.4 L -6.6 -5.0 L -4.6 -4.0 L -2.6 -5.0 Z',
+      fill: '#93c5fd',
+    });
+    gearWrap.appendChild(gearPath);
+    gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: bezelFill }));
+    leftMeterG.appendChild(gearWrap);
+
+    const cpuText = createSVG('text', {
+      x: -30,
+      y: -1.8,
+      'text-anchor': 'start',
+      fill: '#f8fafc',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '10px',
+      'font-weight': '800',
+    });
+    cpuText.textContent = '0%';
+    leftMeterG.appendChild(cpuText);
+
+    const reqText = createSVG('text', {
+      x: 44,
+      y: -2.0,
+      'text-anchor': 'end',
+      fill: '#93c5fd',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '8.5px',
+      'font-weight': '700',
+    });
+    reqText.textContent = '0 req';
+    leftMeterG.appendChild(reqText);
+
+    const trackW = 86;
+    const trackX = -43;
+    leftMeterG.appendChild(
+      createSVG('rect', {
+        x: trackX,
+        y: 3.8,
+        width: trackW,
+        height: 6.5,
+        rx: 3.25,
+        fill: '#182235',
+      })
+    );
+
+    const fillRect = createSVG('rect', {
+      class: 'srv-meter-fill',
+      x: trackX,
+      y: 3.8,
+      width: 6,
+      height: 6.5,
+      rx: 3.25,
+      fill: '#4ade80',
+    });
+    leftMeterG.appendChild(fillRect);
+
+    [-21.5, 0, 21.5].forEach((tx) => {
+      leftMeterG.appendChild(
+        createSVG('line', {
+          x1: tx,
+          y1: 3.8,
+          x2: tx,
+          y2: 10.3,
+          stroke: bezelFill,
+          'stroke-width': '1',
+          opacity: '0.65',
+        })
+      );
+    });
+
+    bounceG.appendChild(leftMeterG);
+
+    // 2. Front-Right Wall: Integrated Load Equalizer Bars + ON/OFF Status Switch
+    const rightStatusG = createSVG('g', {
+      transform: `translate(${rightWallCenter.x.toFixed(2)}, ${rightWallCenter.y.toFixed(2)}) skewY(-26.565)`,
+    });
+
+    const rightBezelRect = createSVG('rect', {
+      x: -43,
+      y: -13,
+      width: 86,
+      height: 26,
+      rx: 5.5,
+      fill: bezelFill,
+      stroke: bezelStroke,
+      'stroke-width': '1.6',
+    });
+    rightStatusG.appendChild(rightBezelRect);
+
+    const signalBars = [
+      { x: -34, h: 6 },
+      { x: -28, h: 10 },
+      { x: -22, h: 14 },
+    ].map(({ x, h }) => {
+      const bar = createSVG('rect', {
+        x,
+        y: 7 - h,
+        width: 3.8,
+        height: h,
+        rx: 1.5,
+        fill: '#4ade80',
+      });
+      rightStatusG.appendChild(bar);
+      return bar;
+    });
+
+    const toggleBg = createSVG('rect', {
+      x: -10,
+      y: -8.5,
+      width: 45,
+      height: 17,
+      rx: 8.5,
+      fill: isOffline ? palette.pillToggleOff : palette.pillToggleOn,
+      stroke: '#0b0d12',
+      'stroke-width': '1.4',
+    });
+    rightStatusG.appendChild(toggleBg);
+
+    const toggleText = createSVG('text', {
+      x: 12.5,
+      y: 3.2,
+      'text-anchor': 'middle',
+      fill: palette.pillToggleText,
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '9.5px',
+      'font-weight': '800',
+    });
+    toggleText.textContent = isOffline ? 'OFF' : 'ON';
+    rightStatusG.appendChild(toggleText);
+
+    bounceG.appendChild(rightStatusG);
+
+    meter = {
+      bezelRect,
+      rightBezelRect,
+      fillRect,
+      cpuText,
+      reqText,
+      gearPath,
+      trackW,
+      signalBars,
+      toggleBg,
+      toggleText,
+    };
+  }
+
+  let lbLights = null;
+  if (isGlobe) {
+    const leftWallCenter = iso(u, v + halfSize, height * 0.49);
+    const rightWallCenter = iso(u + halfSize, v, height * 0.49);
+    const housingFill = '#140f08';
+    const housingStroke = '#4a3518';
+
+    // Top-deck corner status LEDs (clear of text & globe)
+    const deckCorners = [
+      iso(u - halfSize * 0.68, v - halfSize * 0.68, height),
+      iso(u + halfSize * 0.68, v - halfSize * 0.68, height),
+      iso(u - halfSize * 0.68, v + halfSize * 0.68, height),
+      iso(u + halfSize * 0.68, v + halfSize * 0.68, height),
+    ];
+    const cornerDots = deckCorners.map((pt, cIdx) => {
+      const dot = createSVG('circle', {
+        cx: pt.x.toFixed(1),
+        cy: pt.y.toFixed(1),
+        r: 2.3,
+        fill: cIdx % 2 === 0 ? '#4ade80' : '#38bdf8',
+      });
+      bounceG.appendChild(dot);
+      return dot;
+    });
+
+    // 1. Front-Left LB Wall: L7 Proxy Hardware LEDs & Link Activity Bank
+    const lbLeftG = createSVG('g', {
+      transform: `translate(${leftWallCenter.x.toFixed(2)}, ${leftWallCenter.y.toFixed(2)}) skewY(26.565)`,
+    });
+    const leftHousing = createSVG('rect', {
+      x: -54,
+      y: -14.5,
+      width: 108,
+      height: 29,
+      rx: 5.5,
+      fill: housingFill,
+      stroke: housingStroke,
+      'stroke-width': '1.6',
+    });
+    lbLeftG.appendChild(leftHousing);
+
+    lbLeftG.appendChild(
+      createSVG('line', {
+        x1: -48,
+        y1: -13.1,
+        x2: 48,
+        y2: -13.1,
+        stroke: 'rgba(255, 215, 130, 0.16)',
+        'stroke-width': '1',
+        'stroke-linecap': 'round',
+      })
+    );
+
+    const statusDot = createSVG('circle', { cx: -43, cy: -5.2, r: 2.6, fill: '#4ade80' });
+    lbLeftG.appendChild(statusDot);
+
+    const proxyTag = createSVG('text', {
+      x: -36,
+      y: -2.2,
+      'text-anchor': 'start',
+      fill: '#fde68a',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '8.8px',
+      'font-weight': '800',
+      'letter-spacing': '0.04em',
+    });
+    proxyTag.textContent = 'L7 PROXY';
+    lbLeftG.appendChild(proxyTag);
+
+    const activeStateText = createSVG('text', {
+      x: 47,
+      y: -2.2,
+      'text-anchor': 'end',
+      fill: '#4ade80',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '8.2px',
+      'font-weight': '800',
+    });
+    activeStateText.textContent = 'ACTIVE';
+    lbLeftG.appendChild(activeStateText);
+
+    const portBaseColors = ['#4ade80', '#38bdf8', '#fbbf24', '#a3e635', '#60a5fa', '#34d399'];
+    const portLeds = portBaseColors.map((col, idx) => {
+      const px = -46 + idx * 16;
+      lbLeftG.appendChild(
+        createSVG('rect', {
+          x: px,
+          y: 3.2,
+          width: 12,
+          height: 5.8,
+          rx: 2,
+          fill: '#221a10',
+        })
+      );
+      const led = createSVG('rect', {
+        x: px + 1,
+        y: 4.1,
+        width: 10,
+        height: 4,
+        rx: 1.5,
+        fill: col,
+        opacity: '0.88',
+      });
+      lbLeftG.appendChild(led);
+      return { el: led, baseColor: col };
+    });
+    bounceG.appendChild(lbLeftG);
+
+    // 2. Front-Right LB Wall: Hardware Vent Grille + LIVE Switch Badge
+    const lbRightG = createSVG('g', {
+      transform: `translate(${rightWallCenter.x.toFixed(2)}, ${rightWallCenter.y.toFixed(2)}) skewY(-26.565)`,
+    });
+    const rightHousing = createSVG('rect', {
+      x: -48,
+      y: -13.5,
+      width: 96,
+      height: 27,
+      rx: 5.5,
+      fill: housingFill,
+      stroke: housingStroke,
+      'stroke-width': '1.6',
+    });
+    lbRightG.appendChild(rightHousing);
+
+    for (let vIdx = 0; vIdx < 4; vIdx++) {
+      lbRightG.appendChild(
+        createSVG('rect', {
+          x: -39,
+          y: -7.5 + vIdx * 4.4,
+          width: 24,
+          height: 2.2,
+          rx: 1.1,
+          fill: '#2b2114',
+        })
+      );
+    }
+
+    const hbLed1 = createSVG('circle', { cx: -7, cy: -5, r: 2.2, fill: '#fbbf24' });
+    const hbLed2 = createSVG('circle', { cx: -7, cy: 4, r: 2.2, fill: '#38bdf8' });
+    lbRightG.appendChild(hbLed1);
+    lbRightG.appendChild(hbLed2);
+
+    const livePillBg = createSVG('rect', {
+      x: 2,
+      y: -8.5,
+      width: 39,
+      height: 17,
+      rx: 8.5,
+      fill: '#4ade80',
+      stroke: '#0f172a',
+      'stroke-width': '1.4',
+    });
+    lbRightG.appendChild(livePillBg);
+
+    const livePillText = createSVG('text', {
+      x: 21.5,
+      y: 3.1,
+      'text-anchor': 'middle',
+      fill: '#0f172a',
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '9px',
+      'font-weight': '800',
+    });
+    livePillText.textContent = 'LIVE';
+    lbRightG.appendChild(livePillText);
+    bounceG.appendChild(lbRightG);
+
+    lbLights = {
+      leftHousing,
+      rightHousing,
+      statusDot,
+      activeStateText,
+      portLeds,
+      cornerDots,
+      hbLed1,
+      hbLed2,
+      livePillBg,
+      livePillText,
+    };
+  }
+
   // Keep reference helper accessible without unused warnings
   void strokeRoundedRect2D;
 
@@ -726,6 +1091,8 @@ function createIsoDiamondBlockSVG({
     t1,
     t2,
     subEl,
+    meter,
+    lbLights,
     centerTop,
   };
 }
@@ -756,7 +1123,7 @@ function buildRoundedQuadPath(pts, radius = 6) {
   return `${d} Z`;
 }
 
-function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, palette = THEMES.light }) {
+function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, label = '', palette = THEMES.light }) {
   const padHalfS = 1.24 * scale;
   const padCornerR = 0.36 * scale;
   const padH = 20 * scale;
@@ -804,8 +1171,10 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, palette = THEMES.lig
   );
 
   const padTopCenter = iso(u, v, padH);
+  // Nudge laptop slightly back on the pad deck so the front flat pad surface cleanly holds the client plaque
+  const laptopAnchor = iso(u - 0.14 * scale, v - 0.14 * scale, padH);
   const laptopG = createSVG('g', {
-    transform: `translate(${padTopCenter.x.toFixed(2)}, ${padTopCenter.y.toFixed(2)}) scale(${scale})`,
+    transform: `translate(${laptopAnchor.x.toFixed(2)}, ${laptopAnchor.y.toFixed(2)}) scale(${scale})`,
   });
   bounceG.appendChild(laptopG);
 
@@ -977,6 +1346,65 @@ function createIsometricLaptopNodeSVG({ u, v, scale = 0.88, palette = THEMES.lig
 
   laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.65, 0.70, 0.72, 1.6), fill: palette.lapSkeleton }));
   laptopG.appendChild(createSVG('path', { d: scrRoundedQuad(0.11, 0.76, 0.56, 0.83, 1.6), fill: palette.lapSkeleton }));
+
+  // Integrated Client Nameplate lying 100% flat on the isometric pad top surface
+  if (label) {
+    const plaqueAnchor = iso(u, v + 0.72 * scale, padH);
+    const plaqueW = Math.min(114, Math.max(96, label.length * 6.5 + 28));
+    const plaqueHw = plaqueW / 2;
+    const plaqueG = createSVG('g', {
+      transform: `translate(${plaqueAnchor.x.toFixed(2)}, ${plaqueAnchor.y.toFixed(2)}) scale(${scale}) matrix(0.94, 0.47, -0.82, 0.41, 0, 0)`,
+    });
+
+    plaqueG.appendChild(
+      createSVG('rect', {
+        x: -plaqueHw,
+        y: -10.5,
+        width: plaqueW,
+        height: 21,
+        rx: 5.5,
+        fill: palette.pillBg,
+        stroke: palette.pillBorder,
+        'stroke-width': '1.6',
+      })
+    );
+
+    const iconG = createSVG('g', { transform: `translate(${-plaqueHw + 12}, 0) scale(0.76)` });
+    iconG.appendChild(
+      createSVG('circle', {
+        cx: 0,
+        cy: -2.8,
+        r: 3.1,
+        fill: 'none',
+        stroke: palette.pillIcon,
+        'stroke-width': '2.1',
+      })
+    );
+    iconG.appendChild(
+      createSVG('path', {
+        d: 'M -5.2 5.4 C -5.2 2.0 -2.8 0.7 0 0.7 C 2.8 0.7 5.2 2.0 5.2 5.4',
+        fill: 'none',
+        stroke: palette.pillIcon,
+        'stroke-width': '2.1',
+        'stroke-linecap': 'round',
+      })
+    );
+    plaqueG.appendChild(iconG);
+
+    const labelEl = createSVG('text', {
+      x: 7,
+      y: 3.6,
+      'text-anchor': 'middle',
+      fill: palette.pillText,
+      'font-family': "'JetBrains Mono', monospace",
+      'font-size': '10px',
+      'font-weight': '800',
+    });
+    labelEl.textContent = label;
+    plaqueG.appendChild(labelEl);
+
+    bounceG.appendChild(plaqueG);
+  }
 
   return { shadowPath, group: outerG, bounceG, heroBannerPath, padTopCenter };
 }
@@ -1180,129 +1608,10 @@ function createClientLabelPillSVG({ cx, cy, text, palette = THEMES.light }) {
   return { group: g };
 }
 
-function createServerMetricPillSVG({ cx, cy, srv, palette = THEMES.light }) {
-  const width = 232;
-  const height = 31;
-  const hw = width / 2;
-  const hh = height / 2;
-  const rx = hh;
-
-  const g = createSVG('g', {
-    transform: `translate(${cx.toFixed(2)}, ${cy.toFixed(2)})`,
-    class: 'iso-interactive-node',
-  });
-
-  g.appendChild(
-    createSVG('rect', {
-      x: -hw + 1,
-      y: -hh + 4.8,
-      width,
-      height,
-      rx,
-      fill: palette.pillServerShadow,
-    })
-  );
-  g.appendChild(
-    createSVG('rect', {
-      x: -hw,
-      y: -hh + 3.0,
-      width,
-      height,
-      rx,
-      fill: palette.pillHardShadow,
-    })
-  );
-
-  const bgRect = createSVG('rect', {
-    x: -hw,
-    y: -hh,
-    width,
-    height,
-    rx,
-    fill: palette.pillBg,
-    stroke: palette.pillBorder,
-    'stroke-width': '2.3',
-  });
-  g.appendChild(bgRect);
-
-  const gearWrap = createSVG('g', { transform: `translate(${-hw + 16.5}, 0)` });
-  const gearPath = createSVG('path', {
-    class: 'svg-gear-spin',
-    d: 'M -2 -7.2 L 2 -7.2 L 2.6 -5.0 L 4.6 -4.0 L 6.6 -5.0 L 8.2 -2.4 L 6.4 -0.8 L 6.4 0.8 L 8.2 2.4 L 6.6 5.0 L 4.6 4.0 L 2.6 5.0 L 2 7.2 L -2 7.2 L -2.6 5.0 L -4.6 4.0 L -6.6 5.0 L -8.2 2.4 L -6.4 0.8 L -6.4 -0.8 L -8.2 -2.4 L -6.6 -5.0 L -4.6 -4.0 L -2.6 -5.0 Z',
-    fill: palette.pillGear,
-  });
-  gearWrap.appendChild(gearPath);
-  gearWrap.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 2.5, fill: palette.pillGearHole }));
-  g.appendChild(gearWrap);
-
-  const trackX = -hw + 28;
-  const trackW = 34;
-  const trackH = 8.2;
-  g.appendChild(
-    createSVG('rect', {
-      x: trackX,
-      y: -trackH / 2,
-      width: trackW,
-      height: trackH,
-      rx: 4.1,
-      fill: palette.pillTrack,
-    })
-  );
-
-  const fillW = Math.max(4, (srv.cpu / 100) * trackW);
-  const fillRect = createSVG('rect', {
-    x: trackX,
-    y: -trackH / 2,
-    width: fillW,
-    height: trackH,
-    rx: 4.1,
-    fill: '#6ec472',
-  });
-  g.appendChild(fillRect);
-
-  const metricText = createSVG('text', {
-    x: trackX + trackW + 6,
-    y: 3.8,
-    'text-anchor': 'start',
-    fill: palette.pillText,
-    'font-family': "'JetBrains Mono', monospace",
-    'font-size': '10px',
-    'font-weight': '800',
-  });
-  metricText.textContent = `${srv.cpu}% • ${srv.totalRequests || 0} req`;
-  g.appendChild(metricText);
-
-  const toggleW = 35;
-  const toggleH = 19.5;
-  const toggleX = hw - toggleW - 6;
-  const toggleBg = createSVG('rect', {
-    x: toggleX,
-    y: -toggleH / 2,
-    width: toggleW,
-    height: toggleH,
-    rx: 9.75,
-    fill: srv.healthy ? palette.pillToggleOn : palette.pillToggleOff,
-    stroke: palette.pillToggleStroke,
-    'stroke-width': '1.8',
-  });
-  g.appendChild(toggleBg);
-
-  const toggleText = createSVG('text', {
-    x: toggleX + toggleW / 2,
-    y: 3.5,
-    'text-anchor': 'middle',
-    fill: palette.pillToggleText,
-    'font-family': "'JetBrains Mono', monospace",
-    'font-size': '9.5px',
-    'font-weight': '800',
-  });
-  toggleText.textContent = srv.healthy ? 'ON' : 'OFF';
-  g.appendChild(toggleText);
-
-  return { group: g, bgRect, fillRect, metricText, gearPath, trackW, toggleBg, toggleText };
-}
-
 const VISUALIZER_3D_STYLES = `
+        .lb-iso-visualizer .srv-meter-fill {
+          transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), fill 200ms ease;
+        }
         .lb-iso-visualizer * {
           box-sizing: border-box;
           user-select: none;
@@ -2294,25 +2603,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       return { x: ORIGIN_X, y: ORIGIN_Y };
     }
 
-    function triggerLBSwitchingArc(inPortPt, outPortPt) {
-      if (!lbSwitchingArcEl || !lbNodeRef) return;
-      const dLb = getLiveNodeDelta(STATE.loadBalancer);
-      const c = lbNodeRef.centerTop;
-      const inLocalX = inPortPt.x - dLb.dx;
-      const inLocalY = inPortPt.y - dLb.dy;
-      const outLocalX = outPortPt.x - dLb.dx;
-      const outLocalY = outPortPt.y - dLb.dy;
-      const p1x = c.x + (inLocalX - c.x) * 0.55;
-      const p1y = c.y + (inLocalY - c.y) * 0.55;
-      const p2x = c.x + (outLocalX - c.x) * 0.55;
-      const p2y = c.y + (outLocalY - c.y) * 0.55;
+    let lbLightPulseAge = 0;
 
-      lbSwitchingArcEl.setAttribute(
-        'd',
-        `M ${p1x.toFixed(1)} ${p1y.toFixed(1)} Q ${c.x.toFixed(1)} ${(c.y - 12).toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)}`
-      );
-      lbSwitchingArcEl.setAttribute('opacity', '0.92');
-      lbSwitchingArcEl._fadeAge = 0.30;
+    function triggerLBSwitchingArc() {
+      if (!lbNodeRef) return;
+      lbLightPulseAge = 0.28;
     }
 
     function triggerNodeImpact(nodeId, portPt, rippleColor = palette.rippleReq, toastText = null) {
@@ -2434,9 +2729,18 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
       // Decay active wire glow overlays removed — clean solid wires
 
-      if (lbSwitchingArcEl && lbSwitchingArcEl._fadeAge > 0) {
-        lbSwitchingArcEl._fadeAge = Math.max(0, lbSwitchingArcEl._fadeAge - dt);
-        lbSwitchingArcEl.setAttribute('opacity', (lbSwitchingArcEl._fadeAge / 0.28).toFixed(2));
+      if (lbNodeRef?.lbLights && currentLbOnline) {
+        if (lbLightPulseAge > 0) {
+          lbLightPulseAge = Math.max(0, lbLightPulseAge - dt);
+        }
+        const phase = Math.floor(performance.now() / 160);
+        const pulseBoost = lbLightPulseAge > 0;
+        lbNodeRef.lbLights.portLeds.forEach((p, pIdx) => {
+          const lit = pulseBoost ? ((pIdx + phase) % 2 === 0) : (pIdx === (phase % lbNodeRef.lbLights.portLeds.length));
+          p.el.setAttribute('opacity', lit ? '1' : '0.42');
+        });
+        lbNodeRef.lbLights.hbLed1.setAttribute('opacity', pulseBoost || phase % 4 === 0 ? '1' : '0.45');
+        lbNodeRef.lbLights.hbLed2.setAttribute('opacity', pulseBoost || phase % 4 === 2 ? '1' : '0.45');
       }
 
       for (let i = activeRipples.length - 1; i >= 0; i--) {
@@ -2624,31 +2928,59 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     function refreshServerPillsUI() {
       STATE.servers.forEach((srv) => {
         const refs = serverNodeRefs.get(srv.id);
-        if (!refs) return;
+        if (!refs?.pill) return;
         const pillKey = srv.healthy
           ? `1:${srv.cpu}:${srv.totalRequests || 0}`
-          : `0:${srv.status || 'offline'}`;
+          : `0:${srv.status || 'offline'}:${srv.totalRequests || 0}`;
         if (srv._lastPillKey === pillKey) return;
         srv._lastPillKey = pillKey;
-        const { bgRect, fillRect, metricText, gearPath, trackW, toggleBg, toggleText } = refs.pill;
+        const {
+          bezelRect,
+          rightBezelRect,
+          fillRect,
+          cpuText,
+          reqText,
+          gearPath,
+          trackW,
+          signalBars,
+          toggleBg,
+          toggleText,
+        } = refs.pill;
 
         if (!srv.healthy) {
-          bgRect.setAttribute('fill', palette.pillOfflineBg);
+          bezelRect.setAttribute('stroke', '#7f1d1d');
+          rightBezelRect.setAttribute('stroke', '#7f1d1d');
           fillRect.setAttribute('width', '0');
-          metricText.textContent = srv.status === 'failed' ? 'CRASHED' : 'OFFLINE';
-          metricText.setAttribute('fill', palette.pillOfflineText);
+          cpuText.textContent = srv.status === 'failed' ? 'CRASHED' : 'OFFLINE';
+          cpuText.setAttribute('fill', '#fda4af');
+          reqText.textContent = `${srv.totalRequests || 0} req`;
+          reqText.setAttribute('fill', '#fca5a5');
+          gearPath.setAttribute('fill', '#f87171');
           gearPath.classList.add('svg-gear-paused');
+          signalBars?.forEach((bar) => bar.setAttribute('fill', '#33222b'));
           toggleBg.setAttribute('fill', palette.pillToggleOffRefresh);
           toggleText.textContent = 'OFF';
         } else {
-          bgRect.setAttribute('fill', palette.pillBg);
-          const w = Math.max(4, (Math.min(100, srv.cpu) / 100) * trackW);
+          const cpuVal = Math.max(0, Math.min(100, Math.round(srv.cpu || 0)));
+          const barColor = cpuVal > 78 ? '#fb7185' : cpuVal > 58 ? '#f59e0b' : '#4ade80';
+          const w = Math.max(4, (cpuVal / 100) * trackW);
+
+          bezelRect.setAttribute('stroke', '#263248');
+          rightBezelRect.setAttribute('stroke', '#263248');
           fillRect.setAttribute('width', w.toFixed(1));
-          const barColor = srv.cpu > 78 ? '#e36652' : srv.cpu > 58 ? '#eba444' : '#6ec472';
           fillRect.setAttribute('fill', barColor);
-          metricText.textContent = `${srv.cpu}% • ${srv.totalRequests || 0} req`;
-          metricText.setAttribute('fill', palette.pillText);
+          cpuText.textContent = `${cpuVal}%`;
+          cpuText.setAttribute('fill', '#f8fafc');
+          reqText.textContent = `${srv.totalRequests || 0} req`;
+          reqText.setAttribute('fill', '#93c5fd');
+          gearPath.setAttribute('fill', '#93c5fd');
           gearPath.classList.remove('svg-gear-paused');
+
+          const activeBars = cpuVal >= 72 ? 3 : cpuVal >= 42 ? 2 : 1;
+          signalBars?.forEach((bar, bIdx) => {
+            bar.setAttribute('fill', bIdx < activeBars ? barColor : '#1e293b');
+          });
+
           toggleBg.setAttribute('fill', palette.pillToggleOn);
           toggleText.textContent = 'ON';
         }
@@ -2800,6 +3132,26 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       if (lbNodeRef.subEl) {
         lbNodeRef.subEl.textContent = currentLbOnline ? (STATE.loadBalancer.subtitle || ALGORITHMS[currentAlgoIdx]) : 'LB OFFLINE';
         lbNodeRef.subEl.setAttribute('fill', currentLbOnline ? palette.lbSubtitle : palette.pillOfflineText);
+      }
+
+      if (lbNodeRef.lbLights) {
+        const lights = lbNodeRef.lbLights;
+        lights.leftHousing.setAttribute('stroke', currentLbOnline ? '#4a3518' : '#7f1d1d');
+        lights.rightHousing.setAttribute('stroke', currentLbOnline ? '#4a3518' : '#7f1d1d');
+        lights.statusDot.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fb7185');
+        lights.activeStateText.textContent = currentLbOnline ? 'ACTIVE' : 'OFFLINE';
+        lights.activeStateText.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fda4af');
+        lights.livePillBg.setAttribute('fill', currentLbOnline ? '#4ade80' : '#fb7185');
+        lights.livePillText.textContent = currentLbOnline ? 'LIVE' : 'DOWN';
+        lights.portLeds.forEach((p) => {
+          p.el.setAttribute('fill', currentLbOnline ? p.baseColor : '#57242c');
+          p.el.setAttribute('opacity', currentLbOnline ? '0.88' : '0.55');
+        });
+        lights.cornerDots.forEach((dot, cIdx) => {
+          dot.setAttribute('fill', currentLbOnline ? (cIdx % 2 === 0 ? '#4ade80' : '#38bdf8') : '#fb7185');
+        });
+        lights.hbLed1.setAttribute('fill', currentLbOnline ? '#fbbf24' : '#fb7185');
+        lights.hbLed2.setAttribute('fill', currentLbOnline ? '#38bdf8' : '#fb7185');
       }
 
       if (announce) {
@@ -3347,34 +3699,22 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           u: client.u,
           v: client.v,
           scale,
+          label: client.label,
           palette,
         });
         shadowsG.appendChild(laptopObj.shadowPath);
         blocksG.appendChild(laptopObj.group);
 
-        const pillPos = iso(client.u - 0.15, client.v - 1.85, 16);
-        const clientPill = createClientLabelPillSVG({
-          cx: pillPos.x,
-          cy: pillPos.y,
-          text: client.label,
-          palette,
-        });
-        clientPill.group._baseTransform = clientPill.group.getAttribute('transform') || '';
-        clientPill.group.addEventListener('click', () => {
-          spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx);
-        });
-        pillsG.appendChild(clientPill.group);
-
         makeNodeInteractive({
           nodeObj: client,
           groupEl: laptopObj.group,
           shadowEl: laptopObj.shadowPath,
-          pillEl: clientPill.group,
+          pillEl: null,
           onMove: () => refreshClientWire(client),
           onClick: () => spawnPacket(clientRouteIndices[idx], client.dashed ? 2 : 0, 1, 1.0, idx),
         });
 
-        clientNodeRefs.set(client.id, { laptop: laptopObj, pill: clientPill });
+        clientNodeRefs.set(client.id, { laptop: laptopObj, pill: null });
       });
 
       lbNodeRef = createIsoDiamondBlockSVG({
@@ -3408,22 +3748,13 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           }
         },
       });
-      lbSwitchingArcEl = createSVG('path', {
-        d: '',
-        fill: 'none',
-        stroke: palette.lbArc,
-        'stroke-width': '3.0',
-        'stroke-linecap': 'round',
-        'stroke-dasharray': '5 4',
-        opacity: '0',
-      });
-      lbSwitchingArcEl._fadeAge = 0;
-      lbNodeRef.bounceG.appendChild(lbSwitchingArcEl);
+      lbSwitchingArcEl = null;
 
       const serversSorted = STATE.servers.map((s, idx) => ({ srv: s, idx, depth: s.u + s.v }));
       serversSorted.sort((a, b) => a.depth - b.depth);
 
       serversSorted.forEach(({ srv, idx }) => {
+        srv._lastPillKey = '';
         const srvBlock = createIsoDiamondBlockSVG({
           id: `node-${srv.id}`,
           u: srv.u,
@@ -3443,25 +3774,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         shadowsG.appendChild(srvBlock.shadowPath);
         blocksG.appendChild(srvBlock.group);
 
-        const pillPos = iso(srv.u + 0.15, srv.v + 2.35, 0);
-        const metricPill = createServerMetricPillSVG({
-          cx: pillPos.x,
-          cy: pillPos.y,
-          srv,
-          palette,
-        });
-        metricPill.group._baseTransform = metricPill.group.getAttribute('transform') || '';
-        metricPill.group.addEventListener('click', (e) => {
-          e.stopPropagation();
-          toggleServerHealth(idx);
-        });
-        pillsG.appendChild(metricPill.group);
-
         makeNodeInteractive({
           nodeObj: srv,
           groupEl: srvBlock.group,
           shadowEl: srvBlock.shadowPath,
-          pillEl: metricPill.group,
+          pillEl: null,
           onMove: () => refreshServerWire(srv),
           onClick: () => toggleServerHealth(idx),
         });
@@ -3469,7 +3786,7 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         serverNodeRefs.set(srv.id, {
           srv,
           block: srvBlock,
-          pill: metricPill,
+          pill: srvBlock.meter,
           wireRefs: srv._wireRefs,
         });
       });
