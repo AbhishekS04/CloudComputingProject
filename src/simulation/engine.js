@@ -90,6 +90,96 @@ class SimulationEngine {
     this.probeIntervalId = null;
     this.localProbeUnavailable = false;
     this.OFFLINE_THRESHOLD = 2;    // mark offline after 2 consecutive failures (~4-5s)
+    this.syncEpoch = 0;
+    this.lastRawBackendStats = null;
+    this.runBaseline = null;
+    this.hasInitialBaseline = false;
+  }
+
+  /**
+   * Resets visible run counters to 0 and snapshots the remote LB cumulative totals
+   * as a baseline so consecutive runs (e.g. 2k -> 2k) each report only fresh requests.
+   */
+  async startFreshRun({ fetchRemoteBaseline = true } = {}) {
+    this.syncEpoch += 1;
+    if (this.deltaFlushTimer) {
+      clearTimeout(this.deltaFlushTimer);
+      this.deltaFlushTimer = null;
+    }
+    this.pendingLogs = [];
+    this.pendingServerDeltas = {};
+    this.pendingMetricDelta = { total: 0, ok: 0, fail: 0, latency: null, exec: null, disp: null };
+
+    const zeroStoreCounters = () => {
+      useSimulationStore.setState((state) => ({
+        servers: state.servers.map((s) => ({
+          ...s,
+          totalRequests: 0,
+          successfulRequests: 0,
+          failedRequests: 0,
+        })),
+        metrics: {
+          ...state.metrics,
+          totalRequests: 0,
+          successfulRequests: 0,
+          failedRequests: 0,
+          currentRps: 0,
+        },
+      }));
+    };
+
+    zeroStoreCounters();
+
+    const store = useSimulationStore.getState();
+    const baseUrl = getGatewayUrl();
+    if (store.clusterMode !== 'live' || !baseUrl) {
+      this.runBaseline = null;
+      return;
+    }
+
+    if (this.lastRawBackendStats) {
+      this.runBaseline = {
+        total: this.lastRawBackendStats.total,
+        ok: this.lastRawBackendStats.ok,
+        fail: this.lastRawBackendStats.fail,
+        servers: { ...this.lastRawBackendStats.servers },
+      };
+    }
+
+    if (!fetchRemoteBaseline) return;
+
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const res = await fetch(`${baseUrl}/api/stats`, { cache: 'no-store', signal: ctrl.signal });
+      if (res.ok) {
+        const statsData = await res.json();
+        const srvMap = {};
+        if (Array.isArray(statsData?.servers)) {
+          for (const srv of statsData.servers) {
+            srvMap[srv.id] = {
+              total: srv.total_requests || 0,
+              failed: srv.failed_requests || 0,
+            };
+          }
+        }
+        const snap = {
+          total: statsData?.total_requests ?? 0,
+          ok: statsData?.successful_requests ?? 0,
+          fail: statsData?.failed_requests ?? 0,
+          servers: srvMap,
+        };
+        this.lastRawBackendStats = snap;
+        this.runBaseline = snap;
+        this.hasInitialBaseline = true;
+        // Re-zero in case any tick flushed while awaiting /api/stats baseline
+        zeroStoreCounters();
+      }
+    } catch {
+      // Keep lastRawBackendStats fallback baseline if gateway probe is busy
+    } finally {
+      clearTimeout(tid);
+    }
   }
 
   start() {
@@ -107,6 +197,8 @@ class SimulationEngine {
         this.syncFailCount = 0;
         this.lbProbeFailCount = 0;
         this.vmFailCounts = {};
+        this.runBaseline = null;
+        this.hasInitialBaseline = false;
         this.initEventStream();
         this.syncFromBackend();
         this.probeClusterHealth();
@@ -449,9 +541,15 @@ class SimulationEngine {
   async syncFromBackend() {
     const store = useSimulationStore.getState();
     const baseUrl = getGatewayUrl();
-    if (store.clusterMode !== 'live' || !baseUrl || this.isSyncing) return;
+    if (store.clusterMode !== 'live') {
+      this.runBaseline = null;
+      this.hasInitialBaseline = false;
+      return;
+    }
+    if (!baseUrl || this.isSyncing) return;
 
     this.isSyncing = true;
+    const callEpoch = this.syncEpoch;
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), 5500);
 
@@ -468,6 +566,9 @@ class SimulationEngine {
         return;
       }
 
+      // Discard stale poll that started before a fresh run baseline reset
+      if (callEpoch !== this.syncEpoch) return;
+
       // Success — reset failure counters immediately
       this.syncFailCount = 0;
       this.lbProbeFailCount = 0;
@@ -478,7 +579,50 @@ class SimulationEngine {
 
       const serversData = await serversRes.json();
       const statsData = await statsRes.json();
+      if (callEpoch !== this.syncEpoch) return;
+
       const rawServers = Array.isArray(serversData) ? serversData : (serversData.servers || []);
+      const rawTotal = statsData.total_requests ?? 0;
+      const rawOk = statsData.successful_requests ?? 0;
+      const rawFail = statsData.failed_requests ?? 0;
+
+      const rawServerMap = {};
+      for (const srv of rawServers) {
+        rawServerMap[srv.id] = {
+          total: srv.total_requests || 0,
+          failed: srv.failed_requests || 0,
+        };
+      }
+      this.lastRawBackendStats = {
+        total: rawTotal,
+        ok: rawOk,
+        fail: rawFail,
+        servers: rawServerMap,
+      };
+
+      // On initial page load / refresh (or gateway switch), baseline from Azure's existing total so session starts at 0
+      if (!this.hasInitialBaseline && !this.runBaseline) {
+        this.runBaseline = {
+          total: rawTotal,
+          ok: rawOk,
+          fail: rawFail,
+          servers: rawServerMap,
+        };
+        this.hasInitialBaseline = true;
+      } else if (this.runBaseline && rawTotal < this.runBaseline.total) {
+        // If remote LB restarted and cumulative total dropped below baseline, re-anchor at current total
+        this.runBaseline = {
+          total: rawTotal,
+          ok: rawOk,
+          fail: rawFail,
+          servers: rawServerMap,
+        };
+      }
+
+      const base = this.runBaseline;
+      const relTotal = base ? Math.max(0, rawTotal - base.total) : rawTotal;
+      const relOk = base ? Math.max(0, rawOk - base.ok) : rawOk;
+      const relFail = base ? Math.max(0, rawFail - base.fail) : rawFail;
 
       const backendAlgoRaw = String(statsData?.algorithm || '').toUpperCase();
       const validBackendAlgo = ['ROUND_ROBIN', 'LEAST_CONNECTIONS', 'IP_HASH'].includes(backendAlgoRaw)
@@ -490,10 +634,20 @@ class SimulationEngine {
         const existingMap = Object.fromEntries(state.servers.map((s) => [s.id, s]));
         const mappedServers = rawServers.map((srv, idx) => {
           const mapped = mapBackendServer(srv, idx, existingMap[srv.id]);
-          if (mapped.status === 'healthy' && (this.vmFailCounts[mapped.id] || 0) >= this.OFFLINE_THRESHOLD) {
-            return { ...mapped, status: 'failed', activeConnections: 0, cpu: 0 };
+          const srvBase = base?.servers?.[srv.id];
+          const adjTotal = srvBase ? Math.max(0, (srv.total_requests || 0) - srvBase.total) : mapped.totalRequests;
+          const adjFail = srvBase ? Math.max(0, (srv.failed_requests || 0) - srvBase.failed) : mapped.failedRequests;
+          const adjOk = Math.max(0, adjTotal - adjFail);
+          const withRunCounts = {
+            ...mapped,
+            totalRequests: adjTotal,
+            successfulRequests: adjOk,
+            failedRequests: adjFail,
+          };
+          if (withRunCounts.status === 'healthy' && (this.vmFailCounts[withRunCounts.id] || 0) >= this.OFFLINE_THRESHOLD) {
+            return { ...withRunCounts, status: 'failed', activeConnections: 0, cpu: 0 };
           }
-          return mapped;
+          return withRunCounts;
         });
 
         return {
@@ -503,9 +657,9 @@ class SimulationEngine {
           servers: mappedServers,
           metrics: {
             ...state.metrics,
-            totalRequests: statsData.total_requests ?? state.metrics.totalRequests,
-            successfulRequests: statsData.successful_requests ?? state.metrics.successfulRequests,
-            failedRequests: statsData.failed_requests ?? state.metrics.failedRequests,
+            totalRequests: statsData.total_requests !== undefined ? relTotal : state.metrics.totalRequests,
+            successfulRequests: statsData.successful_requests !== undefined ? relOk : state.metrics.successfulRequests,
+            failedRequests: statsData.failed_requests !== undefined ? relFail : state.metrics.failedRequests,
             avgLatency: Math.round(statsData.avg_response_time_ms || state.metrics.avgLatency),
             activeConnectionsTotal: statsData.active_connections ?? state.metrics.activeConnectionsTotal
           }
@@ -685,26 +839,8 @@ class SimulationEngine {
   }
 
   tick() {
-    const store = useSimulationStore.getState();
-    if (!store.isRunning) return;
-
     const now = Date.now();
-    const dt = this.tickRate / 1000;
-
-    if (store.clusterMode === 'dummy') {
-      const expectedRequestsThisTick = store.targetRps * dt;
-      this.accumulator += expectedRequestsThisTick;
-      const requestsToEmit = Math.floor(this.accumulator);
-      this.accumulator -= requestsToEmit;
-
-      for (let i = 0; i < requestsToEmit; i++) {
-        this.dispatchSingleRequest({ fromTick: true });
-      }
-    } else {
-      // Live Azure Mode: Traffic can be driven directly from the Browser Traffic Dispatcher
-      // in StudioRightPanel (or external clients), streaming via /api/stream SSE & HTTP responses.
-      // Zero background auto-traffic is emitted while idle.
-    }
+    this.accumulator = 0;
 
     if (now - this.lastSecondTime >= 1000) {
       this.flushSecondMetrics(now);

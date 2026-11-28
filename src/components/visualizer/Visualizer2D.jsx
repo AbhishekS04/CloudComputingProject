@@ -955,13 +955,6 @@ const Visualizer2D = memo(function Visualizer2D({
   // 8. MAIN 60-120FPS ANIMATION & DUPLEX COLLISION-AVOIDANCE LOOP
   // =========================================================================
   useEffect(() => {
-    // Seed initial traffic on mount only if in dummy mode
-    if (useSimulationStore.getState().clusterMode === 'dummy') {
-      layoutRef.current.clientRoutes.forEach((cr, idx) => {
-        spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, 1.0, idx, true);
-      });
-    }
-
     let rafId;
     let lastTime = performance.now();
 
@@ -1143,30 +1136,9 @@ const Visualizer2D = memo(function Visualizer2D({
           el.setAttribute('opacity', ((1 - p) * 0.7).toFixed(2));
         }
 
-        // 2. Emit Client Requests (Dummy background stream when running + always drain manual/live queue)
+        // 2. Drain queued request animations (live SSE/HTTP events + user-triggered Stream/Burst/1-Req in Dummy mode)
         const currentMode = useSimulationStore.getState().clusterMode;
-        const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
-
-        if (!paused && currentMode === 'dummy') {
-          const visualEmitRate =
-            rps <= 12 ? 3.2 : rps <= 45 ? 7.5 : rps <= 180 ? 14 : rps <= 1000 ? 22 : 30;
-
-          eng.spawnAcc += dt * visualEmitRate;
-          let attempts = 0;
-          while (eng.spawnAcc >= 1.0 && attempts < nClients * 2 && nClients > 0) {
-            eng.spawnAcc -= 1.0;
-            attempts++;
-            const cIdx = eng.clientCursor % nClients;
-            eng.clientCursor++;
-            const cr = clientRoutes[cIdx];
-            if (cr) {
-              spawnPacket(cr.routeIdx, cr.client.dashed ? 2 : 0, 1, speedMult, cIdx, false);
-            }
-          }
-          if (eng.spawnAcc > 3) eng.spawnAcc = 0;
-        } else {
-          eng.spawnAcc = 0;
-        }
+        eng.spawnAcc = 0;
 
         for (let c = 0; c < nClients; c++) {
           eng.clientCooldowns[c] = Math.max(0, eng.clientCooldowns[c] - dt);
@@ -1312,10 +1284,11 @@ const Visualizer2D = memo(function Visualizer2D({
             eng.metricAcc = 0;
             const srvs = stateRef.current.servers;
             const healthyCount = srvs.filter((s) => s.healthy).length;
-            const hDenom = healthyCount || 1;
-            const loadShare = Math.round(
-              (3 / hDenom) * (rps >= 1000 ? 22 : rps >= 180 ? 14 : rps >= 45 ? 6 : 0)
-            );
+            let activeTotal = 0;
+            for (let k = 0; k < MAX_PACKETS; k++) {
+              if (eng.pktActive[k]) activeTotal++;
+            }
+            const loadShare = activeTotal > 0 ? Math.min(24, activeTotal * 2) : 0;
 
             setServers((prev) =>
               prev.map((s, idx) => {
@@ -1514,7 +1487,7 @@ const Visualizer2D = memo(function Visualizer2D({
           />
           <MetricCard
             label="THROUGHPUT"
-            value={`${(isLbOffline ? 0 : (storeClusterMode === 'live' ? (storeMetrics.currentRps || 0) : targetRPS)).toLocaleString()} req/s`}
+            value={`${(isLbOffline ? 0 : (storeMetrics.currentRps || 0)).toLocaleString()} req/s`}
             icon="pulse"
             isDark={isDark}
           />

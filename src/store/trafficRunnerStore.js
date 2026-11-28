@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { simulationEngine } from '../simulation/engine';
 
 // Module-level handles so active traffic tasks keep running across page navigation
 let activeAbortCtrl = null;
@@ -75,6 +76,9 @@ export const useTrafficRunnerStore = create((set, get) => ({
       flushTimer = null;
     }
     const isTaskRunning = Boolean(get().activeTask);
+    if (!isTaskRunning) {
+      simulationEngine.startFreshRun({ fetchRemoteBaseline: true }).catch(() => {});
+    }
     set((state) => ({
       dispatchLogs: [],
       progress: isTaskRunning ? state.progress : { completed: 0, total: 0, ok: 0, fail: 0 },
@@ -101,7 +105,11 @@ export const useTrafficRunnerStore = create((set, get) => ({
     }));
 
     Promise.resolve()
-      .then(() => runner(ctrl.signal, get().appendLog, get().queueProgress))
+      .then(async () => {
+        await simulationEngine.startFreshRun({ fetchRemoteBaseline: true });
+        if (ctrl.signal.aborted) return;
+        await runner(ctrl.signal, get().appendLog, get().queueProgress);
+      })
       .catch((err) => {
         if (err?.name !== 'AbortError') {
           get().appendLog({

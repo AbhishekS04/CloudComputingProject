@@ -243,18 +243,37 @@ export default function Visualizer() {
     }
 
     if (clusterMode === 'dummy') {
-      if (!isRunning) toggleSimulation();
-      const totalDummy = Math.min(parsedCount, 200);
+      const totalDummy = parsedCount;
+      const batchSize = Math.max(1, Math.ceil(totalDummy / 150));
       startTask('burst', async (signal) => {
-        for (let i = 0; i < totalDummy; i++) {
-          if (signal.aborted) break;
-          simulationEngine.dispatchSingleRequest();
+        let completed = 0;
+        appendLog({
+          id: `dummy-burst-start-${Date.now()}`,
+          level: 'warning',
+          text: `[DUMMY BURST] Dispatching ${totalDummy} simulated requests (${algorithm})...`,
+        });
+        queueProgress({ completed: 0, total: totalDummy, ok: 0, fail: 0 });
+        while (completed < totalDummy && !signal.aborted) {
+          const step = Math.min(batchSize, totalDummy - completed);
+          for (let k = 0; k < step; k++) {
+            simulationEngine.dispatchSingleRequest();
+          }
+          completed += step;
+          queueProgress({ completed, total: totalDummy, ok: completed, fail: 0 });
+          if (completed >= totalDummy) break;
           await new Promise((resolve) => {
-            const t = setTimeout(resolve, 20);
+            const t = setTimeout(resolve, 16);
             signal.addEventListener('abort', () => {
               clearTimeout(t);
               resolve();
             }, { once: true });
+          });
+        }
+        if (!signal.aborted) {
+          appendLog({
+            id: `dummy-burst-done-${Date.now()}`,
+            level: 'success',
+            text: `[DUMMY BURST SUMMARY] ${completed}/${totalDummy} simulated requests completed.`,
           });
         }
       });
@@ -308,13 +327,43 @@ export default function Visualizer() {
   };
 
   const handleToggleStream = () => {
-    if (clusterMode === 'dummy') {
-      setTargetRps(parsedRate);
-      toggleSimulation();
-      return;
-    }
     if (activeTask === 'stream') {
       stopActiveTask();
+      return;
+    }
+    if (clusterMode === 'dummy') {
+      setTargetRps(parsedRate);
+      const totalDummy = parsedCount;
+      const intervalMs = 1000 / parsedRate;
+      startTask('stream', async (signal) => {
+        let sent = 0;
+        appendLog({
+          id: `dummy-stream-start-${Date.now()}`,
+          level: 'info',
+          text: `[DUMMY STREAM] Streaming ${totalDummy} simulated requests @ ${parsedRate} req/s (${algorithm})...`,
+        });
+        queueProgress({ completed: 0, total: totalDummy, ok: 0, fail: 0 });
+        while (sent < totalDummy && !signal.aborted) {
+          simulationEngine.dispatchSingleRequest();
+          sent += 1;
+          queueProgress({ completed: sent, total: totalDummy, ok: sent, fail: 0 });
+          if (sent >= totalDummy) break;
+          await new Promise((resolve) => {
+            const t = setTimeout(resolve, intervalMs);
+            signal.addEventListener('abort', () => {
+              clearTimeout(t);
+              resolve();
+            }, { once: true });
+          });
+        }
+        appendLog({
+          id: `dummy-stream-done-${Date.now()}`,
+          level: signal.aborted ? 'info' : 'success',
+          text: signal.aborted
+            ? `[DUMMY STREAM STOPPED] Sent ${sent}/${totalDummy} simulated requests.`
+            : `[DUMMY STREAM COMPLETE] Sent ${sent}/${totalDummy} simulated requests.`,
+        });
+      });
       return;
     }
     startTask('stream', (signal) =>
@@ -528,34 +577,25 @@ export default function Visualizer() {
                 type="button"
                 disabled={Boolean(activeTask && activeTask !== 'stream')}
                 onClick={handleToggleStream}
-                title={clusterMode === 'live' ? `Stream ${parsedCount} requests @ ${parsedRate} req/s` : 'Pause / Resume stream'}
+                title={`Stream ${parsedCount} requests @ ${parsedRate} req/s`}
                 className={`inline-flex items-center gap-1.5 h-full px-3 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 whitespace-nowrap ${
-                  clusterMode === 'live' && activeTask === 'stream'
+                  activeTask === 'stream'
                     ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold'
-                    : clusterMode === 'dummy' && !isRunning
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold'
                     : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-charcoal-900 dark:text-cream-100'
                 }`}
               >
-                {clusterMode === 'live' ? (
-                  activeTask === 'stream' ? (
-                    <>
-                      <Stop size={12} weight="Filled" />
-                      <span>Stop</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play size={12} />
-                      <span>Stream</span>
-                      <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500">
-                        {parsedRate}/s
-                      </span>
-                    </>
-                  )
+                {activeTask === 'stream' ? (
+                  <>
+                    <Stop size={12} weight="Filled" />
+                    <span>Stop</span>
+                  </>
                 ) : (
                   <>
                     <Play size={12} />
-                    <span>{isRunning ? 'Pause' : 'Resume'}</span>
+                    <span>Stream</span>
+                    <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-500">
+                      {parsedRate}/s
+                    </span>
                   </>
                 )}
               </button>
@@ -910,34 +950,32 @@ export default function Visualizer() {
             </button>
 
             {/* Console Toggle */}
-            {clusterMode === 'live' && (
-              <button
-                type="button"
-                onClick={() => setShowLogs((prev) => !prev)}
-                title="Toggle browser traffic console"
-                className={`${chipBtnClass} ${
-                  showLogs ? 'border-[#007AFF]/50 ring-2 ring-[#007AFF]/15' : ''
-                }`}
-              >
-                <BrowserTerminal size={13} className="opacity-75" />
-                <span>Log</span>
-                {progress.completed > 0 ? (
-                  <span
-                    className={`font-mono text-[10px] tabular-nums ${
-                      progress.fail > 0 && progress.ok === 0
-                        ? 'text-rose-500'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                    }`}
-                  >
-                    {progress.ok}/{progress.total || progress.completed}
-                  </span>
-                ) : dispatchLogs.length > 0 ? (
-                  <span className="font-mono text-[10px] text-neutral-400">
-                    {dispatchLogs.length}
-                  </span>
-                ) : null}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowLogs((prev) => !prev)}
+              title="Toggle browser traffic console"
+              className={`${chipBtnClass} ${
+                showLogs ? 'border-[#007AFF]/50 ring-2 ring-[#007AFF]/15' : ''
+              }`}
+            >
+              <BrowserTerminal size={13} className="opacity-75" />
+              <span>Log</span>
+              {progress.completed > 0 ? (
+                <span
+                  className={`font-mono text-[10px] tabular-nums ${
+                    progress.fail > 0 && progress.ok === 0
+                      ? 'text-rose-500'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}
+                >
+                  {progress.ok}/{progress.total || progress.completed}
+                </span>
+              ) : dispatchLogs.length > 0 ? (
+                <span className="font-mono text-[10px] text-neutral-400">
+                  {dispatchLogs.length}
+                </span>
+              ) : null}
+            </button>
           </div>
         </div>
 
@@ -1045,7 +1083,7 @@ export default function Visualizer() {
 
         {/* Quiet 1-Line Live Status Ticker (shown instead of a blank box when Log is collapsed) */}
         <AnimatePresence initial={false}>
-          {clusterMode === 'live' && !showLogs && (lastLog || progress.completed > 0) && (
+          {!showLogs && (lastLog || progress.completed > 0) && (
             <motion.div
               key="compact-status-ticker"
               initial={{ height: 0, opacity: 0 }}
@@ -1106,7 +1144,7 @@ export default function Visualizer() {
 
         {/* Smooth Expanding Compact Telemetry Console */}
         <AnimatePresence initial={false}>
-          {showLogs && clusterMode === 'live' && (
+          {showLogs && (
             <motion.div
               key="browser-traffic-console"
               initial={{ height: 0, opacity: 0, y: -4, filter: 'blur(3px)' }}

@@ -75,11 +75,18 @@ export const useSimulationStore = create((set, get) => ({
   setClusterMode: (mode) => {
     const isLive = mode === 'live';
     const serverPool = isLive ? DEFAULT_SERVERS : DUMMY_SERVERS;
-    set({
+    set((state) => ({
       clusterMode: mode,
       servers: serverPool.map((s) => ({ ...s, totalRequests: 0, successfulRequests: 0, failedRequests: 0 })),
+      metrics: {
+        ...state.metrics,
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        currentRps: 0,
+      },
       selectedNode: { type: 'lb', id: 'load-balancer' }
-    });
+    }));
     get().addEvent({
       type: isLive ? 'success' : 'info',
       title: isLive ? 'Real-Time Azure Mode Activated' : 'Dummy Simulation Mode Activated',

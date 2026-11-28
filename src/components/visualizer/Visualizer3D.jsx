@@ -4342,11 +4342,6 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
     buildCompleteSVGScene();
     syncViewportSize();
-    if (useSimulationStore.getState().clusterMode === 'dummy') {
-      for (let i = 0; i < STATE.clients.length; i++) {
-        spawnPacket(clientRouteIndices[i], STATE.clients[i].dashed ? 2 : 0, 1, 1.0, i, true);
-      }
-    }
 
     let lastTime = performance.now();
     let spawnAccumulator = 0;
@@ -4476,37 +4471,9 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       updateMacroAndSpringAnimations(dt, now);
 
       const currentMode = useSimulationStore.getState().clusterMode;
-      const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
+      spawnAccumulator = 0;
 
-      if (!isPaused && currentMode === 'dummy' && currentLbOnline) {
-        const visualEmitRate =
-          targetRPS <= 12
-            ? 3.2
-            : targetRPS <= 45
-            ? 7.5
-            : targetRPS <= 180
-            ? 14
-            : targetRPS <= 1000
-            ? 22
-            : 30;
-
-        spawnAccumulator += dt * visualEmitRate;
-        let attempts = 0;
-        while (spawnAccumulator >= 1.0 && attempts < nClients * 2) {
-          spawnAccumulator -= 1.0;
-          attempts++;
-          const cIdx = clientCursor % nClients;
-          clientCursor++;
-          const client = STATE.clients[cIdx];
-          const pType = client && client.dashed ? 2 : 0;
-          spawnPacket(clientRouteIndices[cIdx], pType, 1, speedMult, cIdx, false);
-        }
-        if (spawnAccumulator > 3) spawnAccumulator = 0;
-      } else {
-        spawnAccumulator = 0;
-      }
-
-      // Always drain queued request animations (live SSE/HTTP events + manual 1-Req/Burst in Dummy mode)
+      // Always drain queued request animations (live SSE/HTTP events + user-triggered Stream/Burst/1-Req in Dummy mode)
       for (let c = 0; c < nClients; c++) {
         clientCooldowns[c] = Math.max(0, clientCooldowns[c] - dt);
       }
@@ -4586,9 +4553,6 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
               const srvIdx = rIdx - nClients;
               const srv = STATE.servers[srvIdx];
               if (srv && srv.healthy && !isErr) {
-                if (currentMode === 'dummy') {
-                  srv.totalRequests = (srv.totalRequests || 0) + 1;
-                }
                 const msVal = Math.round(latMs || srv.avgLatency || 0);
                 const prefix = isDirect ? 'DIRECT 200' : '200 OK';
                 const latText = msVal > 0 ? `${prefix} · ${msVal}ms` : prefix;
@@ -4633,15 +4597,12 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         metricTimer += dt;
         if (currentMode === 'dummy' && metricTimer >= 0.65) {
           metricTimer = 0;
-          const healthyCount = STATE.servers.filter((s) => s.healthy).length || 1;
-          const loadShare = Math.round(
-            (3 / healthyCount) * (targetRPS >= 1000 ? 22 : targetRPS >= 180 ? 14 : targetRPS >= 45 ? 6 : 0)
-          );
+          const activeLoadShare = activeSlots.length > 0 ? Math.min(24, activeSlots.length * 2) : 0;
 
           STATE.servers.forEach((srv, idx) => {
             if (!srv.healthy) return;
             const liveConns = getActiveServerInFlight(idx);
-            const targetCpu = Math.min(99, Math.max(12, 16 + liveConns * 9 + loadShare));
+            const targetCpu = Math.min(99, Math.max(12, 16 + liveConns * 9 + activeLoadShare));
             srv.cpu = Math.round((srv.cpu || 20) * 0.55 + targetCpu * 0.45);
             srv.connections = liveConns;
           });
