@@ -1,0 +1,8 @@
+.claude
+.agents
+.gemini
+node_modules
+.git
+*.log
+.env
+.env.*
