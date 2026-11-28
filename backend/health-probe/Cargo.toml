@@ -1,0 +1,9 @@
+[package]
+name = "bifrost-probe"
+version = "0.1.0"
+edition = "2021"
+description = "Concurrent L4/L7 health probe for BIFROST Azure LB and worker VMs"
+
+[[bin]]
+name = "bifrost-probe"
+path = "src/main.rs"

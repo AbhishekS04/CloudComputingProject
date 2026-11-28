@@ -10,6 +10,9 @@ __pycache__/
 .pytest_cache/
 .env
 
+# Rust build artifacts
+backend/health-probe/target/
+
 # Logs
 logs/
 *.log

@@ -2265,10 +2265,12 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       }
       isPaused = !useSimulationStore.getState().isRunning;
       targetRPS = useSimulationStore.getState().targetRps;
-      currentAlgoIdx = useSimulationStore.getState().algorithm === 'LEAST_CONNECTIONS' ? 1 : 0;
+      const initAlgo = useSimulationStore.getState().algorithm;
+      currentAlgoIdx = initAlgo === 'LEAST_CONNECTIONS' ? 1 : initAlgo === 'IP_HASH' ? 2 : 0;
       syncHudMetrics(useSimulationStore.getState());
     }
     let rrCounter = 0;
+    let lcTieCursor = 0;
 
     const ROUTE_TABLES = [];
     const wireGlows = [];
@@ -2832,6 +2834,25 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
       return dir * maxAvoid * 6.8;
     }
 
+    function hashClientKey(str) {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function getActiveServerInFlight(srvIdx) {
+      const targetRoute = serverRouteIndices[srvIdx];
+      if (targetRoute === undefined) return 0;
+      let count = 0;
+      for (let k = 0; k < activeSlots.length; k++) {
+        if (pktRoute[activeSlots[k]] === targetRoute) count++;
+      }
+      return count;
+    }
+
     function pickHealthyServerIdx(clientIdx = 0) {
       const healthy = [];
       for (let i = 0; i < STATE.servers.length; i++) {
@@ -2845,15 +2866,27 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         rrCounter++;
         return pick;
       } else if (algo === 'LEAST CONN') {
-        let best = healthy[0];
-        for (let i = 1; i < healthy.length; i++) {
-          if (STATE.servers[healthy[i]].connections < STATE.servers[best].connections) {
-            best = healthy[i];
-          }
+        const inLiveMode = useSimulationStore.getState().clusterMode === 'live';
+        let minLoad = Infinity;
+        const loads = new Array(healthy.length);
+        for (let i = 0; i < healthy.length; i++) {
+          const sIdx = healthy[i];
+          const liveLoad = getActiveServerInFlight(sIdx) + (inLiveMode ? (STATE.servers[sIdx].connections || 0) : 0);
+          loads[i] = liveLoad;
+          if (liveLoad < minLoad) minLoad = liveLoad;
         }
-        return best;
+        const tied = [];
+        for (let i = 0; i < healthy.length; i++) {
+          if (loads[i] === minLoad) tied.push(healthy[i]);
+        }
+        if (tied.length === 1) return tied[0];
+        const pick = tied[lcTieCursor % tied.length];
+        lcTieCursor++;
+        return pick;
       } else {
-        return healthy[clientIdx % healthy.length];
+        const client = STATE.clients[clientIdx];
+        const clientKey = client?.ip || client?.label || `client-${clientIdx}`;
+        return healthy[hashClientKey(clientKey) % healthy.length];
       }
     }
 
@@ -2998,9 +3031,13 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     function toggleServerHealth(srvIdx, forceState = undefined) {
       const srv = STATE.servers[srvIdx];
       if (!srv) return;
+      // In Live Azure mode, only authoritative health telemetry (forceState boolean) may change VM health.
+      if (typeof forceState !== 'boolean' && useSimulationStore.getState().clusterMode === 'live') {
+        return;
+      }
       srv.healthy = typeof forceState === 'boolean' ? forceState : !srv.healthy;
       if (IS_LIVE_BACKEND && typeof forceState !== 'boolean') {
-        useSimulationStore.getState().toggleServerStatus(srv.id);
+        useSimulationStore.getState().toggleServerStatus(srv.storeId || srv.id);
       }
 
       const refs = serverNodeRefs.get(srv.id);
@@ -3171,8 +3208,12 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     }
 
     function cycleAlgorithm() {
+      const storeAlgos = ['ROUND_ROBIN', 'LEAST_CONNECTIONS', 'IP_HASH'];
       currentAlgoIdx = (currentAlgoIdx + 1) % ALGORITHMS.length;
       applyAlgorithmName(ALGORITHMS[currentAlgoIdx]);
+      if (IS_LIVE_BACKEND) {
+        useSimulationStore.getState().setAlgorithm(storeAlgos[currentAlgoIdx] || 'ROUND_ROBIN');
+      }
     }
 
     function applyRequestRate(rps) {
@@ -3765,7 +3806,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
           shadowEl: srvBlock.shadowPath,
           pillEl: null,
           onMove: () => refreshServerWire(srv),
-          onClick: () => toggleServerHealth(idx),
+          onClick: () => {
+            if (useSimulationStore.getState().clusterMode !== 'live') {
+              toggleServerHealth(idx);
+            }
+          },
         });
 
         serverNodeRefs.set(srv.id, {
@@ -4430,65 +4475,65 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
 
       updateMacroAndSpringAnimations(dt, now);
 
-      if (!isPaused) {
+      const currentMode = useSimulationStore.getState().clusterMode;
+      const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
 
-        const currentMode = useSimulationStore.getState().clusterMode;
-        const speedMult = targetRPS >= 1000 ? 1.45 : targetRPS >= 180 ? 1.22 : 1.0;
+      if (!isPaused && currentMode === 'dummy' && currentLbOnline) {
+        const visualEmitRate =
+          targetRPS <= 12
+            ? 3.2
+            : targetRPS <= 45
+            ? 7.5
+            : targetRPS <= 180
+            ? 14
+            : targetRPS <= 1000
+            ? 22
+            : 30;
 
-        if (currentMode === 'dummy' && currentLbOnline) {
-          const visualEmitRate =
-            targetRPS <= 12
-              ? 3.2
-              : targetRPS <= 45
-              ? 7.5
-              : targetRPS <= 180
-              ? 14
-              : targetRPS <= 1000
-              ? 22
-              : 30;
+        spawnAccumulator += dt * visualEmitRate;
+        let attempts = 0;
+        while (spawnAccumulator >= 1.0 && attempts < nClients * 2) {
+          spawnAccumulator -= 1.0;
+          attempts++;
+          const cIdx = clientCursor % nClients;
+          clientCursor++;
+          const client = STATE.clients[cIdx];
+          const pType = client && client.dashed ? 2 : 0;
+          spawnPacket(clientRouteIndices[cIdx], pType, 1, speedMult, cIdx, false);
+        }
+        if (spawnAccumulator > 3) spawnAccumulator = 0;
+      } else {
+        spawnAccumulator = 0;
+      }
 
-          spawnAccumulator += dt * visualEmitRate;
-          let attempts = 0;
-          while (spawnAccumulator >= 1.0 && attempts < nClients * 2) {
-            spawnAccumulator -= 1.0;
-            attempts++;
-            const cIdx = clientCursor % nClients;
-            clientCursor++;
-            const client = STATE.clients[cIdx];
-            const pType = client && client.dashed ? 2 : 0;
-            spawnPacket(clientRouteIndices[cIdx], pType, 1, speedMult, cIdx, false);
-          }
-          if (spawnAccumulator > 3) spawnAccumulator = 0;
-        } else {
-          // Live Azure Mode: paced queue emission -> silky smooth evenly spaced dots, zero clumping
-          spawnAccumulator = 0;
-          for (let c = 0; c < nClients; c++) {
-            clientCooldowns[c] = Math.max(0, clientCooldowns[c] - dt);
-          }
-          const minGapSec = livePacketQueue.length > 14 ? 0.065 : livePacketQueue.length > 5 ? 0.095 : 0.12;
-          let spawnedThisFrame = 0;
-          while (livePacketQueue.length > 0 && spawnedThisFrame < nClients) {
-            let pickedClient = -1;
-            for (let scan = 0; scan < nClients; scan++) {
-              const cand = (clientCursor + scan) % nClients;
-              const rC = clientRouteIndices[cand];
-              if (clientCooldowns[cand] <= 0 && rC !== undefined && canSpawnOnRoute(rC, 1)) {
-                pickedClient = cand;
-                break;
-              }
-            }
-            if (pickedClient === -1) break;
-            clientCursor = (pickedClient + 1) % (nClients || 1);
-            const item = livePacketQueue.shift();
-            const rC = clientRouteIndices[pickedClient];
-            const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
-            const pType = !item.isSuccess ? 3 : 0;
-            spawnPacket(rC, pType, 1, 1.18, pickedClient, false, item.sIdx, flags, item.latency || 0);
-            clientCooldowns[pickedClient] = minGapSec;
-            spawnedThisFrame++;
+      // Always drain queued request animations (live SSE/HTTP events + manual 1-Req/Burst in Dummy mode)
+      for (let c = 0; c < nClients; c++) {
+        clientCooldowns[c] = Math.max(0, clientCooldowns[c] - dt);
+      }
+      const minGapSec = livePacketQueue.length > 14 ? 0.065 : livePacketQueue.length > 5 ? 0.095 : 0.12;
+      let spawnedThisFrame = 0;
+      while (livePacketQueue.length > 0 && spawnedThisFrame < nClients) {
+        let pickedClient = -1;
+        for (let scan = 0; scan < nClients; scan++) {
+          const cand = (clientCursor + scan) % nClients;
+          const rC = clientRouteIndices[cand];
+          if (clientCooldowns[cand] <= 0 && rC !== undefined && canSpawnOnRoute(rC, 1)) {
+            pickedClient = cand;
+            break;
           }
         }
+        if (pickedClient === -1) break;
+        clientCursor = (pickedClient + 1) % (nClients || 1);
+        const item = livePacketQueue.shift();
+        const rC = clientRouteIndices[pickedClient];
+        const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
+        const pType = !item.isSuccess ? 3 : 0;
+        spawnPacket(rC, pType, 1, 1.18, pickedClient, false, item.sIdx, flags, item.latency || 0);
+        clientCooldowns[pickedClient] = minGapSec;
+        spawnedThisFrame++;
+      }
 
+      if (!isPaused || activeSlots.length > 0) {
         for (let k = activeSlots.length - 1; k >= 0; k--) {
           const i = activeSlots[k];
 
@@ -4528,7 +4573,11 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
                   if (route && sRoute) {
                     triggerLBSwitchingArc(route.endPt, sRoute.startPt);
                   }
-                  spawnPacket(sRouteIdx, isErr ? 3 : 0, 1, 1.18, originC, true, targetSrv, flags, latMs);
+                  const algoNow = ALGORITHMS[currentAlgoIdx];
+                  const lcSpeed = currentMode === 'dummy' && algoNow === 'LEAST CONN'
+                    ? [1.08, 0.72, 1.28][targetSrv % 3]
+                    : 1.18;
+                  spawnPacket(sRouteIdx, isErr ? 3 : 0, 1, lcSpeed, originC, true, targetSrv, flags, latMs);
                 } else {
                   spawnPacket(clientRouteIndices[originC] ?? rIdx, 3, -1, 1.15, originC, true, -1, flags | 2, latMs);
                 }
@@ -4537,12 +4586,19 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
               const srvIdx = rIdx - nClients;
               const srv = STATE.servers[srvIdx];
               if (srv && srv.healthy && !isErr) {
+                if (currentMode === 'dummy') {
+                  srv.totalRequests = (srv.totalRequests || 0) + 1;
+                }
                 const msVal = Math.round(latMs || srv.avgLatency || 0);
                 const prefix = isDirect ? 'DIRECT 200' : '200 OK';
                 const latText = msVal > 0 ? `${prefix} · ${msVal}ms` : prefix;
                 triggerNodeImpact(srv.id, route ? route.endPt : null, palette.rippleReq, latText);
+                const algoNow = ALGORITHMS[currentAlgoIdx];
+                const retSpeed = currentMode === 'dummy' && algoNow === 'LEAST CONN'
+                  ? [1.08, 0.72, 1.28][srvIdx % 3]
+                  : 1.18;
                 // Smooth green return response packet Server -> LB
-                spawnPacket(rIdx, 1, -1, 1.18, originC, true, srvIdx, flags, latMs);
+                spawnPacket(rIdx, 1, -1, retSpeed, originC, true, srvIdx, flags, latMs);
               } else if (srv) {
                 triggerNodeImpact(srv.id, route ? route.endPt : null, '#ef4444', '503 CRASHED');
                 spawnPacket(rIdx, 3, -1, 1.18, originC, true, srvIdx, flags | 2, latMs);
@@ -4575,21 +4631,19 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         }
 
         metricTimer += dt;
-        if (currentMode === 'dummy' && metricTimer >= 1.0) {
+        if (currentMode === 'dummy' && metricTimer >= 0.65) {
           metricTimer = 0;
           const healthyCount = STATE.servers.filter((s) => s.healthy).length || 1;
           const loadShare = Math.round(
             (3 / healthyCount) * (targetRPS >= 1000 ? 22 : targetRPS >= 180 ? 14 : targetRPS >= 45 ? 6 : 0)
           );
-          const connMult = targetRPS >= 5000 ? 14 : targetRPS >= 1000 ? 7 : targetRPS >= 180 ? 3 : 1;
 
           STATE.servers.forEach((srv, idx) => {
             if (!srv.healthy) return;
-            const baseCpu = 34 + ((idx * 11) % 28);
-            const jitter = Math.floor(Math.random() * 7) - 3;
-            srv.cpu = Math.min(99, Math.max(12, baseCpu + loadShare + jitter));
-            const baseConn = 12 + ((idx * 3) % 10);
-            srv.connections = Math.round(baseConn * connMult * (3 / healthyCount) + Math.floor(Math.random() * 4));
+            const liveConns = getActiveServerInFlight(idx);
+            const targetCpu = Math.min(99, Math.max(12, 16 + liveConns * 9 + loadShare));
+            srv.cpu = Math.round((srv.cpu || 20) * 0.55 + targetCpu * 0.45);
+            srv.connections = liveConns;
           });
           refreshServerPillsUI();
         }
@@ -4692,12 +4746,19 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
         st.servers.forEach((s, i) => {
           const nextHealthy = s.status === 'healthy';
           const healthChanged = STATE.servers[i].healthy !== nextHealthy;
+          STATE.servers[i].storeId = s.id;
           STATE.servers[i].name = s.name;
+          STATE.servers[i].publicIp = s.publicIp || s.ip || STATE.servers[i].publicIp;
           STATE.servers[i].cpu = s.cpu ?? 25;
           STATE.servers[i].connections = s.activeConnections ?? 0;
           STATE.servers[i].totalRequests = s.totalRequests ?? 0;
           STATE.servers[i].avgLatency = s.avgLatency ?? 0;
           STATE.servers[i].status = s.status || 'healthy';
+          const refs = serverNodeRefs.get(STATE.servers[i].id);
+          if (refs?.block) {
+            if (refs.block.t1) refs.block.t1.textContent = s.name;
+            if (refs.block.subEl) refs.block.subEl.textContent = STATE.servers[i].publicIp || '';
+          }
           if (healthChanged) {
             toggleServerHealth(i, nextHealthy);
           } else {
@@ -4712,10 +4773,10 @@ export const LoadBalancerVisualizer = memo(function LoadBalancerVisualizer({ the
     });
     
     const onLbPacketEvent = (e) => {
-      const { serverId, isSuccess, directNoLb, latency } = e.detail || {};
+      const { serverId, isSuccess, directNoLb, latency, fromTick } = e.detail || {};
+      if (fromTick && useSimulationStore.getState().clusterMode === 'dummy') return;
       const nServers = STATE.servers.length;
       if (nServers === 0) return;
-      isPaused = false;
 
       let sIdx = STATE.servers.findIndex((s, idx) =>
         s.id === serverId ||

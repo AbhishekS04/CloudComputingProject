@@ -191,7 +191,7 @@ export const useSimulationStore = create((set, get) => ({
       algorithmManager.reset();
       set({ algorithm });
       const baseUrl = getGatewayUrl();
-      if (baseUrl) {
+      if (baseUrl && get().clusterMode === 'live') {
         const backendAlgo = algorithm.toLowerCase();
         fetch(`${baseUrl}/api/algorithm`, {
           method: 'POST',
@@ -282,7 +282,7 @@ export const useSimulationStore = create((set, get) => ({
 
   toggleServerStatus: (serverId) => {
     const baseUrl = getGatewayUrl();
-    if (baseUrl) {
+    if (baseUrl && get().clusterMode === 'live') {
       fetch(`${baseUrl}/api/servers/${serverId}/toggle`, { method: 'POST' }).catch(() => {});
     }
     const servers = get().servers.map((s) => {

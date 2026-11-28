@@ -2,7 +2,7 @@ import { useSimulationStore } from '../store/simulationStore';
 import { generateMockRequest } from './trafficGenerator';
 import { algorithmManager } from './loadBalancingAlgorithms';
 import { calculateServerLatency } from '../utils/calculations';
-import { getGatewayUrl, subscribeGatewayChange } from '../lib/gatewayConfig';
+import { getGatewayUrl, getGatewayHost, getVmBaseUrl, subscribeGatewayChange } from '../lib/gatewayConfig';
 
 const SERVER_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4'];
 
@@ -83,8 +83,13 @@ class SimulationEngine {
     this.deltaFlushTimer = null;
     this.seenRequestIds = new Set();
     this.unsubscribeGateway = null;
-    this.syncFailCount = 0;        // consecutive sync failure counter
-    this.OFFLINE_THRESHOLD = 3;    // mark offline only after 3 consecutive failures
+    this.syncFailCount = 0;        // consecutive /api/servers sync failure counter
+    this.lbProbeFailCount = 0;     // consecutive /gateway-health probe failure counter
+    this.vmFailCounts = {};        // consecutive direct/Rust health probe failure counter per VM id
+    this.isProbing = false;
+    this.probeIntervalId = null;
+    this.localProbeUnavailable = false;
+    this.OFFLINE_THRESHOLD = 2;    // mark offline after 2 consecutive failures (~4-5s)
   }
 
   start() {
@@ -92,13 +97,19 @@ class SimulationEngine {
     this.lastSecondTime = Date.now();
 
     this.syncFromBackend();
+    this.probeClusterHealth();
     this.syncIntervalId = setInterval(() => this.syncFromBackend(), 2500);
+    this.probeIntervalId = setInterval(() => this.probeClusterHealth(), 2500);
     this.initEventStream();
     this.initBridgeStream();
     if (!this.unsubscribeGateway) {
       this.unsubscribeGateway = subscribeGatewayChange(() => {
+        this.syncFailCount = 0;
+        this.lbProbeFailCount = 0;
+        this.vmFailCounts = {};
         this.initEventStream();
         this.syncFromBackend();
+        this.probeClusterHealth();
       });
     }
 
@@ -117,6 +128,10 @@ class SimulationEngine {
     if (this.syncIntervalId) {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
+    }
+    if (this.probeIntervalId) {
+      clearInterval(this.probeIntervalId);
+      this.probeIntervalId = null;
     }
     if (this.eventRetryTimer) {
       clearTimeout(this.eventRetryTimer);
@@ -412,15 +427,33 @@ class SimulationEngine {
     }));
   }
 
+  markLbOfflineState() {
+    const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
+    useSimulationStore.setState((state) => ({
+      lbOnline: false,
+      servers: bridgeActive
+        ? state.servers
+        : state.servers.map((s) => ({
+            ...s,
+            activeConnections: 0,
+            cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
+          })),
+      metrics: {
+        ...state.metrics,
+        currentRps: bridgeActive ? state.metrics.currentRps : 0,
+        activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
+      }
+    }));
+  }
+
   async syncFromBackend() {
     const store = useSimulationStore.getState();
     const baseUrl = getGatewayUrl();
     if (store.clusterMode !== 'live' || !baseUrl || this.isSyncing) return;
 
     this.isSyncing = true;
-    // Increased timeout: 12s gives Azure VM more room under load
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 12000);
+    const timeoutId = setTimeout(() => ctrl.abort(), 5500);
 
     try {
       const [serversRes, statsRes] = await Promise.all([
@@ -429,30 +462,15 @@ class SimulationEngine {
       ]);
       if (!serversRes.ok || !statsRes.ok) {
         this.syncFailCount = (this.syncFailCount || 0) + 1;
-        // Only flip OFFLINE after OFFLINE_THRESHOLD consecutive failures
         if (this.syncFailCount >= this.OFFLINE_THRESHOLD) {
-          const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
-          useSimulationStore.setState((state) => ({
-            lbOnline: false,
-            servers: bridgeActive
-              ? state.servers
-              : state.servers.map((s) => ({
-                  ...s,
-                  activeConnections: 0,
-                  cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
-                })),
-            metrics: {
-              ...state.metrics,
-              currentRps: bridgeActive ? state.metrics.currentRps : 0,
-              activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
-            }
-          }));
+          this.markLbOfflineState();
         }
         return;
       }
 
-      // Success — reset failure counter immediately
+      // Success — reset failure counters immediately
       this.syncFailCount = 0;
+      this.lbProbeFailCount = 0;
       const wasLbOffline = !useSimulationStore.getState().lbOnline;
       if (wasLbOffline && !this.eventSource && !baseUrl.startsWith('/')) {
         this.initEventStream();
@@ -462,14 +480,26 @@ class SimulationEngine {
       const statsData = await statsRes.json();
       const rawServers = Array.isArray(serversData) ? serversData : (serversData.servers || []);
 
+      const backendAlgoRaw = String(statsData?.algorithm || '').toUpperCase();
+      const validBackendAlgo = ['ROUND_ROBIN', 'LEAST_CONNECTIONS', 'IP_HASH'].includes(backendAlgoRaw)
+        ? backendAlgoRaw
+        : null;
+
       useSimulationStore.setState((state) => {
         if (state.clusterMode !== 'live') return state;
         const existingMap = Object.fromEntries(state.servers.map((s) => [s.id, s]));
-        const mappedServers = rawServers.map((srv, idx) => mapBackendServer(srv, idx, existingMap[srv.id]));
+        const mappedServers = rawServers.map((srv, idx) => {
+          const mapped = mapBackendServer(srv, idx, existingMap[srv.id]);
+          if (mapped.status === 'healthy' && (this.vmFailCounts[mapped.id] || 0) >= this.OFFLINE_THRESHOLD) {
+            return { ...mapped, status: 'failed', activeConnections: 0, cpu: 0 };
+          }
+          return mapped;
+        });
 
         return {
           lbOnline: true,
           lbPaused: Boolean(statsData?.lb_paused),
+          ...(validBackendAlgo ? { algorithm: validBackendAlgo } : {}),
           servers: mappedServers,
           metrics: {
             ...state.metrics,
@@ -481,30 +511,176 @@ class SimulationEngine {
           }
         };
       });
-    } catch (err) {
+    } catch {
       this.syncFailCount = (this.syncFailCount || 0) + 1;
-      // Only mark OFFLINE after OFFLINE_THRESHOLD consecutive failures (transient jitter ignored)
       if (this.syncFailCount >= this.OFFLINE_THRESHOLD) {
-        const bridgeActive = Date.now() - (this.lastBridgeEventAt || 0) < 2500;
-        useSimulationStore.setState((state) => ({
-          lbOnline: false,
-          servers: bridgeActive
-            ? state.servers
-            : state.servers.map((s) => ({
-                ...s,
-                activeConnections: 0,
-                cpu: s.status === 'healthy' ? Math.max(12, Math.min(25, s.cpu || 18)) : 0
-              })),
-          metrics: {
-            ...state.metrics,
-            currentRps: bridgeActive ? state.metrics.currentRps : 0,
-            activeConnectionsTotal: bridgeActive ? state.metrics.activeConnectionsTotal : 0
-          }
-        }));
+        this.markLbOfflineState();
       }
     } finally {
       clearTimeout(timeoutId);
       this.isSyncing = false;
+    }
+  }
+
+  /**
+   * Continuous independent Azure health probe (Rust bifrost-probe in dev, or direct /gateway-health + /vm-api/:id/health).
+   * Ensures both backend VMs and the LB-VM accurately reflect ON/OFF state if shut down from Azure Portal.
+   */
+  async probeClusterHealth() {
+    const store = useSimulationStore.getState();
+    const baseUrl = getGatewayUrl();
+    if (store.clusterMode !== 'live' || !baseUrl || this.isProbing) return;
+
+    this.isProbing = true;
+    try {
+      const host = getGatewayHost(baseUrl);
+      const isDefaultAzure = baseUrl === '/lb-api' || host === '20.244.34.101:5000';
+
+      if (typeof window !== 'undefined' && isDefaultAzure && !this.localProbeUnavailable) {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 3200);
+        try {
+          const res = await fetch('/__probe/cluster-health', { cache: 'no-store', signal: ctrl.signal });
+          const ct = res.headers.get('content-type') || '';
+          if (res.ok && ct.includes('application/json')) {
+            const snap = await res.json();
+            if (snap && Array.isArray(snap.servers)) {
+              this.applyClusterProbeSnapshot({
+                lbOnline: snap.lb ? Boolean(snap.lb.online) : null,
+                lbPaused: snap.lb ? Boolean(snap.lb.paused) : null,
+                servers: snap.servers,
+              });
+              return;
+            }
+          }
+          // Non-JSON (e.g. SPA HTML rewrite on Vercel) or 404: disable local dev probe endpoint
+          this.localProbeUnavailable = true;
+        } catch {
+          // Fall back to HTTP probe below if dev bridge endpoint is unavailable
+        } finally {
+          clearTimeout(tid);
+        }
+      }
+
+      // Production / HTTPS proxy / custom gateway probe
+      const useLocalProxy =
+        typeof window !== 'undefined' &&
+        (window.location?.protocol === 'https:' || import.meta.env.DEV);
+
+      const probeTarget = async (url) => {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 3000);
+        try {
+          const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+          const ct = res.headers.get('content-type') || '';
+          if (res.status === 404 || ct.includes('text/html')) {
+            return { known: false };
+          }
+          const body = ct.includes('application/json') ? await res.json().catch(() => ({})) : {};
+          return {
+            known: true,
+            ok: res.ok,
+            paused: Boolean(body?.paused || body?.status === 'paused'),
+          };
+        } catch {
+          return { known: true, ok: false, paused: false };
+        } finally {
+          clearTimeout(tid);
+        }
+      };
+
+      const lbPromise = probeTarget(`${baseUrl}/gateway-health`);
+      const vmPromises = (isDefaultAzure ? store.servers : []).map(async (srv) => {
+        const vmUrl =
+          useLocalProxy && ['server-1', 'server-2', 'server-3'].includes(srv.id)
+            ? `/vm-api/${srv.id}/health`
+            : `${getVmBaseUrl(srv)}/health`;
+        const outcome = await probeTarget(vmUrl);
+        return { id: srv.id, ...outcome };
+      });
+
+      const [lbResult, ...vmResults] = await Promise.all([lbPromise, ...vmPromises]);
+      this.applyClusterProbeSnapshot({
+        lbOnline: lbResult.known ? lbResult.ok : null,
+        lbPaused: lbResult.known && lbResult.ok ? lbResult.paused : null,
+        servers: vmResults
+          .filter((r) => r.known)
+          .map((r) => ({ id: r.id, healthy: r.ok })),
+      });
+    } finally {
+      this.isProbing = false;
+    }
+  }
+
+  applyClusterProbeSnapshot({ lbOnline, lbPaused, servers }) {
+    const state = useSimulationStore.getState();
+    if (state.clusterMode !== 'live') return;
+
+    if (lbOnline === true) {
+      this.lbProbeFailCount = 0;
+      this.syncFailCount = 0;
+      if (!state.lbOnline || (typeof lbPaused === 'boolean' && lbPaused !== state.lbPaused)) {
+        useSimulationStore.setState((prev) => ({
+          lbOnline: true,
+          ...(typeof lbPaused === 'boolean' ? { lbPaused } : {}),
+          metrics: prev.metrics,
+        }));
+      }
+    } else if (lbOnline === false) {
+      this.lbProbeFailCount = (this.lbProbeFailCount || 0) + 1;
+      if (this.lbProbeFailCount >= this.OFFLINE_THRESHOLD && state.lbOnline) {
+        this.markLbOfflineState();
+      }
+    }
+
+    if (!Array.isArray(servers) || servers.length === 0) return;
+
+    const probeMap = {};
+    for (const item of servers) {
+      if (!item?.id) continue;
+      if (item.healthy) {
+        this.vmFailCounts[item.id] = 0;
+      } else {
+        this.vmFailCounts[item.id] = (this.vmFailCounts[item.id] || 0) + 1;
+      }
+      probeMap[item.id] = item.healthy;
+    }
+
+    const latest = useSimulationStore.getState();
+    const isLbCurrentlyOnline = latest.lbOnline;
+    let changed = false;
+
+    const nextServers = latest.servers.map((srv) => {
+      if (!(srv.id in probeMap)) return srv;
+      const isUp = probeMap[srv.id];
+
+      if (!isUp) {
+        if ((this.vmFailCounts[srv.id] || 0) >= this.OFFLINE_THRESHOLD) {
+          // Preserve manual 'disabled' state when LB is online, otherwise reflect unreachable crash
+          if (isLbCurrentlyOnline && srv.status === 'disabled') return srv;
+          if (srv.status !== 'failed') {
+            changed = true;
+            return { ...srv, status: 'failed', activeConnections: 0, cpu: 0 };
+          }
+        }
+        return srv;
+      }
+
+      // Probe succeeded: when LB is offline, reflect actual VM availability directly
+      if (!isLbCurrentlyOnline && srv.status !== 'healthy') {
+        changed = true;
+        return {
+          ...srv,
+          status: 'healthy',
+          activeConnections: 0,
+          cpu: Math.max(12, Math.min(25, srv.cpu || 18)),
+        };
+      }
+      return srv;
+    });
+
+    if (changed) {
+      useSimulationStore.setState({ servers: nextServers });
     }
   }
 
@@ -522,7 +698,7 @@ class SimulationEngine {
       this.accumulator -= requestsToEmit;
 
       for (let i = 0; i < requestsToEmit; i++) {
-        this.dispatchSingleRequest();
+        this.dispatchSingleRequest({ fromTick: true });
       }
     } else {
       // Live Azure Mode: Traffic can be driven directly from the Browser Traffic Dispatcher
@@ -603,7 +779,7 @@ class SimulationEngine {
     }
   }
 
-  dispatchSingleRequest() {
+  dispatchSingleRequest({ fromTick = false } = {}) {
     const store = useSimulationStore.getState();
     const mockReq = generateMockRequest();
     const selectedServer = algorithmManager.selectServer(
@@ -655,6 +831,7 @@ class SimulationEngine {
             clientIp: mockReq.clientIp,
             isSuccess,
             latency,
+            fromTick,
             publicIp: selectedServer.publicIp || selectedServer.ip,
             privateIp: selectedServer.privateIp,
             timestamp: Date.now()

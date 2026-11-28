@@ -56,11 +56,13 @@ export const ALGORITHM_INFO = {
 class LoadBalancingAlgorithmManager {
   constructor() {
     this.roundRobinIndex = 0;
+    this.leastConnTieIndex = 0;
     this.weightedCurrentWeights = {};
   }
 
   reset() {
     this.roundRobinIndex = 0;
+    this.leastConnTieIndex = 0;
     this.weightedCurrentWeights = {};
   }
 
@@ -105,18 +107,16 @@ class LoadBalancingAlgorithmManager {
   }
 
   leastConnections(servers) {
-    let minServer = servers[0];
-    for (let i = 1; i < servers.length; i++) {
-      if (servers[i].activeConnections < minServer.activeConnections) {
-        minServer = servers[i];
-      } else if (servers[i].activeConnections === minServer.activeConnections) {
-        // Tie-breaker: lower CPU
-        if (servers[i].cpu < minServer.cpu) {
-          minServer = servers[i];
-        }
-      }
+    let minConns = Infinity;
+    for (const s of servers) {
+      const conns = s.activeConnections ?? 0;
+      if (conns < minConns) minConns = conns;
     }
-    return minServer;
+    const tied = servers.filter((s) => (s.activeConnections ?? 0) === minConns);
+    if (tied.length === 1) return tied[0];
+    const pick = tied[this.leastConnTieIndex % tied.length];
+    this.leastConnTieIndex = (this.leastConnTieIndex + 1) % tied.length;
+    return pick;
   }
 
   randomSelection(servers) {

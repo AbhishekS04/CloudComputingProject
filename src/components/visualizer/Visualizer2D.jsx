@@ -356,6 +356,7 @@ const Visualizer2D = memo(function Visualizer2D({
       clientCooldowns: new Float32Array(8),
       writeCursor: 0,
       rrCounter: 0,
+      lcTieCursor: 0,
       clientCursor: 0,
       spawnAcc: 0,
       metricAcc: 0,
@@ -696,6 +697,7 @@ const Visualizer2D = memo(function Visualizer2D({
   };
 
   const handleToggleServer = (srvIdx) => {
+    if (storeClusterMode === 'live') return;
     const targetSrv = layoutRef.current.positionedServers[srvIdx];
     if (!targetSrv) return;
     const willBeHealthy = !targetSrv.healthy;
@@ -755,8 +757,10 @@ const Visualizer2D = memo(function Visualizer2D({
   };
 
   const handleCycleAlgo = () => {
+    const storeAlgos = ['ROUND_ROBIN', 'LEAST_CONNECTIONS', 'IP_HASH'];
     const nextIdx = (algoIdx + 1) % ALGORITHMS.length;
     setAlgoIdx(nextIdx);
+    useSimulationStore.getState().setAlgorithm(storeAlgos[nextIdx] || 'ROUND_ROBIN');
     const { LB } = layoutRef.current;
     spawnToast(LB.x, LB.y - LB.h / 2 - 24, `MODE: ${ALGORITHMS[nextIdx]}`, paletteRef.current.toastModeBg, paletteRef.current.toastModeText);
   };
@@ -961,6 +965,27 @@ const Visualizer2D = memo(function Visualizer2D({
     let rafId;
     let lastTime = performance.now();
 
+    const hashClientKey = (str) => {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    };
+
+    const getActiveServerInFlight = (srvIdx) => {
+      const eng = engineRef.current;
+      const sRoute = layoutRef.current.serverRoutes[srvIdx];
+      if (!sRoute) return 0;
+      const targetRoute = sRoute.routeIdx;
+      let count = 0;
+      for (let i = 0; i < MAX_PACKETS; i++) {
+        if (eng.pktActive[i] && eng.pktRoute[i] === targetRoute) count++;
+      }
+      return count;
+    };
+
     const pickHealthyServerIdx = (clientIdx) => {
       const srvs = layoutRef.current.positionedServers;
       const healthy = [];
@@ -972,14 +997,28 @@ const Visualizer2D = memo(function Visualizer2D({
       const eng = engineRef.current;
       const algo = ALGORITHMS[stateRef.current.algoIdx];
       if (algo === 'LEAST CONN') {
-        let best = healthy[0];
-        for (let i = 1; i < healthy.length; i++) {
-          if (srvs[healthy[i]].conn < srvs[best].conn) best = healthy[i];
+        const inLiveMode = useSimulationStore.getState().clusterMode === 'live';
+        let minLoad = Infinity;
+        const loads = new Array(healthy.length);
+        for (let i = 0; i < healthy.length; i++) {
+          const sIdx = healthy[i];
+          const liveLoad = getActiveServerInFlight(sIdx) + (inLiveMode ? (srvs[sIdx].conn || 0) : 0);
+          loads[i] = liveLoad;
+          if (liveLoad < minLoad) minLoad = liveLoad;
         }
-        return best;
+        const tied = [];
+        for (let i = 0; i < healthy.length; i++) {
+          if (loads[i] === minLoad) tied.push(healthy[i]);
+        }
+        if (tied.length === 1) return tied[0];
+        const pick = tied[eng.lcTieCursor % tied.length];
+        eng.lcTieCursor++;
+        return pick;
       }
       if (algo === 'IP HASH') {
-        return healthy[clientIdx % healthy.length];
+        const cl = layoutRef.current.positionedClients[clientIdx];
+        const clientKey = cl?.ip || cl?.name || `client-${clientIdx}`;
+        return healthy[hashClientKey(clientKey) % healthy.length];
       }
       const pick = healthy[eng.rrCounter % healthy.length];
       eng.rrCounter++;
@@ -998,7 +1037,17 @@ const Visualizer2D = memo(function Visualizer2D({
       const nClients = positionedClients.length;
       const eng = engineRef.current;
 
-      if (!paused) {
+      let hasAnyActivePacket = eng.liveQueue.length > 0;
+      if (!hasAnyActivePacket) {
+        for (let i = 0; i < MAX_PACKETS; i++) {
+          if (eng.pktActive[i]) {
+            hasAnyActivePacket = true;
+            break;
+          }
+        }
+      }
+
+      if (!paused || hasAnyActivePacket) {
         // 1. Update Hooke's Law Spring Bounces
         const stiffness = 430;
         const damping = 23;
@@ -1094,11 +1143,11 @@ const Visualizer2D = memo(function Visualizer2D({
           el.setAttribute('opacity', ((1 - p) * 0.7).toFixed(2));
         }
 
-        // 2. Emit Client Requests (Dummy mode only)
+        // 2. Emit Client Requests (Dummy background stream when running + always drain manual/live queue)
         const currentMode = useSimulationStore.getState().clusterMode;
         const speedMult = rps >= 1000 ? 1.45 : rps >= 180 ? 1.22 : 1.0;
 
-        if (currentMode === 'dummy') {
+        if (!paused && currentMode === 'dummy') {
           const visualEmitRate =
             rps <= 12 ? 3.2 : rps <= 45 ? 7.5 : rps <= 180 ? 14 : rps <= 1000 ? 22 : 30;
 
@@ -1116,42 +1165,42 @@ const Visualizer2D = memo(function Visualizer2D({
           }
           if (eng.spawnAcc > 3) eng.spawnAcc = 0;
         } else {
-          // Live Azure Mode: paced queue emission -> silky smooth evenly spaced dots, zero clumping
           eng.spawnAcc = 0;
-          for (let c = 0; c < nClients; c++) {
-            eng.clientCooldowns[c] = Math.max(0, eng.clientCooldowns[c] - dt);
-          }
-          const minGapSec = eng.liveQueue.length > 14 ? 0.065 : eng.liveQueue.length > 5 ? 0.095 : 0.12;
-          let emitted = 0;
-          while (eng.liveQueue.length > 0 && emitted < nClients && nClients > 0) {
-            let picked = -1;
-            for (let scan = 0; scan < nClients; scan++) {
-              const cand = (eng.clientCursor + scan) % nClients;
-              const cr = clientRoutes[cand];
-              let laneClear = true;
-              if (cr) {
-                for (let k = 0; k < MAX_PACKETS; k++) {
-                  if (eng.pktActive[k] && eng.pktRoute[k] === cr.routeIdx && eng.pktDir[k] === 1 && eng.pktU[k] < 0.14) {
-                    laneClear = false;
-                    break;
-                  }
+        }
+
+        for (let c = 0; c < nClients; c++) {
+          eng.clientCooldowns[c] = Math.max(0, eng.clientCooldowns[c] - dt);
+        }
+        const minGapSec = eng.liveQueue.length > 14 ? 0.065 : eng.liveQueue.length > 5 ? 0.095 : 0.12;
+        let emitted = 0;
+        while (eng.liveQueue.length > 0 && emitted < nClients && nClients > 0) {
+          let picked = -1;
+          for (let scan = 0; scan < nClients; scan++) {
+            const cand = (eng.clientCursor + scan) % nClients;
+            const cr = clientRoutes[cand];
+            let laneClear = true;
+            if (cr) {
+              for (let k = 0; k < MAX_PACKETS; k++) {
+                if (eng.pktActive[k] && eng.pktRoute[k] === cr.routeIdx && eng.pktDir[k] === 1 && eng.pktU[k] < 0.14) {
+                  laneClear = false;
+                  break;
                 }
               }
-              if (eng.clientCooldowns[cand] <= 0 && cr && laneClear) {
-                picked = cand;
-                break;
-              }
             }
-            if (picked === -1) break;
-            eng.clientCursor = (picked + 1) % nClients;
-            const item = eng.liveQueue.shift();
-            const cr = clientRoutes[picked];
-            const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
-            const pType = !item.isSuccess ? 3 : 0;
-            spawnPacket(cr.routeIdx, pType, 1, 1.18, picked, false, item.sIdx, flags, item.latency || 0);
-            eng.clientCooldowns[picked] = minGapSec;
-            emitted++;
+            if (eng.clientCooldowns[cand] <= 0 && cr && laneClear) {
+              picked = cand;
+              break;
+            }
           }
+          if (picked === -1) break;
+          eng.clientCursor = (picked + 1) % nClients;
+          const item = eng.liveQueue.shift();
+          const cr = clientRoutes[picked];
+          const flags = (item.directNoLb ? 1 : 0) | (!item.isSuccess ? 2 : 0);
+          const pType = !item.isSuccess ? 3 : 0;
+          spawnPacket(cr.routeIdx, pType, 1, 1.18, picked, false, item.sIdx, flags, item.latency || 0);
+          eng.clientCooldowns[picked] = minGapSec;
+          emitted++;
         }
 
         // 3. Advance Active Packets Along LUTs
@@ -1207,7 +1256,11 @@ const Visualizer2D = memo(function Visualizer2D({
                     lbArcRef.current.setAttribute('opacity', '0.92');
                     eng.switchingArcFade = 0.28;
                   }
-                  spawnPacket(sRouteObj.routeIdx, isErr ? 3 : 0, 1, 1.18, originC, true, targetSrvIdx, flags, latMs);
+                  const algoNow = ALGORITHMS[stateRef.current.algoIdx];
+                  const lcSpeed = currentMode === 'dummy' && algoNow === 'LEAST CONN'
+                    ? [1.08, 0.72, 1.28][targetSrvIdx % 3]
+                    : 1.18;
+                  spawnPacket(sRouteObj.routeIdx, isErr ? 3 : 0, 1, lcSpeed, originC, true, targetSrvIdx, flags, latMs);
                 } else if (clientRoutes[originC]) {
                   spawnPacket(clientRoutes[originC].routeIdx, 3, -1, 1.15, originC, true, -1, flags | 2, latMs);
                 }
@@ -1221,7 +1274,11 @@ const Visualizer2D = memo(function Visualizer2D({
                 const msVal = Math.round(latMs || 0);
                 const label = msVal > 0 ? `${isDirect ? 'DIRECT 200' : '200 OK'} · ${msVal}ms` : '200 OK';
                 triggerNodeImpact(srv.id, route ? route.endPt : null, paletteRef.current.rippleReq, label);
-                spawnPacket(rIdx, 1, -1, 1.18, originC, true, srvIdx, flags, latMs);
+                const algoNow = ALGORITHMS[stateRef.current.algoIdx];
+                const retSpeed = currentMode === 'dummy' && algoNow === 'LEAST CONN'
+                  ? [1.08, 0.72, 1.28][srvIdx % 3]
+                  : 1.18;
+                spawnPacket(rIdx, 1, -1, retSpeed, originC, true, srvIdx, flags, latMs);
               } else if (srv) {
                 triggerNodeImpact(srv.id, route ? route.endPt : null, '#ef4444', '503 CRASHED');
                 spawnPacket(rIdx, 3, -1, 1.18, originC, true, srvIdx, flags | 2, latMs);
@@ -1251,7 +1308,7 @@ const Visualizer2D = memo(function Visualizer2D({
         // 4. Periodic Telemetry Update (Dummy simulation mode only — never overwrite Azure telemetry in live mode)
         if (currentMode === 'dummy') {
           eng.metricAcc += dt;
-          if (eng.metricAcc >= 0.95) {
+          if (eng.metricAcc >= 0.65) {
             eng.metricAcc = 0;
             const srvs = stateRef.current.servers;
             const healthyCount = srvs.filter((s) => s.healthy).length;
@@ -1259,19 +1316,14 @@ const Visualizer2D = memo(function Visualizer2D({
             const loadShare = Math.round(
               (3 / hDenom) * (rps >= 1000 ? 22 : rps >= 180 ? 14 : rps >= 45 ? 6 : 0)
             );
-            const connMult = rps >= 5000 ? 14 : rps >= 1000 ? 7 : rps >= 180 ? 3 : 1;
 
             setServers((prev) =>
               prev.map((s, idx) => {
                 if (!s.healthy) return s;
-                const baseCpu = 44 + ((idx * 11) % 26);
-                const jitter = Math.floor(Math.random() * 7) - 3;
-                const nextCpu = Math.min(98, Math.max(14, baseCpu + loadShare + jitter));
-                const nextConn = Math.max(
-                  4,
-                  Math.round((10 + ((idx * 3) % 9)) * connMult * (3 / hDenom)) + Math.floor(Math.random() * 3)
-                );
-                return { ...s, cpu: nextCpu, conn: nextConn };
+                const liveConns = getActiveServerInFlight(idx);
+                const targetCpu = Math.min(98, Math.max(12, 16 + liveConns * 9 + loadShare));
+                const nextCpu = Math.round((s.cpu || 20) * 0.55 + targetCpu * 0.45);
+                return { ...s, cpu: nextCpu, conn: liveConns };
               })
             );
 
@@ -1366,7 +1418,8 @@ const Visualizer2D = memo(function Visualizer2D({
     const onLbPacketEvent = (e) => {
       const eng = engineRef.current;
       if (!eng) return;
-      const { serverId, isSuccess, directNoLb, latency } = e.detail || {};
+      const { serverId, isSuccess, directNoLb, latency, fromTick } = e.detail || {};
+      if (fromTick && useSimulationStore.getState().clusterMode === 'dummy') return;
       const srvs = stateRef.current.servers;
       if (!srvs || srvs.length === 0) return;
       let targetIdx = srvs.findIndex((s, idx) =>
@@ -1983,11 +2036,13 @@ const Visualizer2D = memo(function Visualizer2D({
                 <g
                   key={s.id}
                   transform={`translate(${s.x - s.w / 2}, ${s.y - s.h / 2})`}
-                  className="cursor-pointer"
+                  className={storeClusterMode === 'live' ? 'cursor-default' : 'cursor-pointer'}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onSelectNode) onSelectNode({ type: "server", id: s.id, data: s });
-                    handleToggleServer(idx);
+                    if (storeClusterMode !== 'live') {
+                      handleToggleServer(idx);
+                    }
                   }}
                 >
                   <g ref={(el) => (serverBounceRefs.current[s.id] = el)}>
